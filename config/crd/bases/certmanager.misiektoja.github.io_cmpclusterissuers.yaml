@@ -1,0 +1,405 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: cmpclusterissuers.certmanager.misiektoja.github.io
+spec:
+  group: certmanager.misiektoja.github.io
+  names:
+    kind: CMPClusterIssuer
+    listKind: CMPClusterIssuerList
+    plural: cmpclusterissuers
+    singular: cmpclusterissuer
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CMPClusterIssuer is the Schema for the cmpclusterissuers API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of CMPClusterIssuer
+            properties:
+              cmpTrust:
+                description: CMPTrust configures trust anchors for CMP response protection
+                  and issued chains.
+                properties:
+                  caSecretRef:
+                    description: CASecretRef selects PEM-encoded trust anchors.
+                    properties:
+                      key:
+                        description: Key is the Secret data key.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name is the Secret name.
+                        minLength: 1
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                required:
+                - caSecretRef
+                type: object
+              endpoint:
+                description: Endpoint configures CMP transport behavior.
+                properties:
+                  maxResponseSize:
+                    default: 1048576
+                    description: MaxResponseSize is the maximum accepted CMP response
+                      body in bytes.
+                    format: int64
+                    maximum: 10485760
+                    minimum: 1024
+                    type: integer
+                  timeout:
+                    default: 30s
+                    description: Timeout bounds one HTTP exchange.
+                    type: string
+                  url:
+                    description: URL is the complete HTTP or HTTPS CMP endpoint URL.
+                    pattern: ^https?://[^[:space:]]+$
+                    type: string
+                required:
+                - maxResponseSize
+                - timeout
+                - url
+                type: object
+              policy:
+                description: Policy configures certificate acceptance decisions.
+                properties:
+                  grantedModifications:
+                    default: Reject
+                    description: GrantedModifications controls certificates returned
+                      with grantedWithMods.
+                    enum:
+                    - Reject
+                    - Accept
+                    type: string
+                required:
+                - grantedModifications
+                type: object
+              protection:
+                description: Protection configures the mandatory CMP message protection
+                  mode.
+                properties:
+                  passwordBasedMac:
+                    description: PasswordBasedMac configures shared-secret CMP protection.
+                    properties:
+                      algorithm:
+                        description: Algorithm configures PasswordBasedMac parameters
+                          without downgrade behavior.
+                        properties:
+                          iterationCount:
+                            default: 1024
+                            description: IterationCount selects the PBM iteration
+                              count.
+                            format: int32
+                            maximum: 1048575
+                            minimum: 100
+                            type: integer
+                          mac:
+                            default: HMACSHA256
+                            description: MAC selects the message authentication algorithm.
+                            enum:
+                            - HMACSHA256
+                            type: string
+                          owf:
+                            default: SHA256
+                            description: OWF selects the one-way function.
+                            enum:
+                            - SHA256
+                            type: string
+                        required:
+                        - iterationCount
+                        - mac
+                        - owf
+                        type: object
+                      referenceKey:
+                        default: reference
+                        description: ReferenceKey selects the reference value key
+                          in Secret data.
+                        type: string
+                      secretKey:
+                        default: secret
+                        description: SecretKey selects the shared secret key in Secret
+                          data.
+                        type: string
+                      secretRef:
+                        description: SecretRef names the Secret containing the reference
+                          and shared secret.
+                        properties:
+                          name:
+                            description: Name is the Secret name.
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - referenceKey
+                    - secretKey
+                    - secretRef
+                    type: object
+                  signature:
+                    description: Signature configures certificate-based CMP protection.
+                    properties:
+                      certificateKey:
+                        default: tls.crt
+                        description: CertificateKey selects the bootstrap certificate
+                          in Secret data.
+                        type: string
+                      chainKey:
+                        description: ChainKey optionally selects PEM-encoded bootstrap
+                          intermediates.
+                        type: string
+                      privateKeyKey:
+                        default: tls.key
+                        description: PrivateKeyKey selects the bootstrap private key
+                          in Secret data.
+                        type: string
+                      secretRef:
+                        description: SecretRef names the Secret containing bootstrap
+                          material.
+                        properties:
+                          name:
+                            description: Name is the Secret name.
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - certificateKey
+                    - privateKeyKey
+                    - secretRef
+                    type: object
+                  type:
+                    description: Type is the CMP message protection mode.
+                    enum:
+                    - PasswordBasedMac
+                    - Signature
+                    type: string
+                required:
+                - type
+                type: object
+                x-kubernetes-validations:
+                - message: exactly the protection configuration selected by type must
+                    be present
+                  rule: 'self.type == ''PasswordBasedMac'' ? has(self.passwordBasedMac)
+                    && !has(self.signature) : has(self.signature) && !has(self.passwordBasedMac)'
+              protocol:
+                description: Protocol configures the CMP operation and header identities.
+                properties:
+                  certProfile:
+                    description: CertProfile is an optional server-side certificate
+                      profile identifier.
+                    maxLength: 256
+                    type: string
+                  confirmation:
+                    default: Explicit
+                    description: Confirmation selects explicit certConf or requests
+                      implicit confirmation.
+                    enum:
+                    - Explicit
+                    - Implicit
+                    type: string
+                  initialEnrollment:
+                    default: P10CR
+                    description: InitialEnrollment selects the enrollment request
+                      body.
+                    enum:
+                    - P10CR
+                    - IR
+                    type: string
+                  recipient:
+                    description: Recipient is the RFC 4514 distinguished name for
+                      the CMP recipient.
+                    maxLength: 1024
+                    type: string
+                  sender:
+                    description: Sender is an optional RFC 4514 distinguished name
+                      for the CMP sender.
+                    maxLength: 1024
+                    type: string
+                  version:
+                    default: 2
+                    description: Version is the CMP protocol version number.
+                    enum:
+                    - 2
+                    format: int32
+                    type: integer
+                required:
+                - confirmation
+                - initialEnrollment
+                - recipient
+                - version
+                type: object
+              transaction:
+                description: Transaction bounds a CMP enrollment transaction.
+                properties:
+                  maximumDuration:
+                    default: 10m
+                    description: MaximumDuration bounds the complete transaction.
+                    type: string
+                  maximumPollInterval:
+                    default: 5m
+                    description: MaximumPollInterval limits server-requested long
+                      poll delays.
+                    type: string
+                  maximumPolls:
+                    default: 60
+                    description: MaximumPolls bounds asynchronous poll requests.
+                    format: int32
+                    maximum: 1000
+                    minimum: 1
+                    type: integer
+                  minimumPollInterval:
+                    default: 1s
+                    description: MinimumPollInterval limits server-requested short
+                      poll delays.
+                    type: string
+                required:
+                - maximumDuration
+                - maximumPollInterval
+                - maximumPolls
+                - minimumPollInterval
+                type: object
+              transport:
+                description: Transport configures optional TLS transport trust independently
+                  of CMP trust.
+                properties:
+                  tls:
+                    description: TLS configures HTTPS trust and reserves mTLS credentials
+                      for a later release.
+                    properties:
+                      caSecretRef:
+                        description: CASecretRef optionally selects PEM-encoded HTTPS
+                          trust anchors.
+                        properties:
+                          key:
+                            description: Key is the Secret data key.
+                            minLength: 1
+                            type: string
+                          name:
+                            description: Name is the Secret name.
+                            minLength: 1
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                      clientCertificateSecretRef:
+                        description: ClientCertificateSecretRef reserves a Secret
+                          for later mTLS support.
+                        properties:
+                          name:
+                            description: Name is the Secret name.
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    type: object
+                type: object
+            required:
+            - cmpTrust
+            - endpoint
+            - protection
+            - protocol
+            type: object
+          status:
+            description: status defines the observed state of CMPClusterIssuer
+            properties:
+              conditions:
+                description: Conditions represent the current issuer state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
