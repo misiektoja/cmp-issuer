@@ -1,0 +1,5 @@
+## Append samples of your project ##
+resources:
+- certmanager_v1alpha1_cmpissuer.yaml
+- certmanager_v1alpha1_cmpclusterissuer.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
