@@ -1,0 +1,31 @@
+apiVersion: certmanager.misiektoja.github.io/v1alpha1
+kind: CMPClusterIssuer
+metadata:
+  labels:
+    app.kubernetes.io/name: cmp-issuer
+    app.kubernetes.io/managed-by: kustomize
+  name: cmpclusterissuer-sample
+spec:
+  endpoint:
+    url: https://cmp.example.net/.well-known/cmp
+    timeout: 30s
+    maxResponseSize: 1048576
+  protocol:
+    version: 2
+    initialEnrollment: P10CR
+    recipient: CN=Example CMP CA,O=Example
+    confirmation: Explicit
+  protection:
+    type: Signature
+    signature:
+      secretRef:
+        name: cmp-bootstrap-identity
+      certificateKey: tls.crt
+      privateKeyKey: tls.key
+      chainKey: ca.crt
+  cmpTrust:
+    caSecretRef:
+      name: cmp-trust
+      key: ca.crt
+  policy:
+    grantedModifications: Reject
