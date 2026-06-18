@@ -1,0 +1,34 @@
+apiVersion: certmanager.misiektoja.github.io/v1alpha1
+kind: CMPIssuer
+metadata:
+  labels:
+    app.kubernetes.io/name: cmp-issuer
+    app.kubernetes.io/managed-by: kustomize
+  name: cmpissuer-sample
+spec:
+  endpoint:
+    url: https://cmp.example.net/.well-known/cmp
+    timeout: 30s
+    maxResponseSize: 1048576
+  protocol:
+    version: 2
+    initialEnrollment: P10CR
+    recipient: CN=Example CMP CA,O=Example
+    confirmation: Explicit
+  protection:
+    type: PasswordBasedMac
+    passwordBasedMac:
+      secretRef:
+        name: cmp-pbm-credentials
+      referenceKey: reference
+      secretKey: secret
+      algorithm:
+        owf: SHA256
+        mac: HMACSHA256
+        iterationCount: 1024
+  cmpTrust:
+    caSecretRef:
+      name: cmp-trust
+      key: ca.crt
+  policy:
+    grantedModifications: Reject
