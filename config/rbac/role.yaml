@@ -1,0 +1,47 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - certmanager.misiektoja.github.io
+  resources:
+  - cmpclusterissuers
+  - cmpissuers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - certmanager.misiektoja.github.io
+  resources:
+  - cmpclusterissuers/status
+  - cmpissuers/status
+  verbs:
+  - get
+  - patch
+  - update
