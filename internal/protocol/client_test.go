@@ -53,6 +53,8 @@ type mockOptions struct {
 	WrongTransactionID  bool
 	WrongNonce          bool
 	MismatchedSenderKID bool
+	OmitPKIConfCerts    bool
+	InvalidPKIConf      bool
 	HTTPStatus          int
 	ContentType         string
 }
@@ -224,7 +226,13 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			t.Errorf("protect response: %v", err)
 			return
 		}
+		if message.Body.Type == pkicmp.BodyTypeCertConf && options.OmitPKIConfCerts {
+			response.ExtraCerts = nil
+		}
 		if options.InvalidProtection {
+			response.Protection[0] ^= 0xff
+		}
+		if message.Body.Type == pkicmp.BodyTypeCertConf && options.InvalidPKIConf {
 			response.Protection[0] ^= 0xff
 		}
 		responseDER, err := response.MarshalBinary()
@@ -295,7 +303,7 @@ func TestEnrollP10CRSignatureProtection(t *testing.T) {
 	pki := newTestPKI(t)
 	bootstrapRoots := x509.NewCertPool()
 	bootstrapRoots.AddCert(pki.CACertificate)
-	server, state := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: -1, MismatchedSenderKID: true})
+	server, state := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: -1, MismatchedSenderKID: true, OmitPKIConfCerts: true})
 	defer server.Close()
 	request := baseEnrollmentRequest(t, pki, server.URL)
 	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
@@ -304,6 +312,22 @@ func TestEnrollP10CRSignatureProtection(t *testing.T) {
 	}
 	if state.count() != 2 {
 		t.Fatalf("expected P10CR and certConf, got %d messages", state.count())
+	}
+}
+
+// TestEnrollP10CRRejectsInvalidPKIConfWithRememberedSigner verifies signer reuse does not weaken confirmation protection.
+func TestEnrollP10CRRejectsInvalidPKIConfWithRememberedSigner(t *testing.T) {
+	pki := newTestPKI(t)
+	bootstrapRoots := x509.NewCertPool()
+	bootstrapRoots.AddCert(pki.CACertificate)
+	server, _ := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: -1, OmitPKIConfCerts: true, InvalidPKIConf: true})
+	defer server.Close()
+	request := baseEnrollmentRequest(t, pki, server.URL)
+	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
+	_, err := NewClient().EnrollP10CR(context.Background(), request)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != "badMessageCheck" {
+		t.Fatalf("expected protected pkiConf rejection, got %v", err)
 	}
 }
 
