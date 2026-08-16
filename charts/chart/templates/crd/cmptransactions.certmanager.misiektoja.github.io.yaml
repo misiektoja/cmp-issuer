@@ -1,0 +1,133 @@
+{{- if .Values.crd.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {{- if .Values.crd.keep }}
+    "helm.sh/resource-policy": keep
+    {{- end }}
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: cmptransactions.certmanager.misiektoja.github.io
+spec:
+  group: certmanager.misiektoja.github.io
+  names:
+    kind: CMPTransaction
+    listKind: CMPTransactionList
+    plural: cmptransactions
+    singular: cmptransaction
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.polls
+      name: Polls
+      type: integer
+    - jsonPath: .spec.deadline
+      name: Deadline
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          CMPTransaction records the state of one in-flight CMP transaction so that an asynchronous
+          enrollment survives a controller restart. It is created and removed by the controller and is
+          garbage collected with the CertificateRequest that owns it.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of CMPTransaction
+            properties:
+              certificateRequestName:
+                description: CertificateRequestName is the CertificateRequest this
+                  transaction enrolls.
+                maxLength: 253
+                type: string
+              certificateRequestUID:
+                description: CertificateRequestUID distinguishes a recreated CertificateRequest
+                  that reuses a name.
+                maxLength: 253
+                type: string
+              deadline:
+                description: Deadline is the instant after which the transaction is
+                  abandoned as failed.
+                format: date-time
+                type: string
+              transactionID:
+                description: TransactionID is the CMP transactionID that every message
+                  of this transaction carries.
+                format: byte
+                maxLength: 64
+                type: string
+            required:
+            - certificateRequestName
+            - certificateRequestUID
+            - deadline
+            - transactionID
+            type: object
+          status:
+            description: status defines the observed state of CMPTransaction
+            properties:
+              certReqID:
+                description: CertReqID is the certificate request identifier that
+                  the server polls against.
+                format: int64
+                type: integer
+              lastTransitionTime:
+                description: LastTransitionTime records when the phase last changed.
+                format: date-time
+                type: string
+              phase:
+                description: Phase reports whether the enrollment request is in flight
+                  or the server asked the client to poll.
+                enum:
+                - Enrolling
+                - Polling
+                type: string
+              polls:
+                description: |-
+                  Polls counts the pollReq messages already sent, which the maximumPolls limit bounds. The
+                  enrollment request that first received a waiting response is not counted.
+                format: int32
+                type: integer
+              recipNonce:
+                description: RecipNonce is the sender nonce of the last accepted response,
+                  echoed by the next request.
+                format: byte
+                maxLength: 64
+                type: string
+              responseSigner:
+                description: |-
+                  ResponseSigner is the DER encoded certificate that protected the last response. It is retained
+                  because servers such as NCM omit extraCerts and senderKID from later messages of a transaction.
+                format: byte
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- end }}
