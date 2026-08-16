@@ -1,0 +1,101 @@
+# Publishes the manager image and the release artifacts.
+# The workflow is inert until a version tag is pushed or it is dispatched by hand.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, for example v0.1.0"
+        required: true
+        type: string
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    name: Publish image and artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      # Creating the release and uploading its assets.
+      contents: write
+      # Pushing the manager image to the registry.
+      packages: write
+      # Signing the build provenance attestation with a short lived identity.
+      id-token: write
+      attestations: write
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Resolve the release version
+        id: release
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="${DISPATCH_VERSION:-$REF_NAME}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "image=${REGISTRY}/${GITHUB_REPOSITORY}:${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      - name: Build and push the multi architecture image
+        env:
+          IMG: ${{ steps.release.outputs.image }}
+        run: make docker-buildx IMG="$IMG" PLATFORMS=linux/amd64,linux/arm64
+
+      - name: Resolve the published image digest
+        id: digest
+        env:
+          IMG: ${{ steps.release.outputs.image }}
+        run: |
+          digest="$(docker buildx imagetools inspect "$IMG" --format '{{json .Manifest}}' | jq -r .digest)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest the build provenance of the image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+
+      - name: Build the installer manifest
+        env:
+          IMG: ${{ steps.release.outputs.image }}
+        run: make build-installer IMG="$IMG"
+
+      - name: Generate the software bill of materials
+        run: make sbom
+
+      - name: Package the Helm chart
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          make helm
+          ./bin/helm package charts/chart --destination dist --version "${VERSION#v}" --app-version "${VERSION}"
+
+      - name: Publish the release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          gh release create "$VERSION" --draft --generate-notes --title "$VERSION" || true
+          gh release upload "$VERSION" dist/install.yaml dist/cmp-issuer.cdx.json dist/cmp-issuer-*.tgz --clobber
