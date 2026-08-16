@@ -24,8 +24,9 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | Unverifiable confirmation response | Reuse only the response signer already validated against CMP trust when a server omits `extraCerts` and `senderKID` from `pkiConf`, and still reject invalid protection |
 | Redirect or header state injection | Disable HTTP redirects and derive transaction state only from authenticated CMP DER |
 | Resource exhaustion | Bound response size, timeouts, polling, transaction duration and request concurrency |
-| Replay after an ambiguous timeout | Durable transaction work will persist exact protected outbound DER before transmission |
-| Credential rotation mid-transaction | Durable transaction work will bind issuer and Secret resource versions to each transaction |
+| Duplicate enrollment after a restart | Record the transaction identifier in a `CMPTransaction` before the first message is sent, resume the recorded transaction on the next reconcile and retry an unanswered enrollment under the same identifier rather than starting a new one |
+| Replay after an ambiguous timeout | The exact protected outbound DER is not persisted, so an enrollment whose response never arrived is re-sent rather than replayed byte for byte, and only a server that enforces transaction identifiers can reject the repeat |
+| Credential rotation mid-transaction | Not addressed. Credentials are reloaded from the issuer on every reconcile, so a rotated shared secret invalidates the protection of an in-flight transaction and it fails within its configured `maximumDuration` |
 | Cross-namespace Secret reference | Secret references contain names and keys only. Namespace selection is fixed by issuer scope |
 | Malformed ASN.1 | Fail closed, fuzz parsers and keep the provisional parser behind project-owned interfaces |
 
