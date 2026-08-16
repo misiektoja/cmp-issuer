@@ -1,0 +1,52 @@
+name: Test Chart
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  test-chart:
+    permissions:
+      contents: read
+    name: Run on Ubuntu
+    runs-on: ubuntu-latest
+    env:
+      IMG: controller:latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Lint the chart
+        run: make helm-lint
+
+      - name: Create the Kind cluster
+        run: make setup-test-e2e
+
+      - name: Build and load the manager image
+        run: |
+          make docker-build
+          ./bin/kind load docker-image "$IMG" --name cmp-issuer-test-e2e
+
+      - name: Install cert-manager
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml
+          kubectl wait deployment.apps/cert-manager-webhook --for condition=Available --namespace cert-manager --timeout 5m
+
+      - name: Deploy the manager with Helm
+        run: make helm-deploy
+
+      - name: Check the release status
+        run: make helm-status
+
+      - name: Remove the Kind cluster
+        if: always()
+        run: make cleanup-test-e2e
