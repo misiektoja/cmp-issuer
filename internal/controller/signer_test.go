@@ -179,6 +179,10 @@ func TestValidateSpec(t *testing.T) {
 		{name: "relative endpoint", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.URL = "/cmp" }},
 		{name: "endpoint credentials", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.URL = "https://user@example.test/cmp" }},
 		{name: "unsupported operation", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.InitialEnrollment = "IR" }},
+		{name: "unsupported P10CR response certReqId", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			unsupported := int64(1)
+			spec.Protocol.P10CRResponseCertReqID = &unsupported
+		}},
 		{name: "profile not encoded", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.CertProfile = "profile" }},
 		{name: "same password key", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protection.PasswordBasedMac.SecretKey = testPasswordReferenceKey
@@ -252,6 +256,8 @@ func TestSignIgnoresPrivateKeySecretAnnotation(t *testing.T) {
 	protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{leaf}}}
 	signer := &Signer{KubeClient: recording, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace}
 	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
+	legacyCertReqID := cmpv1alpha1.P10CRResponseCertReqIDLegacyZero
+	issuer.Spec.Protocol.P10CRResponseCertReqID = &legacyCertReqID
 	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: "request", Namespace: testIssuerNamespace, Annotations: map[string]string{"cert-manager.io/private-key-secret-name": testUnrelatedPrivateKeySecret}}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
 	bundle, err := signer.Sign(context.Background(), request, issuer)
 	if err != nil || len(bundle.ChainPEM) == 0 {
@@ -264,5 +270,8 @@ func TestSignIgnoresPrivateKeySecretAnnotation(t *testing.T) {
 	}
 	if protocolClient.calls != 1 {
 		t.Fatalf("expected one protocol call, got %d", protocolClient.calls)
+	}
+	if protocolClient.request.ResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDLegacyZero {
+		t.Fatalf("expected legacy response certReqId, got %d", protocolClient.request.ResponseCertReqID)
 	}
 }
