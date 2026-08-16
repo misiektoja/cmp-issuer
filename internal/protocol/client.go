@@ -87,24 +87,24 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	certificate, candidates, implicitGranted, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
+	issued, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	if !PublicKeysEqual(csr.PublicKey, certificate.PublicKey) {
+	if !PublicKeysEqual(csr.PublicKey, issued.Certificate.PublicKey) {
 		return EnrollmentResult{}, security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
 	}
-	chain, err := validateAndOrderChain(certificate, candidates, request.CMPTrust)
+	chain, err := validateAndOrderChain(issued.Certificate, issued.Candidates, request.CMPTrust)
 	if err != nil {
 		return EnrollmentResult{}, security("validate issued chain", "signerNotTrusted", err)
 	}
-	if request.ImplicitConfirm && implicitGranted {
-		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(candidates), ExplicitConfirmation: false}, nil
+	if request.ImplicitConfirm && issued.ImplicitGranted {
+		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil
 	}
-	if err := exchangeConfirmation(ctx, httpClient, request, credentials, message, response, certificate, responseSigner); err != nil {
+	if err := exchangeConfirmation(ctx, httpClient, request, credentials, message, response, issued, responseSigner); err != nil {
 		return EnrollmentResult{}, err
 	}
-	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(candidates), ExplicitConfirmation: true}, nil
+	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: true, ResponseCertReqID: issued.CertReqID}, nil
 }
 
 // validateEnrollmentRequest rejects unsupported or unsafe transaction configurations.
@@ -254,54 +254,76 @@ func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) (*
 	return nil, fmt.Errorf("no response signer has a valid signature and chain")
 }
 
-// extractCP validates the P10CR response status and returns certificate candidates.
-func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, expectedCertReqID int64) (*x509.Certificate, []*x509.Certificate, bool, error) {
+// issuedCertificate contains the validated CP contents needed for trust validation and confirmation.
+type issuedCertificate struct {
+	Certificate     *x509.Certificate
+	Candidates      []*x509.Certificate
+	CertReqID       int64
+	ImplicitGranted bool
+}
+
+// extractCP validates the P10CR response status and returns the issued certificate with its candidates.
+func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, pinnedCertReqID *int64) (issuedCertificate, error) {
 	if response.Body.Type == pkicmp.BodyTypeError {
 		content, err := response.Body.Error()
 		if err != nil {
-			return nil, nil, false, permanent("parse error response", "badDataFormat", err)
+			return issuedCertificate{}, permanent("parse error response", "badDataFormat", err)
 		}
-		return nil, nil, false, classifyStatus(content.PKIStatusInfo)
+		return issuedCertificate{}, classifyStatus(content.PKIStatusInfo)
 	}
 	if response.Body.Type != pkicmp.BodyTypeCP {
-		return nil, nil, false, permanent("validate response body", "unsupportedBody", fmt.Errorf("expected CP response"))
+		return issuedCertificate{}, permanent("validate response body", "unsupportedBody", fmt.Errorf("expected CP response"))
 	}
 	reply, err := response.Body.CP()
 	if err != nil {
-		return nil, nil, false, permanent("parse CP", "badDataFormat", err)
+		return issuedCertificate{}, permanent("parse CP", "badDataFormat", err)
 	}
 	if len(reply.Response) != 1 {
-		return nil, nil, false, permanent("validate CP", "badRequest", fmt.Errorf("CP must contain exactly one CertResponse"))
+		return issuedCertificate{}, permanent("validate CP", "badRequest", fmt.Errorf("CP must contain exactly one CertResponse"))
 	}
 	certificateResponse := reply.Response[0]
-	if certificateResponse.CertReqID != expectedCertReqID {
-		return nil, nil, false, security("validate CP certReqId", "certReqIdMismatch", fmt.Errorf("P10CR CP certReqId must be %d but response contained %d", expectedCertReqID, certificateResponse.CertReqID))
+	if err := acceptResponseCertReqID(certificateResponse.CertReqID, pinnedCertReqID); err != nil {
+		return issuedCertificate{}, err
 	}
 	if certificateResponse.Status.Status == pkicmp.StatusWaiting {
-		return nil, nil, false, &Error{Kind: ErrorKindPending, Operation: "wait for certificate", Failure: "waiting", RequeueAfter: time.Second, Err: fmt.Errorf("server returned waiting but durable polling is not enabled")}
+		return issuedCertificate{}, &Error{Kind: ErrorKindPending, Operation: "wait for certificate", Failure: "waiting", RequeueAfter: time.Second, Err: fmt.Errorf("server returned waiting but durable polling is not enabled")}
 	}
 	if statusErr := classifyStatus(certificateResponse.Status); statusErr != nil {
-		return nil, nil, false, statusErr
+		return issuedCertificate{}, statusErr
 	}
 	if certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods && rejectGrantedMods {
-		return nil, nil, false, permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
+		return issuedCertificate{}, permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
 	}
 	if certificateResponse.CertifiedKeyPair == nil || certificateResponse.CertifiedKeyPair.CertOrEncCert.Certificate == nil {
-		return nil, nil, false, permanent("extract certificate", "badDataFormat", fmt.Errorf("CP does not contain a plaintext certificate"))
+		return issuedCertificate{}, permanent("extract certificate", "badDataFormat", fmt.Errorf("CP does not contain a plaintext certificate"))
 	}
 	certificate, err := certificateResponse.CertifiedKeyPair.CertOrEncCert.Certificate.Parse()
 	if err != nil {
-		return nil, nil, false, permanent("parse issued certificate", "badDataFormat", err)
+		return issuedCertificate{}, permanent("parse issued certificate", "badDataFormat", err)
 	}
 	candidates := make([]*x509.Certificate, 0, len(reply.CAPubs)+len(response.ExtraCerts))
 	for _, encoded := range append(reply.CAPubs, response.ExtraCerts...) {
 		parsed, err := encoded.Parse()
 		if err != nil {
-			return nil, nil, false, permanent("parse response certificate", "badDataFormat", err)
+			return issuedCertificate{}, permanent("parse response certificate", "badDataFormat", err)
 		}
 		candidates = append(candidates, parsed)
 	}
-	return certificate, candidates, responseGrantsImplicitConfirm(response), nil
+	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response)}, nil
+}
+
+// acceptResponseCertReqID enforces a pinned P10CR response identifier or the two interoperable values.
+func acceptResponseCertReqID(observed int64, pinned *int64) error {
+	if pinned != nil {
+		if observed != *pinned {
+			return security("validate CP certReqId", "certReqIdMismatch", fmt.Errorf("P10CR CP certReqId must be %d but response contained %d", *pinned, observed))
+		}
+		return nil
+	}
+	if observed != ResponseCertReqIDStandard && observed != ResponseCertReqIDLegacyZero {
+		return security("validate CP certReqId", "certReqIdUnsupported", fmt.Errorf("P10CR CP certReqId must be %d or %d but response contained %d", ResponseCertReqIDStandard, ResponseCertReqIDLegacyZero, observed))
+	}
+	return nil
 }
 
 // responseGrantsImplicitConfirm detects the reviewed implicitConfirm OID without hard-coding it.
@@ -361,12 +383,12 @@ func validateAndOrderChain(leaf *x509.Certificate, candidates []*x509.Certificat
 }
 
 // exchangeConfirmation sends certConf and requires a protected linked pkiConf response.
-func exchangeConfirmation(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, enrollmentRequest *pkicmp.PKIMessage, enrollmentResponse *pkicmp.PKIMessage, certificate *x509.Certificate, responseSigner *x509.Certificate) error {
-	certificateHash, err := certificateHash(certificate)
+func exchangeConfirmation(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, enrollmentRequest *pkicmp.PKIMessage, enrollmentResponse *pkicmp.PKIMessage, issued issuedCertificate, responseSigner *x509.Certificate) error {
+	certificateHash, err := certificateHash(issued.Certificate)
 	if err != nil {
 		return permanent("compute certificate hash", "badAlg", err)
 	}
-	confirmation := pkicmp.CertConfirmContent{{CertHash: certificateHash, CertReqID: request.ResponseCertReqID}}
+	confirmation := pkicmp.CertConfirmContent{{CertHash: certificateHash, CertReqID: issued.CertReqID}}
 	message := pkicmp.NewPKIMessage(pkicmp.NewCertConfBody(&confirmation), pkicmp.MessageOptions{Sender: enrollmentRequest.Header.Sender, Recipient: enrollmentRequest.Header.Recipient, TransactionID: enrollmentRequest.Header.TransactionID, RecipNonce: enrollmentResponse.Header.SenderNonce})
 	message.Header.SenderKID = append([]byte(nil), enrollmentRequest.Header.SenderKID...)
 	if err := credentials.Protect(message); err != nil {
