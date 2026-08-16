@@ -281,7 +281,23 @@ func TestSignIgnoresPrivateKeySecretAnnotation(t *testing.T) {
 	if protocolClient.calls != 1 {
 		t.Fatalf("expected one protocol call, got %d", protocolClient.calls)
 	}
-	if protocolClient.request.ResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDLegacyZero {
-		t.Fatalf("expected legacy response certReqId, got %d", protocolClient.request.ResponseCertReqID)
+	if protocolClient.request.ResponseCertReqID == nil || *protocolClient.request.ResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDLegacyZero {
+		t.Fatalf("expected pinned legacy response certReqId, got %v", protocolClient.request.ResponseCertReqID)
+	}
+}
+
+// TestSignLeavesResponseCertReqIDUnpinnedByDefault verifies an omitted issuer field forwards no pinned identifier.
+func TestSignLeavesResponseCertReqIDUnpinnedByDefault(t *testing.T) {
+	auth, trust, leaf := credentialSecrets(t, testIssuerNamespace)
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).Build()
+	protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{leaf}}}
+	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace}
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
+	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: "request", Namespace: testIssuerNamespace}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
+	if _, err := signer.Sign(context.Background(), request, issuer); err != nil {
+		t.Fatalf("Sign failed: %v", err)
+	}
+	if protocolClient.request.ResponseCertReqID != nil {
+		t.Fatalf("expected no pinned response certReqId, got %d", *protocolClient.request.ResponseCertReqID)
 	}
 }
