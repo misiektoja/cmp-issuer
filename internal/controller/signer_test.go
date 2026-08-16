@@ -214,6 +214,16 @@ func TestValidateSpec(t *testing.T) {
 	}
 }
 
+// TestValidateSpecAllowsOmittedOptionalObjects verifies optional parent objects use their safe defaults.
+func TestValidateSpecAllowsOmittedOptionalObjects(t *testing.T) {
+	spec := validSpec("https://example.test/cmp")
+	spec.Transaction = cmpv1alpha1.TransactionSpec{}
+	spec.Policy = cmpv1alpha1.PolicySpec{}
+	if _, err := validateSpec(&spec); err != nil {
+		t.Fatalf("validate omitted optional objects: %v", err)
+	}
+}
+
 // TestCheckUsesIssuerCredentialNamespace verifies Secret references cannot select another namespace.
 func TestCheckUsesIssuerCredentialNamespace(t *testing.T) {
 	auth, trust, _ := credentialSecrets(t, "other")
