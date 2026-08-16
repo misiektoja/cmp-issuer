@@ -6,6 +6,10 @@ cliVersion: 4.15.0
 domain: misiektoja.github.io
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  helm.kubebuilder.io/v2-alpha:
+    manifests: dist/install.yaml
+    output: charts
 projectName: cmp-issuer
 repo: github.com/misiektoja/cmp-issuer
 resources:
