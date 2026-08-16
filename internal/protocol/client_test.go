@@ -26,6 +26,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -255,23 +256,46 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 	return server, state
 }
 
-// baseEnrollmentRequest creates common trusted P10CR test input.
+// baseEnrollmentRequest creates common trusted P10CR test input without a pinned response identifier.
 func baseEnrollmentRequest(t *testing.T, pki testPKI, endpoint string) EnrollmentRequest {
 	t.Helper()
 	csrDER, _ := createCSR(t, "cmp-issuer-test")
 	trust := x509.NewCertPool()
 	trust.AddCert(pki.CACertificate)
-	return EnrollmentRequest{EndpointURL: endpoint, Timeout: 5 * time.Second, MaxResponseSize: 1 << 20, Recipient: pki.CACertificate.Subject, CSRDER: csrDER, CMPTrust: trust, RejectGrantedMods: true, ResponseCertReqID: -1}
+	return EnrollmentRequest{EndpointURL: endpoint, Timeout: 5 * time.Second, MaxResponseSize: 1 << 20, Recipient: pki.CACertificate.Subject, CSRDER: csrDER, CMPTrust: trust, RejectGrantedMods: true}
 }
 
-// TestEnrollP10CRLegacyZeroCertReqID verifies explicit zero compatibility is echoed in certConf.
-func TestEnrollP10CRLegacyZeroCertReqID(t *testing.T) {
+// pinCertReqID returns a pinned P10CR response identifier.
+func pinCertReqID(value int64) *int64 { return &value }
+
+// TestEnrollP10CRAcceptsInteroperableCertReqIDs verifies both interoperable identifiers are accepted and echoed by default.
+func TestEnrollP10CRAcceptsInteroperableCertReqIDs(t *testing.T) {
+	for _, certReqID := range []int64{ResponseCertReqIDStandard, ResponseCertReqIDLegacyZero} {
+		t.Run(fmt.Sprintf("certReqId %d", certReqID), func(t *testing.T) {
+			pki := newTestPKI(t)
+			password := []byte("test-shared-secret")
+			server, state := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: certReqID})
+			defer server.Close()
+			request := baseEnrollmentRequest(t, pki, server.URL)
+			request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
+			if _, err := NewClient().EnrollP10CR(context.Background(), request); err != nil {
+				t.Fatalf("EnrollP10CR returned error: %v", err)
+			}
+			if echoed, observed := state.confirmation(); !observed || echoed != certReqID {
+				t.Fatalf("expected certConf certReqId %d, got %d with observed %t", certReqID, echoed, observed)
+			}
+		})
+	}
+}
+
+// TestEnrollP10CRPinnedLegacyZeroCertReqID verifies an explicit legacy pin is echoed in certConf.
+func TestEnrollP10CRPinnedLegacyZeroCertReqID(t *testing.T) {
 	pki := newTestPKI(t)
 	password := []byte("test-shared-secret")
 	server, state := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: 0})
 	defer server.Close()
 	request := baseEnrollmentRequest(t, pki, server.URL)
-	request.ResponseCertReqID = 0
+	request.ResponseCertReqID = pinCertReqID(ResponseCertReqIDLegacyZero)
 	request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
 	if _, err := NewClient().EnrollP10CR(context.Background(), request); err != nil {
 		t.Fatalf("EnrollP10CR returned error: %v", err)
@@ -336,9 +360,11 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 	tests := []struct {
 		name    string
 		options mockOptions
+		pinned  *int64
 		failure string
 	}{
-		{name: "certReqId", options: mockOptions{CertReqID: 0}, failure: "certReqIdMismatch"},
+		{name: "pinned certReqId", options: mockOptions{CertReqID: 0}, pinned: pinCertReqID(ResponseCertReqIDStandard), failure: "certReqIdMismatch"},
+		{name: "unsupported certReqId", options: mockOptions{CertReqID: 7}, failure: "certReqIdUnsupported"},
 		{name: "public key", options: mockOptions{CertReqID: -1, WrongPublicKey: true}, failure: "publicKeyMismatch"},
 		{name: "protection", options: mockOptions{CertReqID: -1, InvalidProtection: true}, failure: "badMessageCheck"},
 		{name: "transaction", options: mockOptions{CertReqID: -1, WrongTransactionID: true}, failure: "transactionIdMismatch"},
@@ -351,6 +377,7 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 			server, _ := newMockCMPServer(t, pki, password, nil, test.options)
 			defer server.Close()
 			request := baseEnrollmentRequest(t, pki, server.URL)
+			request.ResponseCertReqID = test.pinned
 			request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
 			_, err := NewClient().EnrollP10CR(context.Background(), request)
 			var typed *Error
