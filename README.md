@@ -4,7 +4,7 @@ cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Mana
 
 The first implementation target is CMPv2 initial enrollment with a PKCS #10 request carried in P10CR and a CP response. CMP message protection is mandatory. HTTP and HTTPS are both supported transports. HTTP does not provide transport confidentiality.
 
-This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac and certificate-signature P10CR have both completed protected cert-manager `Certificate` enrollments against NCM 26.7 with Insta Certifier 7.20 build 43974.
+This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac and certificate-signature P10CR have both completed protected cert-manager `Certificate` enrollments against two independent CMP servers: NCM 26.7 with Insta Certifier 7.20 build 43974, and EJBCA Community Edition 9.3.7.
 
 ## API foundation
 
@@ -22,7 +22,7 @@ Secret access is intentionally not cluster-wide. The base installation grants ac
 
 ## P10CR response compatibility
 
-RFC 9810 section 5.3.4 and RFC 9483 section 4.1.4 both require the `certReqId` of a P10CR `cp` response to be `-1`, because a PKCS #10 request carries no request identifier to match. Every CMP server tested so far returns `0` instead.
+RFC 9810 section 5.3.4 and RFC 9483 section 4.1.4 both require the `certReqId` of a P10CR `cp` response to be `-1`, because a PKCS #10 request carries no request identifier to match. Both servers tested so far, NCM 26.7 and EJBCA Community Edition 9.3.7, return `0` instead.
 
 By default the issuer therefore accepts either `-1` or `0`, echoes the value it received in `certConf` and rejects any other value. No other part of the transaction depends on this identifier. A P10CR `cp` must still contain exactly one `CertResponse`, the response must be protected and trusted, the issued public key must match the CSR and the chain must validate against the configured CMP trust.
 
@@ -45,6 +45,29 @@ PasswordBasedMac and certificate-signature protected P10CR both complete against
 **A P10CR must carry its own signer certificate in `extraCerts`.** NCM resolves the signing certificate from `extraCerts` using `senderKID`. cmp-issuer sends the protection certificate followed by its configured chain, and NCM accepts it. The vendor `ssh-cmpclient P10CR` sends only the issuing chain and omits the end-entity certificate that its own `senderKID` names, so NCM answers `CMP header protection check failed`. That rejection is a property of the vendor client's P10CR message rather than of the server profile or the credentials, which the same client uses successfully for `INITIALIZE`.
 
 An earlier revision of this file reported that cmp-issuer could not verify NCM's protected error responses. That claim is retracted. NCM's protected error message verifies against the configured CMP trust anchor. The confirmation signer handling described above was the actual defect.
+
+## EJBCA interoperability notes
+
+PasswordBasedMac and certificate-signature protected P10CR both complete against EJBCA Community Edition 9.3.7 using a CMP alias in client mode. EJBCA client mode enforces its own enrollment rules, and three of them determine how an issuer must be configured.
+
+**The end entity must exist before enrollment and returns to a used state afterwards.** Client mode treats the enrollment code as a one-time credential. After a certificate is issued the end entity moves to `GENERATED` and refuses another request until an administrator sets it back to `NEW`, or until the end entity profile allows more than one request. This applies to both protection types, so a repeatedly renewing workload needs either a raised request count or an RA-mode alias.
+
+**Certificate authentication enrolls only the identity that owns the authenticating certificate.** With the `EndEntityCertificate` authentication module in client mode, EJBCA resolves the certificate sent in `extraCerts`, confirms it belongs to the requesting end entity and requires the requested subject DN to match the registered one. A `CMPIssuer` using signature protection therefore issues for the identity of its own credential rather than for arbitrary workloads.
+
+**The signature credential needs only the end-entity certificate and its key.** EJBCA looks the certificate up in its own database, so `chainKey` may be omitted:
+
+```yaml
+spec:
+  protection:
+    type: Signature
+    signature:
+      secretRef:
+        name: ejbca-signature-credentials
+      certificateKey: tls.crt
+      privateKeyKey: tls.key
+```
+
+Like NCM, EJBCA answers P10CR with `certReqId` `0`. Pinning `-1` against it fails the request permanently with `P10CR CP certReqId must be -1 but response contained 0` and issues no certificate.
 
 ## License
 
