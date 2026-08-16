@@ -69,6 +69,55 @@ spec:
 
 Like NCM, EJBCA answers P10CR with `certReqId` `0`. Pinning `-1` against it fails the request permanently with `P10CR CP certReqId must be -1 but response contained 0` and issues no certificate.
 
+## Automated verification
+
+Unit and envtest coverage runs with `make test`. Controller behavior is verified against a real cluster by an end-to-end suite that needs no CMP server:
+
+```bash
+make test-e2e
+```
+
+The suite creates a Kind cluster, installs cert-manager and the controller, and then proves that:
+
+* A `CMPIssuer` becomes ready only when its credential and trust Secrets are readable in its own namespace, and reports the offending Secret by name when either is missing.
+* The API accepts `p10crResponseCertReqId` values of `-1` and `0` and rejects any other value.
+* A denied `CertificateRequest` produces no CMP message and stores no certificate.
+* A request whose endpoint refuses connections fails visibly and stores no partial material.
+* A crafted `cert-manager.io/private-key-secret-name` annotation leaves the Secret it names unmodified.
+* The controller can read Secrets only in namespaces that carry the documented RoleBinding.
+
+The specs complete in about a minute after the cluster is up. Interoperability with real CMP servers is verified separately in a lab against NCM and EJBCA, and recorded in the interoperability notes above, because running a certification authority in the test cluster costs more than ten minutes per run.
+
+## Installation
+
+The installer manifest carries the CRDs, RBAC and the controller Deployment:
+
+```bash
+make build-installer IMG=<registry>/cmp-issuer:<tag>
+kubectl apply -f dist/install.yaml
+```
+
+A Helm chart is available in `charts/chart` for installations that need values-driven configuration:
+
+```bash
+helm install cmp-issuer ./charts/chart --namespace cmp-issuer-system --create-namespace
+```
+
+Both install the same resources. Neither grants the controller Secret access in workload namespaces, so add the RoleBinding from [credential Secret access](docs/operations/secret-access.md) for every namespace that uses a `CMPIssuer`.
+
+## Supply chain
+
+| Command | Purpose |
+| --- | --- |
+| `make govulncheck` | Report known vulnerabilities that reach the module or its dependencies |
+| `make gitleaks` | Scan the working tree and the commit history for leaked credentials |
+| `make sbom` | Write a CycloneDX bill of materials to `dist/cmp-issuer.cdx.json` |
+| `make scan-image IMG=<image>` | Scan a built manager image for fixed operating system and Go vulnerabilities |
+| `make helm-lint` | Lint and render the Helm chart |
+| `make docs-build` | Build the documentation site with strict validation |
+
+Every check runs in CI on each push and once a week. Releases are described in [the provenance record](docs/provenance.md).
+
 ## License
 
 Original cmp-issuer code is licensed under GPL-3.0-only. Dependencies retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
