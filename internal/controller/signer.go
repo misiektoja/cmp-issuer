@@ -53,6 +53,7 @@ const (
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Signer loads issuer credentials and delegates protected transactions to a project-owned client.
 type Signer struct {
@@ -312,10 +313,11 @@ func validateTransport(spec cmpv1alpha1.TransportSpec, endpointScheme string) er
 
 // validateTransactionAndPolicy enforces transaction bounds and certificate modification policy.
 func validateTransactionAndPolicy(transaction cmpv1alpha1.TransactionSpec, policy cmpv1alpha1.PolicySpec) error {
-	if transaction.MaximumDuration.Duration <= 0 || transaction.MinimumPollInterval.Duration <= 0 || transaction.MaximumPollInterval.Duration < transaction.MinimumPollInterval.Duration || transaction.MaximumPolls < 1 {
+	transactionOmitted := transaction.MaximumDuration.Duration == 0 && transaction.MinimumPollInterval.Duration == 0 && transaction.MaximumPollInterval.Duration == 0 && transaction.MaximumPolls == 0
+	if !transactionOmitted && (transaction.MaximumDuration.Duration <= 0 || transaction.MinimumPollInterval.Duration <= 0 || transaction.MaximumPollInterval.Duration < transaction.MinimumPollInterval.Duration || transaction.MaximumPolls < 1) {
 		return fmt.Errorf("transaction limits are invalid")
 	}
-	if policy.GrantedModifications != cmpv1alpha1.GrantedModificationsReject && policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept {
+	if policy.GrantedModifications != "" && policy.GrantedModifications != cmpv1alpha1.GrantedModificationsReject && policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept {
 		return fmt.Errorf("granted modifications policy is invalid")
 	}
 	return nil
