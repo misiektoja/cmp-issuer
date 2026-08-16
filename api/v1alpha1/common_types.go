@@ -87,8 +87,10 @@ type ProtocolSpec struct {
 	// +required
 	Version int32 `json:"version"`
 	// InitialEnrollment selects the enrollment request body.
+	// Only P10CR is implemented. IR requires CRMF proof of possession over the workload private key,
+	// which needs the key access design recorded in the threat model, so it is not accepted yet.
 	// +kubebuilder:default=P10CR
-	// +kubebuilder:validation:Enum=P10CR;IR
+	// +kubebuilder:validation:Enum=P10CR
 	// +required
 	InitialEnrollment string `json:"initialEnrollment"`
 	// P10CRResponseCertReqID pins the exact certReqId required in CP and echoed in certConf.
