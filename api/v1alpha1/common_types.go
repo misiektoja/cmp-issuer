@@ -24,6 +24,10 @@ const (
 	ProtectionTypeSignature = "Signature"
 	// InitialEnrollmentP10CR selects PKCS #10 initial enrollment.
 	InitialEnrollmentP10CR = "P10CR"
+	// P10CRResponseCertReqIDStandard selects the standards-defined response identifier.
+	P10CRResponseCertReqIDStandard int64 = -1
+	// P10CRResponseCertReqIDLegacyZero selects explicit compatibility with servers that return zero.
+	P10CRResponseCertReqIDLegacyZero int64 = 0
 	// GrantedModificationsReject rejects certificates issued with modified identity fields.
 	GrantedModificationsReject = "Reject"
 	// GrantedModificationsAccept accepts validated certificates with server modifications.
@@ -85,6 +89,12 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=P10CR;IR
 	// +required
 	InitialEnrollment string `json:"initialEnrollment"`
+	// P10CRResponseCertReqID selects the exact certReqId expected in CP and echoed in certConf.
+	// Omit this field for the standards-defined value -1. Set 0 only for explicit legacy server compatibility.
+	// +kubebuilder:default=-1
+	// +kubebuilder:validation:Enum=-1;0
+	// +optional
+	P10CRResponseCertReqID *int64 `json:"p10crResponseCertReqId,omitempty"`
 	// CertProfile is an optional server-side certificate profile identifier.
 	// +kubebuilder:validation:MaxLength=256
 	// +optional
