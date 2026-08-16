@@ -24,6 +24,13 @@ import (
 	"time"
 )
 
+const (
+	// ResponseCertReqIDStandard is the P10CR response identifier required by RFC 9810 and RFC 9483.
+	ResponseCertReqIDStandard int64 = -1
+	// ResponseCertReqIDLegacyZero is the identifier returned by servers that reuse the CRMF request index.
+	ResponseCertReqIDLegacyZero int64 = 0
+)
+
 // Client enrolls a signed PKCS #10 request through one protected CMP transaction.
 type Client interface {
 	EnrollP10CR(context.Context, EnrollmentRequest) (EnrollmentResult, error)
@@ -55,6 +62,7 @@ type Protection struct {
 }
 
 // EnrollmentRequest contains validated inputs for one synchronous P10CR exchange.
+// A nil ResponseCertReqID accepts either the standard or the legacy zero response identifier.
 type EnrollmentRequest struct {
 	EndpointURL       string
 	Timeout           time.Duration
@@ -63,7 +71,7 @@ type EnrollmentRequest struct {
 	Recipient         pkix.Name
 	ImplicitConfirm   bool
 	RejectGrantedMods bool
-	ResponseCertReqID int64
+	ResponseCertReqID *int64
 	CSRDER            []byte
 	Protection        Protection
 	CMPTrust          *x509.CertPool
@@ -75,6 +83,7 @@ type EnrollmentResult struct {
 	Chain                 []*x509.Certificate
 	ExtraCertificateCount int
 	ExplicitConfirmation  bool
+	ResponseCertReqID     int64
 }
 
 // ErrorKind classifies failures without matching text.
