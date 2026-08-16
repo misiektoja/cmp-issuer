@@ -1,0 +1,48 @@
+site_name: cmp-issuer
+site_description: A vendor-neutral cert-manager external issuer for Certificate Management Protocol servers
+site_url: https://misiektoja.github.io/cmp-issuer/
+repo_url: https://github.com/misiektoja/cmp-issuer
+repo_name: misiektoja/cmp-issuer
+copyright: Copyright the cmp-issuer Authors, licensed under GPL-3.0-only
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+# The documentation build runs with --strict so every one of these findings fails the build.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Overview: index.md
+  - Operations:
+      - Credential Secret access: operations/secret-access.md
+  - Security:
+      - Threat model: security/threat-model.md
+      - Provenance and supply chain: provenance.md
+  - Design decisions:
+      - CMP library selection: adr/0001-cmp-library.md
+      - go-pkicmp review: dependencies/go-pkicmp-review.md
