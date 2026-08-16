@@ -28,4 +28,12 @@ resources:
   kind: CMPClusterIssuer
   path: github.com/misiektoja/cmp-issuer/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: misiektoja.github.io
+  group: certmanager
+  kind: CMPTransaction
+  path: github.com/misiektoja/cmp-issuer/api/v1alpha1
+  version: v1alpha1
 version: "3"
