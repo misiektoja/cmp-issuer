@@ -4,7 +4,7 @@ cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Mana
 
 The first implementation target is CMPv2 initial enrollment with a PKCS #10 request carried in P10CR and a CP response. CMP message protection is mandatory. HTTP and HTTPS are both supported transports. HTTP does not provide transport confidentiality.
 
-This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac P10CR has completed a protected cert-manager `Certificate` enrollment against NCM 26.7 with Insta Certifier 7.20 build 43974. Certificate-signature protection remains blocked by NCM rejecting the P10CR request.
+This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac and certificate-signature P10CR have both completed protected cert-manager `Certificate` enrollments against NCM 26.7 with Insta Certifier 7.20 build 43974.
 
 ## API foundation
 
@@ -22,19 +22,29 @@ Secret access is intentionally not cluster-wide. The base installation grants ac
 
 ## P10CR response compatibility
 
-The controller expects the RFC 4210 convention and RFC 9483 P10CR CP `certReqId` value `-1` by default. A server that returns the legacy value `0` can be configured explicitly:
+RFC 9810 section 5.3.4 and RFC 9483 section 4.1.4 both require the `certReqId` of a P10CR `cp` response to be `-1`, because a PKCS #10 request carries no request identifier to match. Every CMP server tested so far returns `0` instead.
+
+By default the issuer therefore accepts either `-1` or `0`, echoes the value it received in `certConf` and rejects any other value. No other part of the transaction depends on this identifier. A P10CR `cp` must still contain exactly one `CertResponse`, the response must be protected and trusted, the issued public key must match the CSR and the chain must validate against the configured CMP trust.
+
+Pin the identifier when a server's behavior is known and any other value should be treated as a protocol failure:
 
 ```yaml
 spec:
   protocol:
-    p10crResponseCertReqId: 0
+    p10crResponseCertReqId: -1
 ```
 
-The adapter requires the configured value exactly and echoes it in `certConf`. It never accepts both values for one issuer. Use `0` only after verifying the server's behavior.
+A pinned issuer requires that exact value in `cp` and echoes it in `certConf`.
 
-Direct testing against the first NCM lab target found that its PasswordBasedMac P10CR response uses this nonstandard legacy value. With explicit value `0`, the adapter completed protected P10CR, CP, `certConf` and `pkiConf`. A cert-manager `Certificate` then completed the same flow and produced a matching private key with a leaf-first certificate chain.
+## NCM interoperability notes
 
-Certificate-protected P10CR is blocked earlier. NCM rejects both the adapter request and a vendor `ssh-cmpclient P10CR` control request with `CMP header protection check failed`, although a current `ssh-cmpclient INITIALIZE` control succeeds with the same factory certificate, key and chain. The vendor client verifies NCM's protected error response with the current SubCA2k-256 CA certificate. The reviewed dependency and the adapter's independently trust-anchored fallback do not verify that error response, which is a separate client interoperability defect. Both failures remain fail closed.
+PasswordBasedMac and certificate-signature protected P10CR both complete against NCM 26.7 with Insta Certifier 7.20 build 43974, including `certConf` and a protected `pkiConf`. Two behaviors are recorded here because they are easy to misdiagnose.
+
+**NCM omits signer identification from `pkiConf`.** Its `cp` is signature protected and carries the signer certificate in `extraCerts`. The final `pkiConf` carries no `extraCerts` and no `senderKID`, so a client that rediscovers the signer for every message independently cannot verify it. cmp-issuer retains the signer certificate that it already validated against the configured CMP trust anchors when it accepted `cp`, and verifies the linked `pkiConf` against that certificate. Protection stays mandatory: a `pkiConf` that fails verification against the retained signer is still rejected and no certificate is returned.
+
+**A P10CR must carry its own signer certificate in `extraCerts`.** NCM resolves the signing certificate from `extraCerts` using `senderKID`. cmp-issuer sends the protection certificate followed by its configured chain, and NCM accepts it. The vendor `ssh-cmpclient P10CR` sends only the issuing chain and omits the end-entity certificate that its own `senderKID` names, so NCM answers `CMP header protection check failed`. That rejection is a property of the vendor client's P10CR message rather than of the server profile or the credentials, which the same client uses successfully for `INITIALIZE`.
+
+An earlier revision of this file reported that cmp-issuer could not verify NCM's protected error responses. That claim is retracted. NCM's protected error message verifies against the configured CMP trust anchor. The confirmation signer handling described above was the actual defect.
 
 ## License
 
