@@ -235,11 +235,12 @@ spec:
                     type: string
                   initialEnrollment:
                     default: P10CR
-                    description: InitialEnrollment selects the enrollment request
-                      body.
+                    description: |-
+                      InitialEnrollment selects the enrollment request body.
+                      Only P10CR is implemented. IR requires CRMF proof of possession over the workload private key,
+                      which needs the key access design recorded in the threat model, so it is not accepted yet.
                     enum:
                     - P10CR
-                    - IR
                     type: string
                   p10crResponseCertReqId:
                     description: |-
