@@ -83,7 +83,8 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, security("parse CP", "badDataFormat", err)
 	}
-	if err := verifyResponse(message, response, request); err != nil {
+	responseSigner, err := verifyResponse(message, response, request, nil)
+	if err != nil {
 		return EnrollmentResult{}, err
 	}
 	certificate, candidates, implicitGranted, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
@@ -100,7 +101,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if request.ImplicitConfirm && implicitGranted {
 		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(candidates), ExplicitConfirmation: false}, nil
 	}
-	if err := exchangeConfirmation(ctx, httpClient, request, credentials, message, response, certificate); err != nil {
+	if err := exchangeConfirmation(ctx, httpClient, request, credentials, message, response, certificate, responseSigner); err != nil {
 		return EnrollmentResult{}, err
 	}
 	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(candidates), ExplicitConfirmation: true}, nil
@@ -188,36 +189,49 @@ func sendCMP(ctx context.Context, client *http.Client, endpoint string, requestD
 	return body, nil
 }
 
-// verifyResponse authenticates the response before checking transaction linkage.
-func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessage, request EnrollmentRequest) error {
+// verifyResponse authenticates the response and returns its trusted signature certificate when present.
+func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessage, request EnrollmentRequest, previousSigner *x509.Certificate) (*x509.Certificate, error) {
 	if response.Header.ProtectionAlg == nil || len(response.Protection) == 0 {
-		return security("verify response protection", "missingProtection", fmt.Errorf("response has no PKIProtection"))
+		return nil, security("verify response protection", "missingProtection", fmt.Errorf("response has no PKIProtection"))
 	}
 	sharedSecret := []byte(nil)
 	if request.Protection.Password != nil {
 		sharedSecret = request.Protection.Password.Secret
 	}
-	if _, err := response.Verify(pkicmp.VerifyOptions{SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID}); err != nil {
-		if fallbackErr := verifyTrustedSignature(response, request.CMPTrust); fallbackErr != nil {
-			return security("verify response protection", "badMessageCheck", err)
+	var responseSigner *x509.Certificate
+	verification, verificationErr := response.Verify(pkicmp.VerifyOptions{SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
+	if verificationErr == nil && !verification.MACVerified {
+		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust)
+	}
+	if verificationErr != nil && previousSigner != nil {
+		if _, previousErr := response.Verify(pkicmp.VerifyOptions{TrustedCert: previousSigner}); previousErr == nil {
+			responseSigner = previousSigner
+			verificationErr = nil
 		}
 	}
+	if verificationErr != nil {
+		fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust)
+		if fallbackErr != nil {
+			return nil, security("verify response protection", "badMessageCheck", verificationErr)
+		}
+		responseSigner = fallbackSigner
+	}
 	if !bytes.Equal(response.Header.TransactionID, requestMessage.Header.TransactionID) {
-		return security("verify transaction ID", "transactionIdMismatch", fmt.Errorf("response transaction ID does not match request"))
+		return nil, security("verify transaction ID", "transactionIdMismatch", fmt.Errorf("response transaction ID does not match request"))
 	}
 	if !bytes.Equal(response.Header.RecipNonce, requestMessage.Header.SenderNonce) {
-		return security("verify recipient nonce", "nonceMismatch", fmt.Errorf("response recipient nonce does not match request sender nonce"))
+		return nil, security("verify recipient nonce", "nonceMismatch", fmt.Errorf("response recipient nonce does not match request sender nonce"))
 	}
 	if response.Header.PVNO != pkicmp.PVNO2 {
-		return permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version is not CMPv2"))
+		return nil, permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version is not CMPv2"))
 	}
-	return nil
+	return responseSigner, nil
 }
 
 // verifyTrustedSignature independently verifies a signature signer chain without treating senderKID as an authorization value.
-func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) error {
+func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) (*x509.Certificate, error) {
 	if roots == nil {
-		return fmt.Errorf("CMP trust anchors are absent")
+		return nil, fmt.Errorf("CMP trust anchors are absent")
 	}
 	parsed := make([]*x509.Certificate, 0, len(message.ExtraCerts))
 	intermediates := x509.NewCertPool()
@@ -234,10 +248,10 @@ func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) er
 			continue
 		}
 		if _, err := message.Verify(pkicmp.VerifyOptions{TrustedCert: certificate}); err == nil {
-			return nil
+			return certificate, nil
 		}
 	}
-	return fmt.Errorf("no response signer has a valid signature and chain")
+	return nil, fmt.Errorf("no response signer has a valid signature and chain")
 }
 
 // extractCP validates the P10CR response status and returns certificate candidates.
@@ -347,7 +361,7 @@ func validateAndOrderChain(leaf *x509.Certificate, candidates []*x509.Certificat
 }
 
 // exchangeConfirmation sends certConf and requires a protected linked pkiConf response.
-func exchangeConfirmation(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, enrollmentRequest *pkicmp.PKIMessage, enrollmentResponse *pkicmp.PKIMessage, certificate *x509.Certificate) error {
+func exchangeConfirmation(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, enrollmentRequest *pkicmp.PKIMessage, enrollmentResponse *pkicmp.PKIMessage, certificate *x509.Certificate, responseSigner *x509.Certificate) error {
 	certificateHash, err := certificateHash(certificate)
 	if err != nil {
 		return permanent("compute certificate hash", "badAlg", err)
@@ -370,7 +384,7 @@ func exchangeConfirmation(ctx context.Context, client *http.Client, request Enro
 	if err != nil {
 		return security("parse pkiConf", "badDataFormat", err)
 	}
-	if err := verifyResponse(message, response, request); err != nil {
+	if _, err := verifyResponse(message, response, request, responseSigner); err != nil {
 		return err
 	}
 	if response.Body.Type == pkicmp.BodyTypeError {
