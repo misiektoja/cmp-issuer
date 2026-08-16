@@ -42,7 +42,20 @@ rules:
   resources:
   - cmpclusterissuers/status
   - cmpissuers/status
+  - cmptransactions/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - certmanager.misiektoja.github.io
+  resources:
+  - cmptransactions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
