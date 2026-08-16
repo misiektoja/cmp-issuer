@@ -24,9 +24,9 @@ const (
 	ProtectionTypeSignature = "Signature"
 	// InitialEnrollmentP10CR selects PKCS #10 initial enrollment.
 	InitialEnrollmentP10CR = "P10CR"
-	// P10CRResponseCertReqIDStandard selects the standards-defined response identifier.
+	// P10CRResponseCertReqIDStandard pins the response identifier required by RFC 9810 and RFC 9483.
 	P10CRResponseCertReqIDStandard int64 = -1
-	// P10CRResponseCertReqIDLegacyZero selects explicit compatibility with servers that return zero.
+	// P10CRResponseCertReqIDLegacyZero pins the response identifier returned by servers that reuse the CRMF index.
 	P10CRResponseCertReqIDLegacyZero int64 = 0
 	// GrantedModificationsReject rejects certificates issued with modified identity fields.
 	GrantedModificationsReject = "Reject"
@@ -91,9 +91,9 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=P10CR;IR
 	// +required
 	InitialEnrollment string `json:"initialEnrollment"`
-	// P10CRResponseCertReqID selects the exact certReqId expected in CP and echoed in certConf.
-	// Omit this field for the standards-defined value -1. Set 0 only for explicit legacy server compatibility.
-	// +kubebuilder:default=-1
+	// P10CRResponseCertReqID pins the exact certReqId required in CP and echoed in certConf.
+	// Omit this field to accept the standards-defined value -1 or the widely deployed legacy value 0
+	// and echo the received value. Set it to reject every other value for a known server.
 	// +kubebuilder:validation:Enum=-1;0
 	// +optional
 	P10CRResponseCertReqID *int64 `json:"p10crResponseCertReqId,omitempty"`
