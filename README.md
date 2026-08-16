@@ -10,7 +10,36 @@ This repository is under active initial development. The protocol adapter and co
 
 The API group is `certmanager.misiektoja.github.io` with `CMPIssuer` and `CMPClusterIssuer` kinds at `v1alpha1`. A namespaced issuer reads credential Secrets only from its namespace. A cluster issuer reads them only from the controller's configured cluster resource namespace.
 
-PasswordBasedMac with SHA-256 and HMAC-SHA-256 plus certificate-based signature protection are implemented behind a project-owned protocol interface. The current milestone supports synchronous CMPv2 P10CR and CP with explicit or server-granted implicit confirmation. Pending transactions fail closed until durable transaction persistence is implemented.
+PasswordBasedMac with SHA-256 and HMAC-SHA-256 plus certificate-based signature protection are implemented behind a project-owned protocol interface. The current milestone supports CMPv2 P10CR and CP with explicit or server-granted implicit confirmation, and asynchronous transactions in which the server answers `waiting` and the issuer polls until the certificate is issued.
+
+`initialEnrollment` accepts only `P10CR`. IR needs CRMF proof of possession over the workload private key, which the issuer deliberately never reads, so it is not offered as a configurable value.
+
+## Asynchronous transactions
+
+A CA that queues requests or requires manual approval answers the enrollment with `waiting` instead of a certificate. The issuer then sends `pollReq` messages until the CA returns the certificate, and confirms it normally.
+
+Because such a transaction can outlive the controller process, its state is durable. Before the first message is sent the controller records a `CMPTransaction` resource next to the `CertificateRequest`, holding the CMP transaction identifier, the nonce the next message must echo, the polled `certReqId` and the response signer already validated for the transaction. A restart therefore resumes the existing transaction rather than starting a second enrollment for the same request. The resource is owned by its `CertificateRequest`, so it is removed with it, and the controller deletes it as soon as the transaction succeeds or fails permanently.
+
+Inspect an enrollment that has not completed:
+
+```bash
+kubectl get cmptransactions -A
+```
+
+The `transaction` block bounds this behavior:
+
+```yaml
+spec:
+  transaction:
+    maximumDuration: 10m
+    minimumPollInterval: 1s
+    maximumPollInterval: 5m
+    maximumPolls: 60
+```
+
+The issuer waits for the interval the server requests in `pollRep`, clamped into `minimumPollInterval` and `maximumPollInterval`. A server that asks for no interval gets `minimumPollInterval`. The transaction fails once it exceeds `maximumDuration` or sends `maximumPolls` poll messages, and the recorded state is removed.
+
+One case is deliberately not recoverable. If the controller stops between recording a transaction and receiving the response to its enrollment request, the outcome of that request is unknown. The retry re-sends the enrollment under the same recorded transaction identifier, which is how a CMP server recognises a repeated request rather than a new enrollment, so servers that enforce transaction identifiers will not issue twice.
 
 ## Security boundaries
 
