@@ -86,7 +86,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err := verifyResponse(message, response, request); err != nil {
 		return EnrollmentResult{}, err
 	}
-	certificate, candidates, implicitGranted, err := extractCP(response, request.RejectGrantedMods)
+	certificate, candidates, implicitGranted, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -241,7 +241,7 @@ func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) er
 }
 
 // extractCP validates the P10CR response status and returns certificate candidates.
-func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool) (*x509.Certificate, []*x509.Certificate, bool, error) {
+func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, expectedCertReqID int64) (*x509.Certificate, []*x509.Certificate, bool, error) {
 	if response.Body.Type == pkicmp.BodyTypeError {
 		content, err := response.Body.Error()
 		if err != nil {
@@ -260,8 +260,8 @@ func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool) (*x509.Certi
 		return nil, nil, false, permanent("validate CP", "badRequest", fmt.Errorf("CP must contain exactly one CertResponse"))
 	}
 	certificateResponse := reply.Response[0]
-	if certificateResponse.CertReqID != -1 {
-		return nil, nil, false, security("validate CP certReqId", "certReqIdMismatch", fmt.Errorf("P10CR CP certReqId must be -1 but response contained %d", certificateResponse.CertReqID))
+	if certificateResponse.CertReqID != expectedCertReqID {
+		return nil, nil, false, security("validate CP certReqId", "certReqIdMismatch", fmt.Errorf("P10CR CP certReqId must be %d but response contained %d", expectedCertReqID, certificateResponse.CertReqID))
 	}
 	if certificateResponse.Status.Status == pkicmp.StatusWaiting {
 		return nil, nil, false, &Error{Kind: ErrorKindPending, Operation: "wait for certificate", Failure: "waiting", RequeueAfter: time.Second, Err: fmt.Errorf("server returned waiting but durable polling is not enabled")}
@@ -352,7 +352,7 @@ func exchangeConfirmation(ctx context.Context, client *http.Client, request Enro
 	if err != nil {
 		return permanent("compute certificate hash", "badAlg", err)
 	}
-	confirmation := pkicmp.CertConfirmContent{{CertHash: certificateHash, CertReqID: -1}}
+	confirmation := pkicmp.CertConfirmContent{{CertHash: certificateHash, CertReqID: request.ResponseCertReqID}}
 	message := pkicmp.NewPKIMessage(pkicmp.NewCertConfBody(&confirmation), pkicmp.MessageOptions{Sender: enrollmentRequest.Header.Sender, Recipient: enrollmentRequest.Header.Recipient, TransactionID: enrollmentRequest.Header.TransactionID, RecipNonce: enrollmentResponse.Header.SenderNonce})
 	message.Header.SenderKID = append([]byte(nil), enrollmentRequest.Header.SenderKID...)
 	if err := credentials.Protect(message); err != nil {
