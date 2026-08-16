@@ -59,8 +59,10 @@ type mockOptions struct {
 
 // mockState records authenticated request bodies observed by the mock server.
 type mockState struct {
-	mu        sync.Mutex
-	bodyTypes []pkicmp.BodyType
+	mu                    sync.Mutex
+	bodyTypes             []pkicmp.BodyType
+	confirmationCertReqID int64
+	confirmationObserved  bool
 }
 
 // add records one request body type.
@@ -75,6 +77,21 @@ func (s *mockState) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.bodyTypes)
+}
+
+// recordConfirmation records the certReqId sent in certConf.
+func (s *mockState) recordConfirmation(certReqID int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.confirmationCertReqID = certReqID
+	s.confirmationObserved = true
+}
+
+// confirmation returns the recorded certConf identifier.
+func (s *mockState) confirmation() (int64, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.confirmationCertReqID, s.confirmationObserved
 }
 
 // newTestPKI creates an ECDSA root, bootstrap key and bootstrap certificate.
@@ -175,6 +192,12 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			leaf := issueLeaf(t, pki, certificateRequest, publicKey)
 			response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
 		case pkicmp.BodyTypeCertConf:
+			confirmation, parseErr := message.Body.CertConf()
+			if parseErr != nil || len(*confirmation) != 1 {
+				t.Errorf("parse certConf: %v", parseErr)
+				return
+			}
+			state.recordConfirmation((*confirmation)[0].CertReqID)
 			response.Body = pkicmp.NewPKIConfBody()
 		default:
 			t.Errorf("unexpected request body %s", message.Body.Type)
@@ -230,7 +253,24 @@ func baseEnrollmentRequest(t *testing.T, pki testPKI, endpoint string) Enrollmen
 	csrDER, _ := createCSR(t, "cmp-issuer-test")
 	trust := x509.NewCertPool()
 	trust.AddCert(pki.CACertificate)
-	return EnrollmentRequest{EndpointURL: endpoint, Timeout: 5 * time.Second, MaxResponseSize: 1 << 20, Recipient: pki.CACertificate.Subject, CSRDER: csrDER, CMPTrust: trust, RejectGrantedMods: true}
+	return EnrollmentRequest{EndpointURL: endpoint, Timeout: 5 * time.Second, MaxResponseSize: 1 << 20, Recipient: pki.CACertificate.Subject, CSRDER: csrDER, CMPTrust: trust, RejectGrantedMods: true, ResponseCertReqID: -1}
+}
+
+// TestEnrollP10CRLegacyZeroCertReqID verifies explicit zero compatibility is echoed in certConf.
+func TestEnrollP10CRLegacyZeroCertReqID(t *testing.T) {
+	pki := newTestPKI(t)
+	password := []byte("test-shared-secret")
+	server, state := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: 0})
+	defer server.Close()
+	request := baseEnrollmentRequest(t, pki, server.URL)
+	request.ResponseCertReqID = 0
+	request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
+	if _, err := NewClient().EnrollP10CR(context.Background(), request); err != nil {
+		t.Fatalf("EnrollP10CR returned error: %v", err)
+	}
+	if certReqID, observed := state.confirmation(); !observed || certReqID != 0 {
+		t.Fatalf("expected certConf certReqId 0, got %d with observed %t", certReqID, observed)
+	}
 }
 
 // TestEnrollP10CRPasswordBasedMac verifies protected P10CR, CP, certConf and pkiConf exchange.
