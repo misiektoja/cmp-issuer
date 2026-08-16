@@ -90,6 +90,8 @@ spec:
                 - url
                 type: object
               policy:
+                default:
+                  grantedModifications: Reject
                 description: Policy configures certificate acceptance decisions.
                 properties:
                   grantedModifications:
@@ -270,6 +272,11 @@ spec:
                 - version
                 type: object
               transaction:
+                default:
+                  maximumDuration: 10m
+                  maximumPollInterval: 5m
+                  maximumPolls: 60
+                  minimumPollInterval: 1s
                 description: Transaction bounds a CMP enrollment transaction.
                 properties:
                   maximumDuration:
