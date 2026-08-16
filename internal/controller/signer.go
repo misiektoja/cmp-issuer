@@ -190,9 +190,10 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		}
 		sender = &parsedSender
 	}
-	responseCertReqID := cmpv1alpha1.P10CRResponseCertReqIDStandard
+	var responseCertReqID *int64
 	if spec.Protocol.P10CRResponseCertReqID != nil {
-		responseCertReqID = *spec.Protocol.P10CRResponseCertReqID
+		pinned := *spec.Protocol.P10CRResponseCertReqID
+		responseCertReqID = &pinned
 	}
 	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, ResponseCertReqID: responseCertReqID, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
 	if sender != nil {
