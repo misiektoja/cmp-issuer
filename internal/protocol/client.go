@@ -60,7 +60,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	} else if request.Protection.Signature != nil {
 		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
 	}
-	message := pkicmp.NewPKIMessage(pkicmp.NewP10CRBody(csr), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient)})
+	message := pkicmp.NewPKIMessage(pkicmp.NewP10CRBody(csr), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID})
 	if request.Protection.Password != nil {
 		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
 	}
@@ -87,9 +87,76 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
+	return finishTransaction(ctx, httpClient, request, credentials, message, response, csr, responseSigner)
+}
+
+// PollP10CR sends one pollReq for a transaction the server answered with waiting and returns either
+// the issued chain or the state needed for the next poll.
+func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (EnrollmentResult, error) {
+	request := poll.Enrollment
+	if err := validateEnrollmentRequest(request); err != nil {
+		return EnrollmentResult{}, err
+	}
+	if len(request.TransactionID) == 0 || len(poll.RecipNonce) == 0 {
+		return EnrollmentResult{}, permanent("validate poll request", "badRequest", fmt.Errorf("transaction ID and recipient nonce are required to poll"))
+	}
+	csr, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		return EnrollmentResult{}, permanent("parse CSR", "badRequest", err)
+	}
+	credentials, err := credentialsFor(request.Protection)
+	if err != nil {
+		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
+	}
+	sender := pkicmp.GeneralName{}
+	if request.Sender != nil {
+		sender = pkicmp.NewDirectoryName(*request.Sender)
+	} else if request.Protection.Signature != nil {
+		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
+	}
+	body := pkicmp.PollReqContent{poll.CertReqID}
+	message := pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&body), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: poll.RecipNonce})
+	if request.Protection.Password != nil {
+		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
+	}
+	if err := credentials.Protect(message); err != nil {
+		return EnrollmentResult{}, permanent("protect pollReq", "badAlg", err)
+	}
+	requestDER, err := message.MarshalBinary()
+	if err != nil {
+		return EnrollmentResult{}, permanent("encode pollReq", "badDataFormat", err)
+	}
+	httpClient := newHTTPClient(request)
+	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize)
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	response, err := pkicmp.ParsePKIMessage(responseDER)
+	if err != nil {
+		return EnrollmentResult{}, security("parse poll response", "badDataFormat", err)
+	}
+	responseSigner, err := verifyResponse(message, response, request, poll.ResponseSigner)
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	if response.Body.Type == pkicmp.BodyTypePollRep {
+		pending, err := extractPollRep(response, poll.CertReqID, responseSigner)
+		if err != nil {
+			return EnrollmentResult{}, err
+		}
+		return EnrollmentResult{Pending: pending}, nil
+	}
+	return finishTransaction(ctx, httpClient, request, credentials, message, response, csr, responseSigner)
+}
+
+// finishTransaction turns an authenticated CP into a validated chain, or reports that polling continues.
+func finishTransaction(ctx context.Context, httpClient *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate) (EnrollmentResult, error) {
 	issued, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
 	if err != nil {
 		return EnrollmentResult{}, err
+	}
+	if issued.Waiting {
+		return EnrollmentResult{Pending: &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner}}, nil
 	}
 	if !PublicKeysEqual(csr.PublicKey, issued.Certificate.PublicKey) {
 		return EnrollmentResult{}, security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
@@ -101,10 +168,29 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if request.ImplicitConfirm && issued.ImplicitGranted {
 		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil
 	}
-	if err := exchangeConfirmation(ctx, httpClient, request, credentials, message, response, issued, responseSigner); err != nil {
+	if err := exchangeConfirmation(ctx, httpClient, request, credentials, requestMessage, response, issued, responseSigner); err != nil {
 		return EnrollmentResult{}, err
 	}
 	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: true, ResponseCertReqID: issued.CertReqID}, nil
+}
+
+// extractPollRep validates a pollRep body and returns the state required for the next poll.
+func extractPollRep(response *pkicmp.PKIMessage, expectedCertReqID int64, responseSigner *x509.Certificate) (*PendingTransaction, error) {
+	reply, err := response.Body.PollRep()
+	if err != nil {
+		return nil, permanent("parse pollRep", "badDataFormat", err)
+	}
+	if len(*reply) != 1 {
+		return nil, permanent("validate pollRep", "badRequest", fmt.Errorf("pollRep must contain exactly one entry"))
+	}
+	item := (*reply)[0]
+	if item.CertReqID != expectedCertReqID {
+		return nil, security("validate pollRep certReqId", "certReqIdMismatch", fmt.Errorf("pollRep certReqId does not match the polled request"))
+	}
+	if item.CheckAfter < 0 {
+		return nil, permanent("validate pollRep", "badRequest", fmt.Errorf("pollRep checkAfter is negative"))
+	}
+	return &PendingTransaction{CertReqID: item.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, CheckAfter: time.Duration(item.CheckAfter) * time.Second}, nil
 }
 
 // validateEnrollmentRequest rejects unsupported or unsafe transaction configurations.
@@ -260,6 +346,8 @@ type issuedCertificate struct {
 	Candidates      []*x509.Certificate
 	CertReqID       int64
 	ImplicitGranted bool
+	// Waiting reports that the server accepted the request but has not decided yet.
+	Waiting bool
 }
 
 // extractCP validates the P10CR response status and returns the issued certificate with its candidates.
@@ -286,7 +374,7 @@ func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, pinnedCertRe
 		return issuedCertificate{}, err
 	}
 	if certificateResponse.Status.Status == pkicmp.StatusWaiting {
-		return issuedCertificate{}, &Error{Kind: ErrorKindPending, Operation: "wait for certificate", Failure: "waiting", RequeueAfter: time.Second, Err: fmt.Errorf("server returned waiting but durable polling is not enabled")}
+		return issuedCertificate{CertReqID: certificateResponse.CertReqID, Waiting: true}, nil
 	}
 	if statusErr := classifyStatus(certificateResponse.Status); statusErr != nil {
 		return issuedCertificate{}, statusErr
