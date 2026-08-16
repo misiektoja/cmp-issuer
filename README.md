@@ -20,9 +20,19 @@ See [the threat model](docs/security/threat-model.md) and [provenance record](do
 
 Secret access is intentionally not cluster-wide. The base installation grants access only in `cmp-issuer-system` for `CMPClusterIssuer` credentials. Each namespace that uses `CMPIssuer` requires an administrator-created RoleBinding as described in [credential Secret access](docs/operations/secret-access.md).
 
-## Current interoperability blockers
+## P10CR response compatibility
 
-Direct testing against the first NCM lab target found two blockers. PasswordBasedMac P10CR reaches a protected CP response but the response uses `certReqId 0` instead of the RFC 9483 P10CR value `-1`. Certificate-protected P10CR receives a CMP response whose signature cannot be validated by the reviewed dependency or the adapter's independently trust-anchored fallback. Both paths fail closed and no end-to-end cert-manager claim is made.
+The controller expects the standards-defined P10CR CP `certReqId` value `-1` by default. A server that returns the legacy value `0` can be configured explicitly:
+
+```yaml
+spec:
+  protocol:
+    p10crResponseCertReqId: 0
+```
+
+The adapter requires the configured value exactly and echoes it in `certConf`. It never accepts both values for one issuer. Use `0` only after verifying the server's behavior.
+
+Direct testing against the first NCM lab target found that its PasswordBasedMac P10CR response uses this legacy value. Certificate-protected P10CR still receives a CMP response whose signature cannot be validated by the reviewed dependency or the adapter's independently trust-anchored fallback. No end-to-end cert-manager claim is made yet.
 
 ## License
 
