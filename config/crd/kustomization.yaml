@@ -4,6 +4,7 @@
 resources:
 - bases/certmanager.misiektoja.github.io_cmpissuers.yaml
 - bases/certmanager.misiektoja.github.io_cmpclusterissuers.yaml
+- bases/certmanager.misiektoja.github.io_cmptransactions.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
