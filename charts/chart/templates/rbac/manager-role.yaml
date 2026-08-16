@@ -1,0 +1,54 @@
+apiVersion: rbac.authorization.k8s.io/v1
+{{- if .Values.rbac.namespaced }}
+kind: Role
+{{- else }}
+kind: ClusterRole
+{{- end }}
+metadata:
+{{- if .Values.rbac.namespaced }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+  name: {{ include "cmp-issuer.resourceName" (dict "suffix" "manager-role" "context" $) }}
+rules:
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificaterequests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - certmanager.misiektoja.github.io
+  resources:
+  - cmpclusterissuers
+  - cmpissuers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - certmanager.misiektoja.github.io
+  resources:
+  - cmpclusterissuers/status
+  - cmpissuers/status
+  verbs:
+  - get
+  - patch
+  - update
