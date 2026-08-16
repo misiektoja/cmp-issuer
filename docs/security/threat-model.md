@@ -20,6 +20,7 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | Workload key exfiltration | P10CR never follows private-key Secret annotations and has no need to read workload Secrets |
 | Forged CMP response | Validate transaction ID, nonces, response body, response protection and signer trust before accepting a certificate |
 | Certificate substitution | Verify the issued leaf public key matches the signed CSR public key and validate the chain against CMP trust |
+| P10CR response identifier ambiguity | Require one configured `certReqId`, default to the standards value `-1` and expose legacy `0` only as an explicit per-issuer choice |
 | Redirect or header state injection | Disable HTTP redirects and derive transaction state only from authenticated CMP DER |
 | Resource exhaustion | Bound response size, timeouts, polling, transaction duration and request concurrency |
 | Replay after an ambiguous timeout | Durable transaction work will persist exact protected outbound DER before transmission |
