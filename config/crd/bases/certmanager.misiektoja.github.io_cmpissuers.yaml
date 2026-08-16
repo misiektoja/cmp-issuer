@@ -236,6 +236,16 @@ spec:
                     - P10CR
                     - IR
                     type: string
+                  p10crResponseCertReqId:
+                    default: -1
+                    description: |-
+                      P10CRResponseCertReqID selects the exact certReqId expected in CP and echoed in certConf.
+                      Omit this field for the standards-defined value -1. Set 0 only for explicit legacy server compatibility.
+                    enum:
+                    - -1
+                    - 0
+                    format: int64
+                    type: integer
                   recipient:
                     description: Recipient is the RFC 4514 distinguished name for
                       the CMP recipient.
