@@ -52,9 +52,11 @@ type CMPIssuerSpec struct {
 	// +optional
 	Transport TransportSpec `json:"transport,omitempty"`
 	// Transaction bounds a CMP enrollment transaction.
+	// +kubebuilder:default={maximumDuration:"10m",minimumPollInterval:"1s",maximumPollInterval:"5m",maximumPolls:60}
 	// +optional
 	Transaction TransactionSpec `json:"transaction,omitempty"`
 	// Policy configures certificate acceptance decisions.
+	// +kubebuilder:default={grantedModifications:Reject}
 	// +optional
 	Policy PolicySpec `json:"policy,omitempty"`
 }
