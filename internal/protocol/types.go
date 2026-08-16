@@ -31,9 +31,11 @@ const (
 	ResponseCertReqIDLegacyZero int64 = 0
 )
 
-// Client enrolls a signed PKCS #10 request through one protected CMP transaction.
+// Client enrolls a signed PKCS #10 request through one protected CMP transaction and resumes a
+// transaction that the server answered with waiting.
 type Client interface {
 	EnrollP10CR(context.Context, EnrollmentRequest) (EnrollmentResult, error)
+	PollP10CR(context.Context, PollRequest) (EnrollmentResult, error)
 }
 
 // TransactionCodec executes CMP message state transitions independently of controller contracts.
@@ -61,8 +63,11 @@ type Protection struct {
 	Signature *SignatureProtection
 }
 
-// EnrollmentRequest contains validated inputs for one synchronous P10CR exchange.
+// EnrollmentRequest contains validated inputs for one P10CR exchange.
 // A nil ResponseCertReqID accepts either the standard or the legacy zero response identifier.
+// TransactionID pins the CMP transaction identifier so a caller can persist it before the request
+// is sent and resume the same transaction later. It is generated when empty, so a caller that may
+// need to poll must supply it rather than let the transaction identifier be generated.
 type EnrollmentRequest struct {
 	EndpointURL       string
 	Timeout           time.Duration
@@ -72,18 +77,47 @@ type EnrollmentRequest struct {
 	ImplicitConfirm   bool
 	RejectGrantedMods bool
 	ResponseCertReqID *int64
+	TransactionID     []byte
 	CSRDER            []byte
 	Protection        Protection
 	CMPTrust          *x509.CertPool
 	TLSRoots          *x509.CertPool
 }
 
-// EnrollmentResult contains a validated leaf-first certificate chain.
+// PollRequest resumes a transaction whose enrollment response was waiting.
+type PollRequest struct {
+	// Enrollment carries the unchanged issuer configuration, credentials and CSR of the transaction.
+	Enrollment EnrollmentRequest
+	// RecipNonce is the sender nonce of the last accepted response.
+	RecipNonce []byte
+	// CertReqID identifies the pending request inside the transaction.
+	CertReqID int64
+	// ResponseSigner is the signer already validated for this transaction, reused when a server omits
+	// extraCerts and senderKID from later messages.
+	ResponseSigner *x509.Certificate
+}
+
+// PendingTransaction describes a server-side waiting response that the caller must poll for.
+type PendingTransaction struct {
+	// CertReqID identifies the pending request inside the transaction.
+	CertReqID int64
+	// RecipNonce is the sender nonce that the next request of this transaction must echo.
+	RecipNonce []byte
+	// ResponseSigner is the validated signer of the response, retained for later messages.
+	ResponseSigner *x509.Certificate
+	// CheckAfter is the server-requested wait before the next poll. It is zero when the server did
+	// not state one, which happens on the first waiting response because only pollRep carries it.
+	CheckAfter time.Duration
+}
+
+// EnrollmentResult contains a validated leaf-first certificate chain, or the state needed to poll.
 type EnrollmentResult struct {
 	Chain                 []*x509.Certificate
 	ExtraCertificateCount int
 	ExplicitConfirmation  bool
 	ResponseCertReqID     int64
+	// Pending is set when the server has not decided yet and the transaction must be polled.
+	Pending *PendingTransaction
 }
 
 // ErrorKind classifies failures without matching text.
