@@ -1,0 +1,14 @@
+title = "cmp-issuer"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Paths that never enter the repository or that hold build output only"
+paths = [
+  # Interoperability lab notes and credentials that are excluded from version control.
+  '''^local/''',
+  # Downloaded tool binaries and generated distribution artifacts.
+  '''^bin/''',
+  '''^dist/''',
+]
