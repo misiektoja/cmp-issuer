@@ -4,7 +4,7 @@ cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Mana
 
 The first implementation target is CMPv2 initial enrollment with a PKCS #10 request carried in P10CR and a CP response. CMP message protection is mandatory. HTTP and HTTPS are both supported transports. HTTP does not provide transport confidentiality.
 
-This repository is under active initial development. The protocol adapter and controller foundation are not production ready. No successful PKI interoperability result is claimed.
+This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac P10CR has completed a protected cert-manager `Certificate` enrollment against NCM 26.7 with Insta Certifier 7.20 build 43974. Certificate-signature protection remains blocked by response signature verification.
 
 ## API foundation
 
@@ -22,7 +22,7 @@ Secret access is intentionally not cluster-wide. The base installation grants ac
 
 ## P10CR response compatibility
 
-The controller expects the standards-defined P10CR CP `certReqId` value `-1` by default. A server that returns the legacy value `0` can be configured explicitly:
+The controller expects the RFC 4210 convention and RFC 9483 P10CR CP `certReqId` value `-1` by default. A server that returns the legacy value `0` can be configured explicitly:
 
 ```yaml
 spec:
@@ -32,7 +32,9 @@ spec:
 
 The adapter requires the configured value exactly and echoes it in `certConf`. It never accepts both values for one issuer. Use `0` only after verifying the server's behavior.
 
-Direct testing against the first NCM lab target found that its PasswordBasedMac P10CR response uses this legacy value. Certificate-protected P10CR still receives a CMP response whose signature cannot be validated by the reviewed dependency or the adapter's independently trust-anchored fallback. No end-to-end cert-manager claim is made yet.
+Direct testing against the first NCM lab target found that its PasswordBasedMac P10CR response uses this nonstandard legacy value. With explicit value `0`, the adapter completed protected P10CR, CP, `certConf` and `pkiConf`. A cert-manager `Certificate` then completed the same flow and produced a matching private key with a leaf-first certificate chain.
+
+Certificate-protected P10CR still receives a CMP response whose signature cannot be validated by the reviewed dependency or the adapter's independently trust-anchored fallback. This remains a fail-closed interoperability blocker.
 
 ## License
 
