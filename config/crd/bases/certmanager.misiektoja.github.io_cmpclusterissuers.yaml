@@ -239,10 +239,10 @@ spec:
                     - IR
                     type: string
                   p10crResponseCertReqId:
-                    default: -1
                     description: |-
-                      P10CRResponseCertReqID selects the exact certReqId expected in CP and echoed in certConf.
-                      Omit this field for the standards-defined value -1. Set 0 only for explicit legacy server compatibility.
+                      P10CRResponseCertReqID pins the exact certReqId required in CP and echoed in certConf.
+                      Omit this field to accept the standards-defined value -1 or the widely deployed legacy value 0
+                      and echo the received value. Set it to reject every other value for a known server.
                     enum:
                     - -1
                     - 0
