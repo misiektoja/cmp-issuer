@@ -76,11 +76,14 @@ func (c *recordingClient) readNames() []types.NamespacedName {
 
 // fakeProtocolClient returns a configured chain and records enrollment calls.
 type fakeProtocolClient struct {
-	mu      sync.Mutex
-	calls   int
-	request protocol.EnrollmentRequest
-	result  protocol.EnrollmentResult
-	err     error
+	mu          sync.Mutex
+	calls       int
+	polls       int
+	request     protocol.EnrollmentRequest
+	pollRequest protocol.PollRequest
+	result      protocol.EnrollmentResult
+	err         error
+	queue       []fakeExchange
 }
 
 // EnrollP10CR records the request and returns the configured result.
@@ -89,7 +92,37 @@ func (c *fakeProtocolClient) EnrollP10CR(_ context.Context, request protocol.Enr
 	defer c.mu.Unlock()
 	c.calls++
 	c.request = request
-	return c.result, c.err
+	return c.next()
+}
+
+// PollP10CR records the poll request and returns the configured result.
+func (c *fakeProtocolClient) PollP10CR(_ context.Context, poll protocol.PollRequest) (protocol.EnrollmentResult, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.polls++
+	c.pollRequest = poll
+	return c.next()
+}
+
+// next returns the head of the queued exchanges, or the single configured outcome when it is empty.
+func (c *fakeProtocolClient) next() (protocol.EnrollmentResult, error) {
+	if len(c.queue) == 0 {
+		return c.result, c.err
+	}
+	exchange := c.queue[0]
+	c.queue = c.queue[1:]
+	return exchange.result, exchange.err
+}
+
+// fakeExchange is one queued protocol outcome for a multi-step transaction test.
+type fakeExchange struct {
+	result protocol.EnrollmentResult
+	err    error
+}
+
+// testTransactions returns a transaction store backed by one fake Kubernetes client.
+func testTransactions(kubeClient client.Client) *transactionStore {
+	return &transactionStore{reader: kubeClient, writer: kubeClient}
 }
 
 // fakeCertificateRequest implements issuer-lib's request contract for signer unit tests.
@@ -261,10 +294,10 @@ func TestCheckAllowsHTTPAndEmitsWarning(t *testing.T) {
 func TestSignIgnoresPrivateKeySecretAnnotation(t *testing.T) {
 	auth, trust, leaf := credentialSecrets(t, testIssuerNamespace)
 	unrelated := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testUnrelatedPrivateKeySecret, Namespace: testIssuerNamespace}, Data: map[string][]byte{"tls.key": []byte("sensitive")}}
-	baseClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, unrelated).Build()
+	baseClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, unrelated).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
 	recording := &recordingClient{Client: baseClient}
 	protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{leaf}}}
-	signer := &Signer{KubeClient: recording, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace}
+	signer := &Signer{KubeClient: recording, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(baseClient)}
 	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
 	legacyCertReqID := cmpv1alpha1.P10CRResponseCertReqIDLegacyZero
 	issuer.Spec.Protocol.P10CRResponseCertReqID = &legacyCertReqID
@@ -289,9 +322,9 @@ func TestSignIgnoresPrivateKeySecretAnnotation(t *testing.T) {
 // TestSignLeavesResponseCertReqIDUnpinnedByDefault verifies an omitted issuer field forwards no pinned identifier.
 func TestSignLeavesResponseCertReqIDUnpinnedByDefault(t *testing.T) {
 	auth, trust, leaf := credentialSecrets(t, testIssuerNamespace)
-	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).Build()
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
 	protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{leaf}}}
-	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace}
+	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
 	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
 	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: "request", Namespace: testIssuerNamespace}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
 	if _, err := signer.Sign(context.Background(), request, issuer); err != nil {
