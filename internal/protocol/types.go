@@ -63,6 +63,7 @@ type EnrollmentRequest struct {
 	Recipient         pkix.Name
 	ImplicitConfirm   bool
 	RejectGrantedMods bool
+	ResponseCertReqID int64
 	CSRDER            []byte
 	Protection        Protection
 	CMPTrust          *x509.CertPool
