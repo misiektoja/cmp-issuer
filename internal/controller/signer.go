@@ -189,7 +189,11 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		}
 		sender = &parsedSender
 	}
-	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
+	responseCertReqID := cmpv1alpha1.P10CRResponseCertReqIDStandard
+	if spec.Protocol.P10CRResponseCertReqID != nil {
+		responseCertReqID = *spec.Protocol.P10CRResponseCertReqID
+	}
+	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, ResponseCertReqID: responseCertReqID, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
 	if sender != nil {
 		request.Sender = sender
 	}
@@ -260,6 +264,9 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	}
 	if spec.Recipient == "" || (spec.Confirmation != "Explicit" && spec.Confirmation != "Implicit") {
 		return fmt.Errorf("recipient and a supported confirmation policy are required")
+	}
+	if spec.P10CRResponseCertReqID != nil && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDStandard && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDLegacyZero {
+		return fmt.Errorf("p10cr response certReqId must be -1 or 0")
 	}
 	return nil
 }
