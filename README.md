@@ -4,7 +4,7 @@ cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Mana
 
 The first implementation target is CMPv2 initial enrollment with a PKCS #10 request carried in P10CR and a CP response. CMP message protection is mandatory. HTTP and HTTPS are both supported transports. HTTP does not provide transport confidentiality.
 
-This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac P10CR has completed a protected cert-manager `Certificate` enrollment against NCM 26.7 with Insta Certifier 7.20 build 43974. Certificate-signature protection remains blocked by response signature verification.
+This repository is under active initial development. The protocol adapter and controller foundation are not production ready. PasswordBasedMac P10CR has completed a protected cert-manager `Certificate` enrollment against NCM 26.7 with Insta Certifier 7.20 build 43974. Certificate-signature protection remains blocked by NCM rejecting the P10CR request.
 
 ## API foundation
 
@@ -34,7 +34,7 @@ The adapter requires the configured value exactly and echoes it in `certConf`. I
 
 Direct testing against the first NCM lab target found that its PasswordBasedMac P10CR response uses this nonstandard legacy value. With explicit value `0`, the adapter completed protected P10CR, CP, `certConf` and `pkiConf`. A cert-manager `Certificate` then completed the same flow and produced a matching private key with a leaf-first certificate chain.
 
-Certificate-protected P10CR still receives a CMP response whose signature cannot be validated by the reviewed dependency or the adapter's independently trust-anchored fallback. This remains a fail-closed interoperability blocker.
+Certificate-protected P10CR is blocked earlier. NCM rejects both the adapter request and a vendor `ssh-cmpclient P10CR` control request with `CMP header protection check failed`, although a current `ssh-cmpclient INITIALIZE` control succeeds with the same factory certificate, key and chain. The vendor client verifies NCM's protected error response with the current SubCA2k-256 CA certificate. The reviewed dependency and the adapter's independently trust-anchored fallback do not verify that error response, which is a separate client interoperability defect. Both failures remain fail closed.
 
 ## License
 
