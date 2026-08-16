@@ -70,13 +70,11 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
 KIND_CLUSTER ?= cmp-issuer-test-e2e
+# The budget covers building the manager image and installing cert-manager before the specs run.
+E2E_TIMEOUT ?= 20m
 
 .PHONY: setup-test-e2e
-setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
-	@command -v $(KIND) >/dev/null 2>&1 || { \
-		echo "Kind is not installed. Please install Kind manually."; \
-		exit 1; \
-	}
+setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 	@case "$$($(KIND) get clusters)" in \
 		*"$(KIND_CLUSTER)"*) \
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
@@ -87,7 +85,7 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 
 .PHONY: test-e2e
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout $(E2E_TIMEOUT)
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e
@@ -105,6 +103,58 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 .PHONY: lint-config
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	"$(GOLANGCI_LINT)" config verify
+
+##@ Documentation
+
+# PYTHON selects the interpreter that provides the MkDocs toolchain.
+PYTHON ?= python3
+
+.PHONY: docs-deps
+docs-deps: ## Install the pinned documentation build dependencies.
+	$(PYTHON) -m pip install -r docs/requirements.txt
+
+.PHONY: docs-build
+docs-build: ## Build the documentation site and fail on any warning.
+	$(PYTHON) -m mkdocs build --strict
+
+.PHONY: docs-serve
+docs-serve: ## Serve the documentation site locally with live reload.
+	$(PYTHON) -m mkdocs serve
+
+##@ Supply chain
+
+.PHONY: govulncheck
+govulncheck: govulncheck-tool ## Report known vulnerabilities that reach the module or its dependencies.
+	"$(GOVULNCHECK)" ./...
+
+.PHONY: gitleaks
+gitleaks: gitleaks-tool ## Scan the working tree and the commit history for leaked credentials.
+	"$(GITLEAKS)" dir . --config .gitleaks.toml --redact --no-banner
+	"$(GITLEAKS)" git . --config .gitleaks.toml --redact --no-banner
+
+.PHONY: sbom
+sbom: cyclonedx-gomod ## Generate a CycloneDX software bill of materials for the module.
+	mkdir -p dist
+	"$(CYCLONEDX_GOMOD)" mod -licenses -json -output dist/cmp-issuer.cdx.json .
+
+# TRIVY_IMAGE runs the scanner as a container so no scanner binary has to be installed.
+TRIVY_IMAGE ?= aquasec/trivy:0.74.0
+TRIVY_CACHE ?= $(HOME)/.cache/trivy
+TRIVY_SEVERITY ?= HIGH,CRITICAL
+
+# The image is scanned from an exported archive so no container runtime socket has to be shared.
+.PHONY: scan-image
+scan-image: ## Scan the manager image for known operating system and language vulnerabilities.
+	mkdir -p dist "$(TRIVY_CACHE)"
+	$(CONTAINER_TOOL) save "${IMG}" -o dist/manager-image.tar
+	$(CONTAINER_TOOL) run --rm \
+		-v "$(TRIVY_CACHE)":/root/.cache/trivy \
+		-v "$(CURDIR)/dist":/scan \
+		$(TRIVY_IMAGE) image --scanners vuln --severity $(TRIVY_SEVERITY) \
+		--ignore-unfixed --exit-code 1 --input /scan/manager-image.tar
+
+.PHONY: supply-chain
+supply-chain: govulncheck gitleaks sbom ## Run every supply chain check that needs no container image.
 
 ##@ Build
 
@@ -184,15 +234,24 @@ $(LOCALBIN):
 
 ## Tool Binaries
 KUBECTL ?= kubectl
-KIND ?= kind
+KIND ?= $(LOCALBIN)/kind
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+GOVULNCHECK ?= $(LOCALBIN)/govulncheck
+GITLEAKS ?= $(LOCALBIN)/gitleaks
+CYCLONEDX_GOMOD ?= $(LOCALBIN)/cyclonedx-gomod
+HELM ?= $(LOCALBIN)/helm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
+KIND_VERSION ?= v0.32.0
+GOVULNCHECK_VERSION ?= v1.7.0
+GITLEAKS_VERSION ?= v8.30.1
+CYCLONEDX_GOMOD_VERSION ?= v1.11.0
+HELM_VERSION ?= v3.20.1
 
 #ENVTEST_VERSION is the controller-runtime version to use for setup-envtest, derived from go.mod
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
@@ -214,6 +273,31 @@ $(KUSTOMIZE): $(LOCALBIN)
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+
+.PHONY: kind
+kind: $(KIND) ## Download kind locally if necessary.
+$(KIND): $(LOCALBIN)
+	$(call go-install-tool,$(KIND),sigs.k8s.io/kind,$(KIND_VERSION))
+
+.PHONY: govulncheck-tool
+govulncheck-tool: $(GOVULNCHECK) ## Download govulncheck locally if necessary.
+$(GOVULNCHECK): $(LOCALBIN)
+	$(call go-install-tool,$(GOVULNCHECK),golang.org/x/vuln/cmd/govulncheck,$(GOVULNCHECK_VERSION))
+
+.PHONY: gitleaks-tool
+gitleaks-tool: $(GITLEAKS) ## Download gitleaks locally if necessary.
+$(GITLEAKS): $(LOCALBIN)
+	$(call go-install-tool,$(GITLEAKS),github.com/zricethezav/gitleaks/v8,$(GITLEAKS_VERSION))
+
+.PHONY: cyclonedx-gomod
+cyclonedx-gomod: $(CYCLONEDX_GOMOD) ## Download cyclonedx-gomod locally if necessary.
+$(CYCLONEDX_GOMOD): $(LOCALBIN)
+	$(call go-install-tool,$(CYCLONEDX_GOMOD),github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod,$(CYCLONEDX_GOMOD_VERSION))
+
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
+	$(call go-install-tool,$(HELM),helm.sh/helm/v3/cmd/helm,$(HELM_VERSION))
 
 .PHONY: setup-envtest
 setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
@@ -257,3 +341,47 @@ endef
 define gomodver
 $(shell go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' $(1) 2>/dev/null)
 endef
+
+##@ Helm Deployment
+
+## The Helm binary is pinned and installed by the helm target in the Dependencies section
+## Namespace to deploy the Helm release
+HELM_NAMESPACE ?= cmp-issuer-system
+## Name of the Helm release
+HELM_RELEASE ?= cmp-issuer
+## Path to the Helm chart directory
+HELM_CHART_DIR ?= charts/chart
+## Additional arguments to pass to helm commands
+HELM_EXTRA_ARGS ?=
+
+.PHONY: helm-lint
+helm-lint: helm ## Validate that the chart renders and passes the Helm linter.
+	$(HELM) lint $(HELM_CHART_DIR)
+	$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) > /dev/null
+
+.PHONY: helm-deploy
+helm-deploy: helm ## Deploy manager to the K8s cluster via Helm. Specify an image with IMG.
+	$(HELM) upgrade --install $(HELM_RELEASE) $(HELM_CHART_DIR) \
+		--namespace $(HELM_NAMESPACE) \
+		--create-namespace \
+		--set manager.image.repository=$${IMG%:*} \
+		--set manager.image.tag=$${IMG##*:} \
+		--wait \
+		--timeout 5m \
+		$(HELM_EXTRA_ARGS)
+
+.PHONY: helm-uninstall
+helm-uninstall: ## Uninstall the Helm release from the K8s cluster.
+	$(HELM) uninstall $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
+
+.PHONY: helm-status
+helm-status: ## Show Helm release status.
+	$(HELM) status $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
+
+.PHONY: helm-history
+helm-history: ## Show Helm release history.
+	$(HELM) history $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
+
+.PHONY: helm-rollback
+helm-rollback: ## Rollback to previous Helm release.
+	$(HELM) rollback $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
