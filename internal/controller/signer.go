@@ -46,10 +46,17 @@ const (
 	fieldOwner              = "cmp-issuer.certmanager.misiektoja.github.io"
 	eventHTTPNoConfidential = "HTTPTransportNoConfidentiality"
 	schemeHTTP              = "http"
+	// The polling defaults match the CRD defaults and apply when the transaction block is omitted.
+	defaultMaximumDuration     = 10 * time.Minute
+	defaultMinimumPollInterval = time.Second
+	defaultMaximumPollInterval = 5 * time.Minute
+	defaultMaximumPolls        = 60
 )
 
 // +kubebuilder:rbac:groups=certmanager.misiektoja.github.io,resources=cmpissuers;cmpclusterissuers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=certmanager.misiektoja.github.io,resources=cmpissuers/status;cmpclusterissuers/status,verbs=get;patch;update
+// +kubebuilder:rbac:groups=certmanager.misiektoja.github.io,resources=cmptransactions,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=certmanager.misiektoja.github.io,resources=cmptransactions/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -61,6 +68,7 @@ type Signer struct {
 	ProtocolClient           protocol.Client
 	EventRecorder            events.EventRecorder
 	ClusterResourceNamespace string
+	transactions             *transactionStore
 }
 
 // SetupWithManager registers issuer-lib controllers while disabling Kubernetes CSR support.
@@ -76,6 +84,9 @@ func (s *Signer) SetupWithManager(ctx context.Context, manager ctrl.Manager) err
 	}
 	if s.ClusterResourceNamespace == "" {
 		return fmt.Errorf("cluster resource namespace is required")
+	}
+	if s.transactions == nil {
+		s.transactions = &transactionStore{reader: manager.GetAPIReader(), writer: manager.GetClient()}
 	}
 	return (&controllers.CombinedController{IssuerTypes: []issuerapi.Issuer{&cmpv1alpha1.CMPIssuer{}}, ClusterIssuerTypes: []issuerapi.Issuer{&cmpv1alpha1.CMPClusterIssuer{}}, FieldOwner: fieldOwner, MaxRetryDuration: 2 * time.Minute, Check: s.Check, Sign: s.Sign, EventRecorder: s.EventRecorder, SetCAOnCertificateRequest: false, DisableKubernetesCSRController: true}).SetupWithManager(ctx, manager)
 }
@@ -111,9 +122,30 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	}
 	enrollmentRequest := runtimeConfiguration.EnrollmentRequest
 	enrollmentRequest.CSRDER = requestDER
-	result, err := s.ProtocolClient.EnrollP10CR(ctx, enrollmentRequest)
+	limits := runtimeConfiguration.Transaction
+	transaction, err := s.transactions.load(ctx, request.GetNamespace(), request.GetName(), request.GetUID())
 	if err != nil {
-		return issuersigner.PEMBundle{}, mapProtocolError(err)
+		return issuersigner.PEMBundle{}, err
+	}
+	if transaction == nil {
+		// The transaction is recorded before the first message is sent, so that a controller restart
+		// resumes this transaction instead of starting a second enrollment for the same request.
+		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration))
+		if err != nil {
+			return issuersigner.PEMBundle{}, err
+		}
+	}
+	enrollmentRequest.TransactionID = transaction.Spec.TransactionID
+	polled := transaction.Status.Phase == cmpv1alpha1.TransactionPhasePolling
+	result, err := s.exchange(ctx, enrollmentRequest, transaction, limits)
+	if err != nil {
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
+	}
+	if result.Pending != nil {
+		return issuersigner.PEMBundle{}, s.continuePolling(ctx, transaction, result.Pending, limits, polled)
+	}
+	if removeErr := s.transactions.remove(ctx, transaction); removeErr != nil {
+		return issuersigner.PEMBundle{}, removeErr
 	}
 	chainPEM := make([]byte, 0, len(result.Chain)*1024)
 	for _, certificate := range result.Chain {
@@ -122,10 +154,66 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	return issuersigner.PEMBundle{ChainPEM: chainPEM}, nil
 }
 
+// exchange sends the enrollment request, or resumes a transaction the server answered with waiting.
+func (s *Signer) exchange(ctx context.Context, enrollmentRequest protocol.EnrollmentRequest, transaction *cmpv1alpha1.CMPTransaction, limits cmpv1alpha1.TransactionSpec) (protocol.EnrollmentResult, error) {
+	if time.Now().After(transaction.Spec.Deadline.Time) {
+		return protocol.EnrollmentResult{}, issuersigner.PermanentError{Err: fmt.Errorf("CMP transaction exceeded the configured maximum duration of %s", limits.MaximumDuration.Duration)}
+	}
+	if transaction.Status.Phase != cmpv1alpha1.TransactionPhasePolling {
+		// A transaction that never reached the polling phase is retried under its recorded transaction
+		// ID, which is how a server recognises a repeated request rather than a new enrollment.
+		return s.ProtocolClient.EnrollP10CR(ctx, enrollmentRequest)
+	}
+	if transaction.Status.CertReqID == nil || len(transaction.Status.RecipNonce) == 0 {
+		return protocol.EnrollmentResult{}, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction is missing the state required to poll")}
+	}
+	if transaction.Status.Polls >= limits.MaximumPolls {
+		return protocol.EnrollmentResult{}, issuersigner.PermanentError{Err: fmt.Errorf("CMP transaction reached the configured maximum of %d polls", limits.MaximumPolls)}
+	}
+	poll := protocol.PollRequest{Enrollment: enrollmentRequest, RecipNonce: transaction.Status.RecipNonce, CertReqID: *transaction.Status.CertReqID}
+	if len(transaction.Status.ResponseSigner) > 0 {
+		signer, parseErr := x509.ParseCertificate(transaction.Status.ResponseSigner)
+		if parseErr != nil {
+			return protocol.EnrollmentResult{}, issuersigner.PermanentError{Err: fmt.Errorf("parse retained CMP response signer: %w", parseErr)}
+		}
+		poll.ResponseSigner = signer
+	}
+	return s.ProtocolClient.PollP10CR(ctx, poll)
+}
+
+// continuePolling records the state for the next poll and asks the controller to retry after the delay.
+// Only a pollReq counts against the poll budget, so the first waiting response does not consume it.
+func (s *Signer) continuePolling(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, pending *protocol.PendingTransaction, limits cmpv1alpha1.TransactionSpec, polled bool) error {
+	if polled {
+		transaction.Status.Polls++
+	}
+	if err := s.transactions.recordPending(ctx, transaction, pending); err != nil {
+		return err
+	}
+	delay := pollDelay(pending.CheckAfter, limits)
+	if deadlineDelay := time.Until(transaction.Spec.Deadline.Time); deadlineDelay > 0 && deadlineDelay < delay {
+		delay = deadlineDelay
+	}
+	return issuersigner.PendingError{Err: fmt.Errorf("CMP server has not issued the certificate yet, polling again in %s", delay), RequeueAfter: delay}
+}
+
+// failTransaction removes recorded state when a failure ends the transaction and maps the error.
+func (s *Signer) failTransaction(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, err error) error {
+	mapped := mapProtocolError(err)
+	var permanentErr issuersigner.PermanentError
+	if errors.As(mapped, &permanentErr) {
+		if removeErr := s.transactions.remove(ctx, transaction); removeErr != nil {
+			return removeErr
+		}
+	}
+	return mapped
+}
+
 // runtimeConfiguration contains locally validated data for one issuer generation.
 type runtimeConfiguration struct {
 	EndpointScheme    string
 	EnrollmentRequest protocol.EnrollmentRequest
+	Transaction       cmpv1alpha1.TransactionSpec
 }
 
 // configurationError distinguishes immutable spec failures from retryable Secret state.
@@ -199,7 +287,35 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if sender != nil {
 		request.Sender = sender
 	}
-	return runtimeConfiguration{EndpointScheme: parsedEndpoint.Scheme, EnrollmentRequest: request}, nil
+	return runtimeConfiguration{EndpointScheme: parsedEndpoint.Scheme, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction)}, nil
+}
+
+// transactionLimitsWithDefaults applies the documented polling defaults to an omitted transaction block.
+func transactionLimitsWithDefaults(spec cmpv1alpha1.TransactionSpec) cmpv1alpha1.TransactionSpec {
+	if spec.MaximumDuration.Duration <= 0 {
+		spec.MaximumDuration = metav1.Duration{Duration: defaultMaximumDuration}
+	}
+	if spec.MinimumPollInterval.Duration <= 0 {
+		spec.MinimumPollInterval = metav1.Duration{Duration: defaultMinimumPollInterval}
+	}
+	if spec.MaximumPollInterval.Duration < spec.MinimumPollInterval.Duration {
+		spec.MaximumPollInterval = metav1.Duration{Duration: defaultMaximumPollInterval}
+	}
+	if spec.MaximumPolls < 1 {
+		spec.MaximumPolls = defaultMaximumPolls
+	}
+	return spec
+}
+
+// pollDelay clamps the server-requested wait into the configured polling bounds.
+func pollDelay(checkAfter time.Duration, limits cmpv1alpha1.TransactionSpec) time.Duration {
+	if checkAfter < limits.MinimumPollInterval.Duration {
+		return limits.MinimumPollInterval.Duration
+	}
+	if checkAfter > limits.MaximumPollInterval.Duration {
+		return limits.MaximumPollInterval.Duration
+	}
+	return checkAfter
 }
 
 // issuerSpecAndNamespace returns the common spec and the only permitted credential namespace.
@@ -454,7 +570,7 @@ func mapProtocolError(err error) error {
 	case protocol.ErrorKindPermanent, protocol.ErrorKindSecurity:
 		return issuersigner.PermanentError{Err: protocolError}
 	case protocol.ErrorKindPending:
-		return issuersigner.PermanentError{Err: fmt.Errorf("durable asynchronous CMP transactions are not enabled: %w", protocolError)}
+		return issuersigner.PendingError{Err: protocolError, RequeueAfter: protocolError.RequeueAfter}
 	case protocol.ErrorKindRetryable:
 		return protocolError
 	default:
