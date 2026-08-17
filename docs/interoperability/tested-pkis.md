@@ -29,6 +29,16 @@ The vendor `ssh-cmpclient P10CR` sends only the issuing chain and omits the end-
 
 NCM protected error messages verify against configured CMP trust anchors, so a rejection is reported to cert-manager as an authenticated failure rather than a transport error.
 
+### Retransmitted enrollment
+
+NCM answers a repeat of an enrollment it already accepted with a protected error carrying failInfo `transactionIdInUse`, and issues no second certificate. It does not return the certificate from the original transaction.
+
+NCM keys this on the transaction ID rather than on the message content, so any repeat under an identifier it has already answered draws the same protected error regardless of how the message is built. Pinning the transaction ID across a retry is therefore what prevents a duplicate certificate on this server.
+
+### Request rate limiting
+
+The NCM CMP listener applies a per-host request limit that is independent of CMP semantics. Once a client exceeds it, the listener answers HTTP 503 with an HTML body and no CMP message, rejecting the request before it parses the header or reaches the CA engine. The limit counts every CMP request from the source address, including `certConf` and `pollReq`, so a busy controller or a tight retry loop can trip it. cmp-issuer reports these as transport errors and retries with backoff.
+
 ## EJBCA Community Edition 9.3.7
 
 | Item | Value |
@@ -50,11 +60,15 @@ NCM protected error messages verify against configured CMP trust anchors, so a r
 
 EJBCA returns `0`. Pinning `-1` fails with a permanent error and issues no certificate.
 
+### Retransmitted enrollment
+
+EJBCA answers a repeat of an enrollment it already accepted with a protected error carrying failInfo `badRequest` and the status text `Got request with status GENERATED (40)`, and issues no second certificate. It refuses on the end entity state above rather than on the transaction identifier, so like NCM it does not return the certificate from the original transaction.
+
 ## OpenSSL CMP mock
 
-CI runs delayed enrollment and delayed confirmation against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or go-pkicmp.
+CI runs delayed enrollment, delayed confirmation and pinned transaction flows against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or go-pkicmp. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
 
-The mock keeps one transaction per TCP connection. The test reaches it through a connection-pooling proxy because RFC 6712 does not require connection affinity on real servers.
+The mock keeps one transaction per TCP connection. The test reaches it through a connection-pooling proxy because RFC 6712 does not require connection affinity on real servers. The mock returns a fixed certificate rather than signing the request, so it cannot show how a server treats a repeat; that behavior is recorded above from NCM and EJBCA.
 
 ## What is not claimed
 
