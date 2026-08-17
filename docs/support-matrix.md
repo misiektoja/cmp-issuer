@@ -66,8 +66,9 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Capability | Status | Notes |
 | --- | --- | --- |
 | Controller runtime and Go metrics | Implemented | Standard controller-runtime endpoint, protected by authn and authz |
+| Structured issuance logging with certificate detail | Implemented | One line per enrollment outcome with subject, serial, validity, SANs, key type and size, signature algorithm, issuing CA and duration |
+| CMP message logging | Implemented | Body type and size of each message sent and received, behind `logging.level: debug` |
 | Enrollment, poll and confirmation metrics | Planned | Counts and durations per issuer and outcome |
-| Structured issuance logging with certificate detail | Planned | Subject, serial, validity, SANs, key type and issue duration |
 
 ## Tested CMP servers
 
