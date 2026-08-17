@@ -58,6 +58,13 @@ type CMPTransactionStatus struct {
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
 	RecipNonce []byte `json:"recipNonce,omitempty"`
+	// RequestNonce is the sender nonce of the request whose response the server delayed. RFC 9483
+	// section 4.4 requires the client to keep it for the whole transaction because a conformant
+	// server echoes it in the recipient nonce of the final response instead of the nonce of the
+	// last poll request.
+	// +kubebuilder:validation:MaxLength=64
+	// +optional
+	RequestNonce []byte `json:"requestNonce,omitempty"`
 	// CertReqID is the certificate request identifier that the server polls against.
 	// +optional
 	CertReqID *int64 `json:"certReqID,omitempty"`
