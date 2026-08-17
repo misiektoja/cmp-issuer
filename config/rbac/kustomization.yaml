@@ -9,6 +9,10 @@ resources:
 - role_binding.yaml
 - credential_reader_role.yaml
 - credential_reader_role_binding.yaml
+# Lets the cert-manager approver act on this issuer type. Without it every CertificateRequest stays
+# pending with no error reported. Comment both out when approver-policy makes the decision instead.
+- cert_manager_approver_role.yaml
+- cert_manager_approver_role_binding.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml
 # The following RBAC configurations are used to protect
