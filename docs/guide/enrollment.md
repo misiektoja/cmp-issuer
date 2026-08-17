@@ -59,7 +59,7 @@ kubectl get cmptransactions -n <namespace>
 kubectl describe cmptransaction <name>
 ```
 
-A `CMPTransaction` appears when an enrollment is in flight, especially for asynchronous servers.
+A `CMPTransaction` appears as soon as an enrollment starts and reports `Enrolling`, `Polling`, `Confirming` or `Issued`. It records the enrolled CSR digest, the issuer that served it and, once the server answers, the validated chain. It is removed with the `CertificateRequest` that owns it.
 
 ## P10CR certReqId
 
