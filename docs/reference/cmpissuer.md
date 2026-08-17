@@ -59,7 +59,7 @@ spec:
 | --- | --- | --- | --- |
 | `version` | yes | `2` | CMP version; only `2` is supported |
 | `initialEnrollment` | yes | `P10CR` | Only `P10CR` is implemented |
-| `recipient` | yes | | RFC 4514 recipient DN |
+| `recipient` | yes | | RFC 4514 recipient DN. Also the authority every response must be sent by, compared ignoring attribute order |
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
 | `p10crResponseCertReqId` | no | accept `-1` or `0` | Pin `-1` or `0` when the server behavior is known |
 | `certProfile` | no | | Optional server certificate profile |
