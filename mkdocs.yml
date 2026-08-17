@@ -38,18 +38,17 @@ markdown_extensions:
 
 nav:
   - Overview: index.md
+  - Getting started: getting-started.md
+  - Installation: installation.md
   - Support matrix: support-matrix.md
   - Architecture: architecture.md
-  - Installation: installation.md
   - User guide:
       - Enrollment: guide/enrollment.md
-      - P10CR renewal and KUR roadmap: guide/renewal-and-kur.md
-      - Transaction recovery: guide/transaction-recovery.md
-      - HTTP and HTTPS transport: guide/transport.md
       - Message protection: guide/message-protection.md
-      - PasswordBasedMac: guide/password-based-mac.md
-      - Signature protection: guide/signature-protection.md
       - CMP response trust: guide/cmp-response-trust.md
+      - HTTP and HTTPS transport: guide/transport.md
+      - Transaction recovery: guide/transaction-recovery.md
+      - P10CR renewal and KUR roadmap: guide/renewal-and-kur.md
       - cert-manager private-key handling: guide/private-key-handling.md
   - Reference:
       - CMPIssuer: reference/cmpissuer.md
