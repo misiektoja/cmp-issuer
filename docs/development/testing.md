@@ -14,10 +14,11 @@ Coverage includes:
 * Signer and controller reconciliation
 * Deferred enrollment over real CMP messages with transaction state on a real API server
 * Delayed confirmation and nonce echo rules
+* Transaction identifier pinning across a retry and recovery of an already issued chain
 
 ## OpenSSL CMP interoperability
 
-CI runs delayed transaction and delayed confirmation flows against the OpenSSL 3.6 CMP mock. The workflow fails if the test is silently skipped when OpenSSL is available.
+CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
 
 Locally set `OPENSSL_BIN` to select a non-default OpenSSL binary. The test skips when OpenSSL is missing.
 
