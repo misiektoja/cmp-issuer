@@ -27,7 +27,7 @@ The vendor `ssh-cmpclient P10CR` sends only the issuing chain and omits the end-
 
 ### Protected error responses
 
-NCM protected error messages verify against configured CMP trust anchors. Earlier reports that cmp-issuer could not verify them are retracted.
+NCM protected error messages verify against configured CMP trust anchors, so a rejection is reported to cert-manager as an authenticated failure rather than a transport error.
 
 ## EJBCA Community Edition 9.3.7
 
