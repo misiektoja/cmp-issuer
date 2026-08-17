@@ -41,6 +41,6 @@ Each release also carries the installer manifest, the packaged Helm chart and a 
 
 Every check runs on each push and on a weekly schedule so that vulnerabilities published after a change merged are still reported. Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.
 
-## Dependency review rule
+## Dependency policy
 
-Every protocol dependency is pinned. Any verbatim ASN.1 module or RFC code component added later must be recorded here with its exact source and required notice.
+Every protocol dependency is pinned. Any verbatim ASN.1 module or RFC code component added later is recorded here with its exact source and required notice.
