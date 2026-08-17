@@ -23,7 +23,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Explicit `certConf` confirmation | Implemented, Interoperability tested | Default |
 | Server-granted implicit confirmation | Implemented | Set `protocol.confirmation: Implicit` |
 | Asynchronous `waiting` / `pollReq` / `pollRep` | Implemented, Interoperability tested | Bounded by `spec.transaction` |
-| Delayed confirmation (`certConf` answered with `waiting`) | Implemented, Interoperability tested | Inline poll, not persisted in `CMPTransaction` |
+| Delayed confirmation (`certConf` answered with `waiting`) | Implemented, Interoperability tested | Polled from `CMPTransaction`, resumable across a restart |
 | CMPv3 | Planned | |
 | Revocation (RR, CRL, OCSP over CMP) | Planned | |
 
@@ -52,7 +52,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | --- | --- | --- |
 | `CMPIssuer` (namespaced) | Experimental | API group `certmanager.misiektoja.github.io/v1alpha1` |
 | `CMPClusterIssuer` (cluster) | Experimental | Credentials read from cluster resource namespace |
-| `CMPTransaction` persistence | Implemented | Survives controller restart for async enrollments |
+| `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Accept `-1` or `0` by default |
 
