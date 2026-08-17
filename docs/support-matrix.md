@@ -44,6 +44,8 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | HTTPS with custom trust anchors | Implemented | TLS trust is separate from CMP trust |
 | HTTPS with system trust | Implemented | Omit `transport.tls.caSecretRef` |
 | mTLS client authentication | Planned | `clientCertificateSecretRef` is reserved |
+| Backup CMP endpoint with failover | Planned | A second endpoint used when the primary is unreachable |
+| Explicit outbound proxy settings | Planned | Standard proxy environment variables are already honored |
 | HTTP redirects | Unsupported | Disabled; redirect responses fail closed |
 
 ## Issuer API
@@ -55,6 +57,17 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Accept `-1` or `0` by default |
+| Endpoint reachability in issuer readiness | Planned | Readiness reflects configuration, not whether the server answers |
+| Requested validity period from `Certificate.spec.duration` | Planned | Needs CRMF, since a PKCS #10 request carries no validity |
+| Chain placement options for the issued Secret | Planned | Choose whether `tls.crt` carries the chain and what `ca.crt` holds |
+
+## Observability
+
+| Capability | Status | Notes |
+| --- | --- | --- |
+| Controller runtime and Go metrics | Implemented | Standard controller-runtime endpoint, protected by authn and authz |
+| Enrollment, poll and confirmation metrics | Planned | Counts and durations per issuer and outcome |
+| Structured issuance logging with certificate detail | Planned | Subject, serial, validity, SANs, key type and issue duration |
 
 ## Tested CMP servers
 
