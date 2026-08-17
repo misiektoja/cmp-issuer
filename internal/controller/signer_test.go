@@ -76,17 +76,19 @@ func (c *recordingClient) readNames() []types.NamespacedName {
 
 // fakeProtocolClient returns a configured chain and records enrollment calls.
 type fakeProtocolClient struct {
-	mu          sync.Mutex
-	calls       int
-	polls       int
-	request     protocol.EnrollmentRequest
-	pollRequest protocol.PollRequest
-	result      protocol.EnrollmentResult
-	err         error
-	queue       []fakeExchange
+	mu             sync.Mutex
+	calls          int
+	polls          int
+	confirms       int
+	request        protocol.EnrollmentRequest
+	pollRequest    protocol.PollRequest
+	confirmRequest protocol.ConfirmRequest
+	result         protocol.EnrollmentResult
+	err            error
+	queue          []fakeExchange
 }
 
-// EnrollP10CR records the request and returns the configured result.
+// EnrollP10CR records the enrollment request and returns the configured result.
 func (c *fakeProtocolClient) EnrollP10CR(_ context.Context, request protocol.EnrollmentRequest) (protocol.EnrollmentResult, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -101,6 +103,15 @@ func (c *fakeProtocolClient) PollP10CR(_ context.Context, poll protocol.PollRequ
 	defer c.mu.Unlock()
 	c.polls++
 	c.pollRequest = poll
+	return c.next()
+}
+
+// ConfirmP10CR records the confirmation request and returns the configured result.
+func (c *fakeProtocolClient) ConfirmP10CR(_ context.Context, confirm protocol.ConfirmRequest) (protocol.EnrollmentResult, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.confirms++
+	c.confirmRequest = confirm
 	return c.next()
 }
 
