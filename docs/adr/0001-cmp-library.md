@@ -16,4 +16,4 @@ The adapter also owns cross-message signer state. Once a response signer certifi
 
 ## Consequences
 
-The project can replace or patch the dependency without changing its public API. It must maintain independent negative tests and interoperability evidence. A dependency defect needs a minimal failing test and RFC basis before a local patch is proposed. A public fork requires separate authorization.
+The project can replace or patch the dependency without changing its public API. It maintains independent negative tests and interoperability evidence. A dependency defect is reproduced with a minimal failing test and an RFC citation before a patch is proposed.
