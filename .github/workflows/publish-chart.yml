@@ -1,0 +1,116 @@
+# Publishes the Helm chart repository index to GitHub Pages.
+#
+# The release workflow packages the chart and attaches it to a draft GitHub Release. This workflow adds
+# that packaged chart to the Helm repository index once the release is published, so that
+# `helm repo add` serves it. It is inert until a release is published by hand or it is dispatched.
+#
+# The chart archives stay attached to their GitHub Release. Only `index.yaml` lives on the `gh-pages`
+# branch, under `charts/`, so a documentation site can occupy the root of the same Pages site.
+name: Publish chart repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version to index, for example v0.1.0"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Update the Helm repository index
+    runs-on: ubuntu-latest
+    permissions:
+      # Reading the release assets and pushing the refreshed index to gh-pages.
+      contents: write
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Resolve the release version
+        id: release
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${DISPATCH_VERSION:-$RELEASE_TAG}"
+          if [ -z "$version" ]; then
+            echo "no release version to index" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Install the pinned Helm
+        run: make helm
+
+      - name: Download the packaged chart from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir -p staging
+          gh release download "$VERSION" --pattern 'cmp-issuer-*.tgz' --dir staging
+          ls -l staging
+
+      - name: Fetch the current chart repository index
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Building the branch in a fresh directory avoids having to clear a checkout, and handles the
+          # first run, where gh-pages does not exist yet, with the same code path.
+          git init -q -b gh-pages published
+          git -C published remote add origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git -C published fetch -q --depth 1 origin gh-pages; then
+            git -C published reset -q --hard FETCH_HEAD
+            echo "gh-pages exists, merging into the current index"
+          else
+            echo "gh-pages does not exist yet, starting a new chart repository"
+          fi
+          mkdir -p published/charts
+          # Pages would otherwise run the content through Jekyll, which drops files it does not expect.
+          touch published/.nojekyll
+
+      - name: Merge the release into the repository index
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          merge=""
+          if [ -f published/charts/index.yaml ]; then
+            merge="--merge published/charts/index.yaml"
+          fi
+          # Entries point at the release assets, so Pages serves only the index.
+          # shellcheck disable=SC2086
+          ./bin/helm repo index staging \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}" \
+            $merge
+          cp staging/index.yaml published/charts/index.yaml
+
+      - name: Publish the index
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git -C published add charts/index.yaml .nojekyll
+          if git -C published diff --quiet --cached; then
+            echo "index already current, nothing to publish"
+            exit 0
+          fi
+          git -C published \
+            -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Add cmp-issuer ${VERSION} to the chart repository"
+          git -C published push origin gh-pages
+
+      - name: Report the repository URL
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          name="${GITHUB_REPOSITORY##*/}"
+          echo "Indexed ${VERSION} at https://${owner}.github.io/${name}/charts" >> "$GITHUB_STEP_SUMMARY"
