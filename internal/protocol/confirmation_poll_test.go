@@ -182,7 +182,7 @@ func TestConfirmationPollsUntilPKIConf(t *testing.T) {
 	password := []byte("test-shared-secret")
 	server, state := newDelayedConfirmationServer(t, pki, password, confirmationOptions{Delays: 2, UsePollRep: true, PollRepCertReqID: ResponseCertReqIDStandard})
 	defer server.Close()
-	result, err := NewClient().EnrollP10CR(context.Background(), delayedConfirmationRequest(t, pki, server.URL, password))
+	result, err := enrollAndConfirm(t, delayedConfirmationRequest(t, pki, server.URL, password))
 	if err != nil {
 		t.Fatalf("EnrollP10CR returned error: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestConfirmationPollAcceptsDelayedRequestNonce(t *testing.T) {
 	password := []byte("test-shared-secret")
 	server, _ := newDelayedConfirmationServer(t, pki, password, confirmationOptions{Delays: 1, EchoDelayedRequestNonce: true})
 	defer server.Close()
-	if _, err := NewClient().EnrollP10CR(context.Background(), delayedConfirmationRequest(t, pki, server.URL, password)); err != nil {
+	if _, err := enrollAndConfirm(t, delayedConfirmationRequest(t, pki, server.URL, password)); err != nil {
 		t.Fatalf("EnrollP10CR returned error: %v", err)
 	}
 }
@@ -223,7 +223,7 @@ func TestConfirmationPollRejectsForeignNonce(t *testing.T) {
 	password := []byte("test-shared-secret")
 	server, _ := newDelayedConfirmationServer(t, pki, password, confirmationOptions{Delays: 1, ForeignFinalNonce: true})
 	defer server.Close()
-	_, err := NewClient().EnrollP10CR(context.Background(), delayedConfirmationRequest(t, pki, server.URL, password))
+	_, err := enrollAndConfirm(t, delayedConfirmationRequest(t, pki, server.URL, password))
 	var protocolError *Error
 	if !errors.As(err, &protocolError) || protocolError.Kind != ErrorKindSecurity {
 		t.Fatalf("expected a security failure, got %v", err)
@@ -335,7 +335,7 @@ func TestConfirmationPollRejectsMismatchedPollRep(t *testing.T) {
 	password := []byte("test-shared-secret")
 	server, _ := newDelayedConfirmationServer(t, pki, password, confirmationOptions{Delays: 2, UsePollRep: true, PollRepCertReqID: ResponseCertReqIDLegacyZero})
 	defer server.Close()
-	_, err := NewClient().EnrollP10CR(context.Background(), delayedConfirmationRequest(t, pki, server.URL, password))
+	_, err := enrollAndConfirm(t, delayedConfirmationRequest(t, pki, server.URL, password))
 	var protocolError *Error
 	if !errors.As(err, &protocolError) || protocolError.Kind != ErrorKindSecurity {
 		t.Fatalf("expected a security failure, got %v", err)
