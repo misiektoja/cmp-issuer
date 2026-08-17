@@ -32,18 +32,18 @@ The Kubernetes CSR controller bundled with issuer-lib is **disabled**. cmp-issue
 2. issuer-lib approves or denies the request. Unapproved or denied requests send **no** CMP traffic.
 3. The signer loads issuer credentials and CMP trust from Secrets authorized by RBAC.
 4. For P10CR the signer forwards the CSR bytes. It never reads the workload private key.
-5. Before the first CMP message the signer creates a `CMPTransaction` owned by the `CertificateRequest`.
+5. Before the first CMP message the signer creates a `CMPTransaction` owned by the `CertificateRequest` and records the protected enrollment message in it.
 6. Protected DER is exchanged until the server returns a certificate or a permanent error.
 7. The signer validates response protection, transaction ID, nonces, `certReqId`, issued public key and chain trust.
-8. On success cert-manager stores the TLS Secret. The `CMPTransaction` is deleted.
+8. The validated chain is recorded in the `CMPTransaction` before it is returned, then cert-manager stores the TLS Secret.
 
 ## Asynchronous transactions
 
 When the server answers `waiting`, the signer enters a poll loop. Poll intervals honor the server request within `minimumPollInterval` and `maximumPollInterval`. The transaction fails after `maximumDuration` or `maximumPolls`.
 
-Transaction state in `CMPTransaction` includes the transaction identifier, deadline, phase, nonces, polled `certReqId`, validated response signer and poll count. A controller restart resumes from this state instead of starting a second enrollment.
+Transaction state in `CMPTransaction` includes the transaction identifier, deadline, enrolled CSR digest, issuer reference, phase, protected enrollment message, nonces, polled `certReqId`, validated response signer, poll count and the issued chain. A controller restart resumes from this state instead of starting a second enrollment.
 
-Delayed confirmation is handled inline after the certificate is already issued. It is not recorded in `CMPTransaction`. See [Transaction recovery](guide/transaction-recovery.md).
+The validated chain is recorded before `certConf` is sent, so a server that delays `pkiConf` is polled from recorded state and a restart during confirmation resumes rather than discarding an issued certificate. See [Transaction recovery](guide/transaction-recovery.md).
 
 ## Trust separation
 
