@@ -1,0 +1,16 @@
+{{- if .Values.certManagerApproval.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "cmp-issuer.resourceName" (dict "suffix" "cert-manager-approver" "context" $) }}
+rules:
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - signers
+  verbs:
+  - approve
+  resourceNames:
+  - cmpissuers.certmanager.misiektoja.github.io/*
+  - cmpclusterissuers.certmanager.misiektoja.github.io/*
+{{- end }}
