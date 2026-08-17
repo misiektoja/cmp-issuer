@@ -23,6 +23,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Verify CMP interoperability against the OpenSSL mock server
+        run: |
+          openssl version
+          go test ./internal/protocol/ -run OpenSSL -v -count=1 > openssl-interop.log 2>&1 || { cat openssl-interop.log; exit 1; }
+          cat openssl-interop.log
+          if grep -q -- "--- SKIP" openssl-interop.log; then echo "The OpenSSL CMP mock server is unavailable on this runner, so the interoperability coverage silently disappeared"; exit 1; fi
+
       - name: Running Tests
         run: |
           go mod tidy
