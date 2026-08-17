@@ -1,6 +1,6 @@
 # Testing
 
-cmp-issuer validation spans unit tests, envtest, OpenSSL interoperability, Kind e2e and manual lab verification.
+cmp-issuer validation spans unit tests, envtest, OpenSSL interoperability, Kind e2e and manual verification against real CMP servers.
 
 ## Unit and envtest
 
@@ -40,7 +40,7 @@ Requires Colima or Docker for Kind. The suite:
 * Confirms crafted private-key annotations do not expose Secrets
 * Confirms Secret access requires the documented RoleBinding
 
-Runtime is about one minute after the cluster is ready. **Do not run this suite against the production lab cluster.**
+Runtime is about one minute after the cluster is ready. **Do not run this suite against a production cluster.**
 
 ## Interoperability against real CMP servers
 
