@@ -21,12 +21,14 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"mime"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/tsaarni/go-pkicmp/pkicmp"
@@ -325,8 +327,52 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	if response.Header.PVNO != pkicmp.PVNO2 {
 		return nil, permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version is not CMPv2"))
 	}
+	if !senderMatchesRecipient(response.Header.Sender, request.Recipient) {
+		return nil, security("verify response sender", "wrongAuthority", fmt.Errorf("response sender does not name the configured recipient"))
+	}
 	return responseSigner, nil
 }
+
+// senderMatchesRecipient reports whether a response is sent by the authority the issuer addressed.
+//
+// Protection verification proves the message came from a certificate that chains to a configured CMP
+// trust anchor and that names the sender in its subject. Neither fact restricts which authority under
+// that anchor answered, so under a shared enterprise or public root any subordinate CA can name itself
+// and satisfy both. Requiring the sender to be the recipient the issuer addressed closes that, for
+// shared-secret and signature protection alike.
+//
+// The comparison ignores attribute order. A distinguished name is an ordered sequence, but operators
+// copy a recipient out of whatever their tooling printed, and certificate tools disagree about whether
+// to print a name in encoded order or in the reverse order RFC 4514 defines. Comparing the attributes
+// as a set accepts a name written in either direction while still requiring exactly the same
+// attributes and values, which is what identifies the authority.
+func senderMatchesRecipient(sender pkicmp.GeneralName, recipient pkix.Name) bool {
+	// RFC 4210 section 5.1.1 allows a NULL DN where a name is not known. There is nothing to compare,
+	// and authenticity still rests on the trust chain and the library's own sender binding.
+	if len(sender.DirectoryName) == 0 {
+		return true
+	}
+	configured := pkicmp.NewDirectoryName(recipient).DirectoryName
+	if len(configured) == 0 {
+		return true
+	}
+	return equalAttributeSets(attributeSet(sender.DirectoryName), attributeSet(configured))
+}
+
+// attributeSet renders every attribute of a distinguished name as a sorted, order-independent key list.
+func attributeSet(sequence pkix.RDNSequence) []string {
+	attributes := make([]string, 0, len(sequence))
+	for _, set := range sequence {
+		for _, attribute := range set {
+			attributes = append(attributes, fmt.Sprintf("%s=%v", attribute.Type.String(), attribute.Value))
+		}
+	}
+	slices.Sort(attributes)
+	return attributes
+}
+
+// equalAttributeSets reports whether two sorted attribute lists hold exactly the same entries.
+func equalAttributeSets(left []string, right []string) bool { return slices.Equal(left, right) }
 
 // acceptableRecipNonce reports whether a response echoes a nonce that links it to this transaction.
 // RFC 9483 section 3.5 accepts the sender nonce of the preceding request, or during delayed delivery
