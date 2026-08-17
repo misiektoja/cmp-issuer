@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -51,6 +53,8 @@ const (
 	defaultMinimumPollInterval = time.Second
 	defaultMaximumPollInterval = 5 * time.Minute
 	defaultMaximumPolls        = 60
+	// cmpProtocolVersion is the CMP protocol version of every message this milestone sends.
+	cmpProtocolVersion = 2
 )
 
 // +kubebuilder:rbac:groups=certmanager.misiektoja.github.io,resources=cmpissuers;cmpclusterissuers,verbs=get;list;watch
@@ -123,6 +127,7 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	enrollmentRequest := runtimeConfiguration.EnrollmentRequest
 	enrollmentRequest.CSRDER = requestDER
 	limits := runtimeConfiguration.Transaction
+	csrDigest := csrDigestHex(requestDER)
 	transaction, err := s.transactions.load(ctx, request.GetNamespace(), request.GetName(), request.GetUID())
 	if err != nil {
 		return issuersigner.PEMBundle{}, err
@@ -130,12 +135,20 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	if transaction == nil {
 		// The transaction is recorded before the first message is sent, so that a controller restart
 		// resumes this transaction instead of starting a second enrollment for the same request.
-		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration))
+		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration), transactionDetail{CSRDigest: csrDigest, IssuerRef: issuerReference(issuer), Operation: cmpv1alpha1.TransactionOperationP10CR, ProtocolVersion: cmpProtocolVersion})
 		if err != nil {
 			return issuersigner.PEMBundle{}, err
 		}
+	} else if transaction.Spec.CSRDigest != "" && transaction.Spec.CSRDigest != csrDigest {
+		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction enrolls a different certificate signing request")}
+	}
+	if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseIssued {
+		return recoverIssuedChain(transaction, requestDER)
 	}
 	enrollmentRequest.TransactionID = transaction.Spec.TransactionID
+	if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseConfirming {
+		return s.resumeConfirmation(ctx, transaction, enrollmentRequest, limits, requestDER)
+	}
 	polled := transaction.Status.Phase == cmpv1alpha1.TransactionPhasePolling
 	result, err := s.exchange(ctx, enrollmentRequest, transaction, limits)
 	if err != nil {
@@ -144,14 +157,135 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	if result.Pending != nil {
 		return issuersigner.PEMBundle{}, s.continuePolling(ctx, transaction, result.Pending, limits, polled)
 	}
-	if removeErr := s.transactions.remove(ctx, transaction); removeErr != nil {
-		return issuersigner.PEMBundle{}, removeErr
+	if result.PendingConfirmation != nil {
+		// The chain is recorded before certConf is sent, so an interruption during confirmation
+		// resumes it instead of failing a request whose certificate the server already issued.
+		if err := s.transactions.recordConfirming(ctx, transaction, result.Chain, result.PendingConfirmation); err != nil {
+			return issuersigner.PEMBundle{}, err
+		}
+		return s.confirm(ctx, transaction, enrollmentRequest, limits, result.Chain, result.PendingConfirmation)
 	}
-	chainPEM := make([]byte, 0, len(result.Chain)*1024)
-	for _, certificate := range result.Chain {
+	// A server that granted implicit confirmation issues no certConf, so the chain is recorded here
+	// before it is returned to cert-manager.
+	if err := s.transactions.recordIssued(ctx, transaction, result.Chain); err != nil {
+		return issuersigner.PEMBundle{}, err
+	}
+	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(result.Chain)}, nil
+}
+
+// resumeConfirmation continues the confirmation of a certificate an earlier reconcile already
+// recorded, so a restart inside a delayed confirmation does not discard an issued certificate.
+func (s *Signer) resumeConfirmation(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, enrollmentRequest protocol.EnrollmentRequest, limits cmpv1alpha1.TransactionSpec, csrDER []byte) (issuersigner.PEMBundle, error) {
+	chain, err := recordedChain(transaction, csrDER)
+	if err != nil {
+		return issuersigner.PEMBundle{}, err
+	}
+	if transaction.Status.CertReqID == nil {
+		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction is missing the state required to confirm")}
+	}
+	pending := &protocol.PendingTransaction{CertReqID: *transaction.Status.CertReqID, RecipNonce: transaction.Status.RecipNonce, RequestNonce: transaction.Status.RequestNonce}
+	if len(transaction.Status.ResponseSigner) > 0 {
+		signer, parseErr := x509.ParseCertificate(transaction.Status.ResponseSigner)
+		if parseErr != nil {
+			return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: fmt.Errorf("parse retained CMP response signer: %w", parseErr)}
+		}
+		pending.ResponseSigner = signer
+	}
+	return s.confirm(ctx, transaction, enrollmentRequest, limits, chain, pending)
+}
+
+// confirm sends or continues the confirmation exchange and completes the transaction when the server
+// answers with pkiConf.
+func (s *Signer) confirm(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, enrollmentRequest protocol.EnrollmentRequest, limits cmpv1alpha1.TransactionSpec, chain []*x509.Certificate, pending *protocol.PendingTransaction) (issuersigner.PEMBundle, error) {
+	if time.Now().After(transaction.Spec.Deadline.Time) {
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("CMP transaction exceeded the configured maximum duration of %s", limits.MaximumDuration.Duration)})
+	}
+	if transaction.Status.Polls >= limits.MaximumPolls {
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("CMP transaction reached the configured maximum of %d polls", limits.MaximumPolls)})
+	}
+	confirmRequest := protocol.ConfirmRequest{Enrollment: enrollmentRequest, Certificate: chain[0], CertReqID: pending.CertReqID, RecipNonce: pending.RecipNonce, ResponseSigner: pending.ResponseSigner, RequestNonce: pending.RequestNonce}
+	result, err := s.ProtocolClient.ConfirmP10CR(ctx, confirmRequest)
+	if err != nil {
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
+	}
+	if result.PendingConfirmation != nil {
+		return issuersigner.PEMBundle{}, s.continueConfirming(ctx, transaction, chain, result.PendingConfirmation, limits)
+	}
+	if err := s.transactions.recordIssued(ctx, transaction, chain); err != nil {
+		return issuersigner.PEMBundle{}, err
+	}
+	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(chain)}, nil
+}
+
+// continueConfirming records the state for the next confirmation poll and asks for a later retry.
+func (s *Signer) continueConfirming(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, chain []*x509.Certificate, pending *protocol.PendingTransaction, limits cmpv1alpha1.TransactionSpec) error {
+	transaction.Status.Polls++
+	if err := s.transactions.recordConfirming(ctx, transaction, chain, pending); err != nil {
+		return err
+	}
+	delay := pollDelay(pending.CheckAfter, limits)
+	if deadlineDelay := time.Until(transaction.Spec.Deadline.Time); deadlineDelay > 0 && deadlineDelay < delay {
+		delay = deadlineDelay
+	}
+	return issuersigner.PendingError{Err: fmt.Errorf("CMP server has not confirmed the issued certificate yet, polling again in %s", delay), RequeueAfter: delay}
+}
+
+// recoverIssuedChain returns the chain recorded for a transaction that already obtained a
+// certificate, after checking that it still matches the request being signed.
+func recoverIssuedChain(transaction *cmpv1alpha1.CMPTransaction, csrDER []byte) (issuersigner.PEMBundle, error) {
+	chain, err := recordedChain(transaction, csrDER)
+	if err != nil {
+		return issuersigner.PEMBundle{}, err
+	}
+	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(chain)}, nil
+}
+
+// recordedChain parses the chain a transaction recorded and rejects one that no longer belongs to the
+// request being signed.
+func recordedChain(transaction *cmpv1alpha1.CMPTransaction, csrDER []byte) ([]*x509.Certificate, error) {
+	if len(transaction.Status.IssuedChain) == 0 {
+		return nil, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction reports an issued certificate without a chain")}
+	}
+	chain := make([]*x509.Certificate, 0, len(transaction.Status.IssuedChain))
+	for _, encoded := range transaction.Status.IssuedChain {
+		certificate, parseErr := x509.ParseCertificate(encoded)
+		if parseErr != nil {
+			return nil, issuersigner.PermanentError{Err: fmt.Errorf("parse recorded CMP certificate chain: %w", parseErr)}
+		}
+		chain = append(chain, certificate)
+	}
+	csr, err := x509.ParseCertificateRequest(csrDER)
+	if err != nil {
+		return nil, issuersigner.PermanentError{Err: fmt.Errorf("parse CertificateRequest CSR: %w", err)}
+	}
+	if !protocol.PublicKeysEqual(csr.PublicKey, chain[0].PublicKey) {
+		return nil, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP certificate does not match the requested public key")}
+	}
+	return chain, nil
+}
+
+// encodeChainPEM renders a leaf-first certificate chain as concatenated PEM blocks.
+func encodeChainPEM(chain []*x509.Certificate) []byte {
+	chainPEM := make([]byte, 0, len(chain)*1024)
+	for _, certificate := range chain {
 		chainPEM = append(chainPEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate.Raw})...)
 	}
-	return issuersigner.PEMBundle{ChainPEM: chainPEM}, nil
+	return chainPEM
+}
+
+// csrDigestHex returns the lowercase hexadecimal SHA-256 digest that identifies an enrolled CSR.
+func csrDigestHex(csrDER []byte) string {
+	digest := sha256.Sum256(csrDER)
+	return hex.EncodeToString(digest[:])
+}
+
+// issuerReference describes the issuer serving a transaction for the recorded transaction detail.
+func issuerReference(issuer issuerapi.Issuer) cmpv1alpha1.TransactionIssuerReference {
+	kind := cmpv1alpha1.TransactionIssuerKindNamespaced
+	if _, isCluster := issuer.(*cmpv1alpha1.CMPClusterIssuer); isCluster {
+		kind = cmpv1alpha1.TransactionIssuerKindCluster
+	}
+	return cmpv1alpha1.TransactionIssuerReference{Name: issuer.GetName(), Kind: kind, UID: string(issuer.GetUID())}
 }
 
 // exchange sends the enrollment request, or resumes a transaction the server answered with waiting.
