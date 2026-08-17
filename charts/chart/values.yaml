@@ -147,6 +147,20 @@ crd:
   # Keep CRDs when uninstalling
   keep: true
 
+## Controller logging.
+##
+## Read the log with:
+##   kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager -f
+##
+logging:
+  # Verbosity. One of 'debug', 'info' or 'error', or an integer where a higher number is more
+  # verbose. 'debug' reports every reconcile decision and each CMP message that is sent or received.
+  level: info
+  # Level at and above which a stack trace is attached. One of 'info', 'error' or 'panic'.
+  stacktraceLevel: panic
+  # Log format. 'json' suits log collectors, 'console' is easier to read by eye.
+  encoder: json
+
 ## Namespaces whose CMPIssuer credential and trust Secrets the controller may read.
 ##
 ## The controller has no cluster-wide Secret access. Each namespace hosting a CMPIssuer needs a
