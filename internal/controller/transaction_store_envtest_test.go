@@ -92,7 +92,7 @@ func TestTransactionStoreAgainstAPIServer(t *testing.T) {
 	}
 
 	_, _, signer := credentialSecrets(t, namespace)
-	pending := &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte{1, 2, 3, 4}, ResponseSigner: signer}
+	pending := &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte{1, 2, 3, 4}, ResponseSigner: signer, RequestNonce: []byte{5, 6, 7, 8}}
 	if err := store.recordPending(ctx, loaded, pending); err != nil {
 		t.Fatalf("record pending state: %v", err)
 	}
@@ -108,6 +108,9 @@ func TestTransactionStoreAgainstAPIServer(t *testing.T) {
 	}
 	if !bytes.Equal(polled.Status.RecipNonce, pending.RecipNonce) {
 		t.Fatal("the recipient nonce did not survive the API server round trip")
+	}
+	if !bytes.Equal(polled.Status.RequestNonce, pending.RequestNonce) {
+		t.Fatal("the delayed request nonce did not survive the API server round trip")
 	}
 	if !bytes.Equal(polled.Status.ResponseSigner, signer.Raw) {
 		t.Fatal("the retained response signer did not survive the API server round trip")
