@@ -213,7 +213,11 @@ To confirm the diagnosis before changing RBAC, approve one request by hand with
 
 cmp-issuer sends **no** CMP message for unapproved or denied `CertificateRequest` resources. Verify cert-manager approval policies and `CertificateRequest` conditions.
 
-Note: issuer-lib treats a freshly denied request as neither approved nor denied when `Ready=False` with reason `Denied` instead of a `Denied` condition type. Denied requests still produce no CMP traffic in practice.
+A denied `CertificateRequest` keeps its `Denied` condition but never gains a `Ready=False` condition
+with reason `Denied`, and no failure event is recorded on it. The `Certificate` that owns it still
+fails promptly, because cert-manager acts on the `Denied` condition itself, so the denial is visible on
+the `Certificate` rather than on the request. Read the `Denied` condition with
+`kubectl describe certificaterequest <name>` when you need the reason.
 
 ## Invalid protection tests
 
