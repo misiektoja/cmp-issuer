@@ -24,6 +24,10 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | Transaction deadline / maximum polls | Server queue too slow; increase `spec.transaction` limits |
 | Connection refused / timeout | Wrong URL, network policy or server down |
 | HTTP redirect rejected | Endpoint redirects; use the final CMP URL |
+| Recorded CMP transaction enrolls a different request | The `CMPTransaction` was edited or corrupted; delete it so the request enrolls again |
+| `transactionIdInUse`, or `badRequest` naming a `GENERATED` end entity | The controller resent an enrollment the server had already accepted, so its response was lost. No second certificate was issued. cert-manager enrolls again under a new transaction identifier |
+
+The transaction `Phase` column tells you where a request stopped. `Enrolling` means the enrollment is unanswered and will be resent unchanged. `Polling` means the server asked for `pollReq`. `Confirming` means the certificate is issued and recorded, and only the confirmation is outstanding. `Issued` means the certificate is confirmed and recorded, and no further CMP traffic will be sent.
 
 ## EJBCA client mode
 
