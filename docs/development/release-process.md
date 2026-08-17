@@ -17,7 +17,7 @@ Each release publishes:
 | Container image | Multi-arch `linux/amd64` and `linux/arm64` on GitHub Container Registry |
 | Provenance attestation | SLSA-style build attestation for the image digest |
 | Installer manifest | `dist/install.yaml` from Kustomize |
-| Helm chart | Packaged from `charts/chart` |
+| Helm chart | Packaged from `charts/chart` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer.cdx.json` |
 
 ## CI workflows
@@ -31,6 +31,21 @@ Each release publishes:
 | `test-e2e.yml` | Kind e2e suite |
 | `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
 | `release.yml` | Build and publish on tag (not yet run) |
+| `publish-chart.yml` | Add the released chart to the Helm repository index (not yet run) |
+
+## Chart repository
+
+`release.yml` packages the chart and attaches it to a draft GitHub Release. Publishing that release
+triggers `publish-chart.yml`, which adds the new version to `charts/index.yaml` on the `gh-pages`
+branch, so `helm repo add` picks it up.
+
+The chart archives stay attached to their GitHub Release and the index points at those asset URLs, so
+GitHub Pages serves only `index.yaml`. Existing entries are merged rather than replaced, which keeps
+older versions installable, and the index lives under `charts/` so a documentation site can occupy the
+root of the same Pages site.
+
+The first run creates the `gh-pages` branch. GitHub Pages has to be enabled for the repository and
+pointed at that branch before the repository URL resolves.
 
 ## Pre-release checklist
 
