@@ -1,7 +1,8 @@
 # Getting started
 
-This page takes you from an empty cluster to a certificate issued by your CMP server. Every command is
-meant to be run in order, and each step shows what success looks like so you can tell where you are.
+This page takes you from an empty cluster to a certificate issued by your CMP server in six steps.
+Every command is meant to be run in order, and each step shows what success looks like so you can tell
+where you are.
 
 The example uses PasswordBasedMac protection, which needs only a reference and a secret from your CMP
 administrator. Certificate-signature protection is covered in
@@ -30,7 +31,9 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
   --create-namespace
 ```
 
-This installs the CRDs, the RBAC and the controller. Check it is running:
+This installs the CRDs, the RBAC and the controller. It also grants cert-manager permission to approve
+requests for this issuer type, which cert-manager needs before it will act on them at all. Check the
+controller is running:
 
 ```bash
 kubectl -n cmp-issuer-system get pods
@@ -41,51 +44,20 @@ NAME                                         READY   STATUS    RESTARTS   AGE
 cmp-issuer-controller-manager-7d9f8c5b4-x2ktp 1/1     Running   0          30s
 ```
 
-Other installation options, including the plain manifest and what happens to the CRDs when you
-uninstall, are in [Installation](installation.md).
-
-## Step 2: let cert-manager approve requests for cmp-issuer
-
-**Do not skip this step.** cert-manager's built-in approver only approves requests for issuer types it
-has explicit permission for. Until you grant it, every `CertificateRequest` you create stays pending
-forever with no error, and no CMP message is ever sent.
+If cert-manager does not run as the `cert-manager` ServiceAccount in the `cert-manager` namespace,
+point the approval permission at it:
 
 ```bash
-kubectl apply -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cert-manager-controller-approve-cmp-issuer
-rules:
-- apiGroups: ["cert-manager.io"]
-  resources: ["signers"]
-  verbs: ["approve"]
-  resourceNames:
-  - "cmpissuers.certmanager.misiektoja.github.io/*"
-  - "cmpclusterissuers.certmanager.misiektoja.github.io/*"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cert-manager-controller-approve-cmp-issuer
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cert-manager-controller-approve-cmp-issuer
-subjects:
-- kind: ServiceAccount
-  name: cert-manager
-  namespace: cert-manager
-EOF
+helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system \
+  --set certManagerApproval.serviceAccountName=<name> \
+  --set certManagerApproval.namespace=<namespace>
 ```
 
-Adjust the ServiceAccount name and namespace if you installed cert-manager somewhere else.
+Other installation options, what happens to the CRDs when you uninstall, and how to hand approval to
+approver-policy instead are in [Installation](installation.md).
 
-If your cluster uses [approver-policy](https://cert-manager.io/docs/policy/approval/approver-policy/)
-instead of the built-in approver, grant approval through your `CertificateRequestPolicy` rather than
-this binding.
-
-## Step 3: create the namespace and its credentials
+## Step 2: create the namespace and its credentials
 
 ```bash
 kubectl create namespace demo
@@ -109,7 +81,7 @@ kubectl create secret generic cmp-trust \
   --from-file=ca.crt=/path/to/cmp-ca.crt
 ```
 
-## Step 4: let the controller read those Secrets
+## Step 3: let the controller read those Secrets
 
 The controller has no cluster-wide Secret access. Authorize it for this namespace only:
 
@@ -133,7 +105,7 @@ EOF
 
 Why this boundary exists is explained in [Credential Secret access](operations/secret-access.md).
 
-## Step 5: create the issuer
+## Step 4: create the issuer
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -179,9 +151,9 @@ If it reports `False`, the message names what is missing:
 kubectl describe cmpissuer demo-issuer -n demo
 ```
 
-A message naming a Secret usually means step 3 or step 4 was skipped or used a different name.
+A message naming a Secret usually means step 2 or step 3 was skipped or used a different name.
 
-## Step 6: request a certificate
+## Step 5: request a certificate
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -217,7 +189,7 @@ demo-tls   True    demo-tls   12s
 `READY True` means the CMP exchange finished, the response was authenticated and the certificate was
 stored.
 
-## Step 7: look at what you got
+## Step 6: look at what you got
 
 ```bash
 kubectl get secret demo-tls -n demo -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -subject -issuer -dates
@@ -237,8 +209,8 @@ consumes a cert-manager Secret can consume this one unchanged.
 
 | What you see | What it means |
 | --- | --- |
-| `CertificateRequest` stays pending with no conditions | Step 2 was skipped, so cert-manager never approved it |
-| Issuer `Ready False` naming a Secret | Step 3 or 4 was skipped, or a name does not match |
+| `CertificateRequest` stays pending with no conditions | cert-manager is not permitted to approve these requests, usually because it runs under a different ServiceAccount than step 1 assumed |
+| Issuer `Ready False` naming a Secret | Step 2 or 3 was skipped, or a name does not match |
 | `Ready False` naming response protection or trust | `cmpTrust` does not hold the CA that signs your server's CMP responses |
 | `Ready False` naming the response sender | `recipient` does not name the authority your server answers as |
 | Connection refused or timeout | Wrong endpoint URL, or a NetworkPolicy blocks the controller |
