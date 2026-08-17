@@ -13,7 +13,7 @@ cmp-issuer:
 * Never reads cert-manager's staging private-key Secret
 * Does not interpret `cert-manager.io/private-key-secret-name`
 
-This boundary was verified in lab testing: a crafted annotation pointing at a sentinel Secret left that Secret unchanged while enrollment still succeeded.
+The end-to-end suite covers this boundary: a crafted annotation pointing at a sentinel Secret leaves that Secret unchanged while enrollment still succeeds.
 
 RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.
 
