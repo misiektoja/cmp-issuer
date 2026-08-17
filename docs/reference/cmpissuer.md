@@ -74,7 +74,7 @@ Exactly one protection mode must be configured.
 | `PasswordBasedMac` | `passwordBasedMac` | Shared reference and secret in a Secret |
 | `Signature` | `signature` | Bootstrap certificate, private key and optional chain in a Secret |
 
-See [PasswordBasedMac](../guide/password-based-mac.md) and [Signature protection](../guide/signature-protection.md).
+See [Message protection](../guide/message-protection.md).
 
 ### `spec.cmpTrust`
 
