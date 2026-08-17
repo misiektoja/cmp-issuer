@@ -49,21 +49,34 @@ The transaction `Phase` column tells you where a request stopped. `Enrolling` me
 ## Requests stay pending and nothing happens
 
 A `CertificateRequest` that never gains an `Approved` condition, with no error anywhere and no CMP
-traffic, almost always means cert-manager was never permitted to approve requests for this issuer type.
-Its built-in approver acts only on issuer types it holds explicit permission for, and it reports
-nothing when it lacks that permission.
+traffic, means cert-manager is not permitted to approve requests for this issuer type. Its built-in
+approver acts only on issuer types it holds explicit permission for, and reports nothing when it lacks
+that permission.
 
 ```bash
 kubectl get certificaterequest -n <namespace>
-kubectl describe certificaterequest <name> -n <namespace>
 ```
 
-An `APPROVED` column that is empty rather than `True` confirms it. Apply the ClusterRole and
-ClusterRoleBinding from [Installation](../installation.md#let-cert-manager-approve-requests-for-cmp-issuer),
-or express the same decision in a `CertificateRequestPolicy` if you use approver-policy.
+An `APPROVED` column that is empty rather than `True` confirms it.
+
+The installation grants this permission by default, so reaching this state usually means one of:
+
+* cert-manager runs under a different ServiceAccount or namespace than the binding names. Check the
+  subject against your installation and set `certManagerApproval.serviceAccountName` and
+  `certManagerApproval.namespace`.
+* `certManagerApproval.create` was set to `false`, or the ClusterRole was removed from the manifest.
+* Approval is delegated to approver-policy and no `CertificateRequestPolicy` covers these requests.
+
+Inspect what is bound:
+
+```bash
+kubectl get clusterrolebinding -o wide | grep cert-manager-approver
+```
 
 To confirm the diagnosis before changing RBAC, approve one request by hand with
 `cmctl approve <name> -n <namespace>` and watch it proceed.
+
+[Installation](../installation.md#cert-manager-approval) covers the settings.
 
 ## Denied or unapproved requests
 
