@@ -257,16 +257,52 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 }
 
 // baseEnrollmentRequest creates common trusted P10CR test input without a pinned response identifier.
+// The transaction identifier is pinned because confirming an issued certificate is a separate call
+// that has to name the transaction it completes.
 func baseEnrollmentRequest(t *testing.T, pki testPKI, endpoint string) EnrollmentRequest {
 	t.Helper()
 	csrDER, _ := createCSR(t, "cmp-issuer-test")
 	trust := x509.NewCertPool()
 	trust.AddCert(pki.CACertificate)
-	return EnrollmentRequest{EndpointURL: endpoint, Timeout: 5 * time.Second, MaxResponseSize: 1 << 20, Recipient: pki.CACertificate.Subject, CSRDER: csrDER, CMPTrust: trust, RejectGrantedMods: true}
+	transactionID := make([]byte, 16)
+	if _, err := rand.Read(transactionID); err != nil {
+		t.Fatalf("generate transaction ID: %v", err)
+	}
+	return EnrollmentRequest{EndpointURL: endpoint, Timeout: 5 * time.Second, MaxResponseSize: 1 << 20, Recipient: pki.CACertificate.Subject, CSRDER: csrDER, CMPTrust: trust, RejectGrantedMods: true, TransactionID: transactionID}
 }
 
 // pinCertReqID returns a pinned P10CR response identifier.
 func pinCertReqID(value int64) *int64 { return &value }
+
+// enrollAndConfirm runs one enrollment to completion the way the signer does, by confirming the
+// issued certificate through separate calls until the server answers pkiConf. Confirmation is a
+// caller-driven step so that the chain can be recorded before certConf reaches the network.
+func enrollAndConfirm(t *testing.T, request EnrollmentRequest) (EnrollmentResult, error) {
+	t.Helper()
+	client := NewClient()
+	result, err := client.EnrollP10CR(context.Background(), request)
+	if err != nil {
+		return result, err
+	}
+	return confirmToCompletion(t, client, request, result)
+}
+
+// confirmToCompletion drives the confirmation exchange of an already issued certificate to its end.
+func confirmToCompletion(t *testing.T, client Client, request EnrollmentRequest, result EnrollmentResult) (EnrollmentResult, error) {
+	t.Helper()
+	chain := result.Chain
+	for pending := result.PendingConfirmation; pending != nil; {
+		confirmed, err := client.ConfirmP10CR(context.Background(), ConfirmRequest{Enrollment: request, Certificate: chain[0], CertReqID: pending.CertReqID, RecipNonce: pending.RecipNonce, ResponseSigner: pending.ResponseSigner, RequestNonce: pending.RequestNonce})
+		if err != nil {
+			return EnrollmentResult{}, err
+		}
+		if confirmed.PendingConfirmation == nil {
+			return EnrollmentResult{Chain: chain, ExtraCertificateCount: result.ExtraCertificateCount, ExplicitConfirmation: confirmed.ExplicitConfirmation, ResponseCertReqID: confirmed.ResponseCertReqID}, nil
+		}
+		pending = confirmed.PendingConfirmation
+	}
+	return result, nil
+}
 
 // TestEnrollP10CRAcceptsInteroperableCertReqIDs verifies both interoperable identifiers are accepted and echoed by default.
 func TestEnrollP10CRAcceptsInteroperableCertReqIDs(t *testing.T) {
@@ -278,7 +314,7 @@ func TestEnrollP10CRAcceptsInteroperableCertReqIDs(t *testing.T) {
 			defer server.Close()
 			request := baseEnrollmentRequest(t, pki, server.URL)
 			request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
-			if _, err := NewClient().EnrollP10CR(context.Background(), request); err != nil {
+			if _, err := enrollAndConfirm(t, request); err != nil {
 				t.Fatalf("EnrollP10CR returned error: %v", err)
 			}
 			if echoed, observed := state.confirmation(); !observed || echoed != certReqID {
@@ -297,7 +333,7 @@ func TestEnrollP10CRPinnedLegacyZeroCertReqID(t *testing.T) {
 	request := baseEnrollmentRequest(t, pki, server.URL)
 	request.ResponseCertReqID = pinCertReqID(ResponseCertReqIDLegacyZero)
 	request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
-	if _, err := NewClient().EnrollP10CR(context.Background(), request); err != nil {
+	if _, err := enrollAndConfirm(t, request); err != nil {
 		t.Fatalf("EnrollP10CR returned error: %v", err)
 	}
 	if certReqID, observed := state.confirmation(); !observed || certReqID != 0 {
@@ -313,7 +349,7 @@ func TestEnrollP10CRPasswordBasedMac(t *testing.T) {
 	defer server.Close()
 	request := baseEnrollmentRequest(t, pki, server.URL)
 	request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
-	result, err := NewClient().EnrollP10CR(context.Background(), request)
+	result, err := enrollAndConfirm(t, request)
 	if err != nil {
 		t.Fatalf("EnrollP10CR returned error: %v", err)
 	}
@@ -331,7 +367,7 @@ func TestEnrollP10CRSignatureProtection(t *testing.T) {
 	defer server.Close()
 	request := baseEnrollmentRequest(t, pki, server.URL)
 	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
-	if _, err := NewClient().EnrollP10CR(context.Background(), request); err != nil {
+	if _, err := enrollAndConfirm(t, request); err != nil {
 		t.Fatalf("EnrollP10CR returned error: %v", err)
 	}
 	if state.count() != 2 {
@@ -348,7 +384,7 @@ func TestEnrollP10CRRejectsInvalidPKIConfWithRememberedSigner(t *testing.T) {
 	defer server.Close()
 	request := baseEnrollmentRequest(t, pki, server.URL)
 	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
-	_, err := NewClient().EnrollP10CR(context.Background(), request)
+	_, err := enrollAndConfirm(t, request)
 	var typed *Error
 	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != "badMessageCheck" {
 		t.Fatalf("expected protected pkiConf rejection, got %v", err)
@@ -411,5 +447,29 @@ func TestParseCertificateRequestDERPreservesCSR(t *testing.T) {
 	parsed, err := ParseCertificateRequestDER(requestPEM)
 	if err != nil || !bytes.Equal(parsed, requestDER) {
 		t.Fatalf("CSR was not preserved: %v", err)
+	}
+}
+
+// TestRefusedRetransmissionsFailPermanently covers the answers NCM 26.7 and EJBCA CE 9.3.7 return to
+// an enrollment repeated under a transaction identifier the server already answered. Neither replays
+// the certificate it issued, so the attempt cannot succeed and must fail under the reported reason.
+func TestRefusedRetransmissionsFailPermanently(t *testing.T) {
+	for name, failInfo := range map[string]pkicmp.PKIFailureInfo{
+		"NCM reports the transaction identifier is in use": pkicmp.FailTransactionIdInUse,
+		"EJBCA reports the end entity already generated":   pkicmp.FailBadRequest,
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := classifyStatus(pkicmp.PKIStatusInfo{Status: pkicmp.StatusRejection, FailInfo: failInfo})
+			var classified *Error
+			if !errors.As(err, &classified) {
+				t.Fatalf("expected a classified protocol error, got %v", err)
+			}
+			if classified.Kind != ErrorKindPermanent {
+				t.Fatalf("expected a permanent failure, got %s", classified.Kind)
+			}
+			if classified.Failure != failInfo.String() {
+				t.Fatalf("expected the failure to report %q, got %q", failInfo.String(), classified.Failure)
+			}
+		})
 	}
 }
