@@ -104,7 +104,9 @@ Like NCM, EJBCA answers P10CR with `certReqId` `0`. Pinning `-1` against it fail
 
 Unit and envtest coverage runs with `make test`. It includes a deferred enrollment driven against a CMP server that answers `waiting`, polls and then issues, so the asynchronous path is exercised over real CMP messages rather than mocked, and it records transaction state through a real API server. Delayed confirmation is covered as well, including a server that echoes the nonce of the delayed request rather than of the last poll.
 
-The polling flow has also been verified by hand against the CMP mock server built into OpenSSL 3.6 (`openssl cmp -port`), an implementation unrelated to the one used in the tests, driving a full `P10CR` to `waiting` to `pollReq` to `certConf` to `waiting` to `pollReq` to `pkiConf` transaction. Note that this mock server keeps one transaction per connection, so it needs all messages of a transaction on a single HTTP connection, which RFC 6712 does not require of a CMP server.
+The suite also drives a delayed transaction against the CMP mock server built into the `openssl` command, an implementation that shares no code with the issuer or with the library behind it. It runs a full `P10CR` to `waiting` to `pollReq` to `certConf` to `waiting` to `pollReq` to `pkiConf` exchange and starts in milliseconds, so CI runs it on every push and fails if the mock server is unavailable rather than losing the coverage silently. The test skips when `openssl` is missing locally, and `OPENSSL_BIN` selects a different build.
+
+That mock server keeps one transaction per connection and expects the following messages on the same socket, which RFC 6712 does not require of a CMP server, so the test reaches it through a proxy that pools one upstream connection. The proxy changes no CMP bytes.
 
 Controller behavior is verified against a real cluster by an end-to-end suite that needs no CMP server:
 
