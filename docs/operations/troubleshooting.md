@@ -2,6 +2,78 @@
 
 Common failure modes and where to look. Never paste credential values, private keys or protected CMP DER into tickets or Events.
 
+## Reading the controller log
+
+The controller log is the first place to look for anything that resource conditions do not explain.
+
+```bash
+kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager -f
+```
+
+Useful variations:
+
+```bash
+# Follow by label rather than by Deployment name
+kubectl logs -n cmp-issuer-system -l app.kubernetes.io/name=cmp-issuer -c manager -f
+
+# What the previous container said before it restarted
+kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager --previous
+
+# Only the last few minutes
+kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager --since=5m
+
+# Everything about one request
+kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager | grep <certificaterequest-name>
+```
+
+The container is named `manager`. Adjust the namespace and Deployment name if you installed under a
+different release name or namespace.
+
+### What the log contains
+
+Every failed reconcile is logged with the typed failure that caused it, which is the same message that
+appears on the `CertificateRequest` condition, for example:
+
+```text
+{"level":"error","logger":"Reconcile","msg":"Got an error, will be retried.",
+ "CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
+ "error":"CMP process PKIStatus failed: pkicmp: status rejection, failInfo: badRequest, ..."}
+```
+
+A successful enrollment is quiet. The controller emits no per-message log line of its own, so the log
+tells you why something failed rather than narrating what succeeded. Use `kubectl get cmptransactions`
+to follow progress and the `CertificateRequest` conditions and Events for the outcome.
+
+**The log never contains credential values, private keys, CSR bodies or protected CMP message bytes.**
+Server-supplied status text is included in failure messages, because that is usually the reason you
+need. Raising verbosity is therefore safe on a running system.
+
+### Increasing verbosity
+
+Raising the level adds controller-runtime internals such as cache syncs, leader election and client
+activity. It does **not** add CMP protocol detail, since the controller emits no message-level logging
+of its own. Raise it when you suspect a controller or Kubernetes API problem rather than a CMP one:
+
+```bash
+helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system \
+  --reuse-values \
+  --set logging.level=debug
+```
+
+| Value | Purpose |
+| --- | --- |
+| `logging.level` | `debug`, `info`, `error`, or an integer where higher is more verbose. Default `info` |
+| `logging.stacktraceLevel` | Level at and above which a stack trace is attached, `info`, `error` or `panic`. Default `panic` |
+| `logging.encoder` | `json` for log collectors, `console` for reading by eye. Default `json` |
+
+Set `logging.encoder=console` while debugging by hand, since JSON is hard to scan in a terminal.
+
+With the manifest installation, pass the same settings as container arguments instead:
+`--zap-log-level=debug`, `--zap-stacktrace-level=error` and `--zap-encoder=console`.
+
+Return the level to `info` afterwards, since debug is noisy on a busy cluster.
+
 ## Issuer not Ready
 
 | Symptom | Likely cause | Action |
