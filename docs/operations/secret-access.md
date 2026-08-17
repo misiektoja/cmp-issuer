@@ -22,6 +22,10 @@ subjects:
   namespace: cmp-issuer-system
 ```
 
+The chart can create these bindings for namespaces you already know about, with
+`--set 'credentialNamespaces={team-a,team-b}'`. It is the same RoleBinding, so the boundary is
+unchanged: only the listed namespaces are readable, and a namespace added later still needs one.
+
 The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.
 
 P10CR does not require the workload private key. The controller does not interpret `cert-manager.io/private-key-secret-name` and it has no default Secret access in workload namespaces beyond explicitly authorized issuer credential namespaces.
