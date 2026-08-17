@@ -29,8 +29,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/tsaarni/go-pkicmp/pkicmp"
 )
 
 // opensslMockPassword is the shared secret the OpenSSL mock server is started with.
@@ -143,13 +146,37 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 	return ""
 }
 
+// forwardedMessages records the CMP requests a proxy passed to the OpenSSL mock server.
+type forwardedMessages struct {
+	mu       sync.Mutex
+	messages [][]byte
+}
+
+// add stores one forwarded request exactly as it was received.
+func (f *forwardedMessages) add(requestDER []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.messages = append(f.messages, append([]byte(nil), requestDER...))
+}
+
+// at returns the forwarded request at the given position, or nil when fewer were forwarded.
+func (f *forwardedMessages) at(index int) []byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if index >= len(f.messages) {
+		return nil
+	}
+	return f.messages[index]
+}
+
 // newSingleConnectionProxy forwards CMP requests to an upstream server over one pooled connection.
 // The OpenSSL mock server keeps a transaction per connection and reads the following messages from
 // the same socket, which RFC 6712 does not require of a CMP server. The issuer opens a connection
 // per protocol call because a poll normally happens in a later reconcile, so this proxy bridges that
 // difference without altering a single CMP byte.
-func newSingleConnectionProxy(t *testing.T, upstream string) *httptest.Server {
+func newSingleConnectionProxy(t *testing.T, upstream string) (*httptest.Server, *forwardedMessages) {
 	t.Helper()
+	forwarded := &forwardedMessages{}
 	client := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConns: 1, MaxIdleConnsPerHost: 1, IdleConnTimeout: time.Minute}}
 	proxy := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, err := io.ReadAll(request.Body)
@@ -157,23 +184,24 @@ func newSingleConnectionProxy(t *testing.T, upstream string) *httptest.Server {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
 		}
+		forwarded.add(body)
 		response, err := client.Post("http://"+upstream, request.Header.Get("Content-Type"), bytes.NewReader(body))
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadGateway)
 			return
 		}
 		defer func() { _ = response.Body.Close() }()
-		forwarded, err := io.ReadAll(response.Body)
+		relayed, err := io.ReadAll(response.Body)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadGateway)
 			return
 		}
 		writer.Header().Set("Content-Type", response.Header.Get("Content-Type"))
 		writer.WriteHeader(response.StatusCode)
-		_, _ = writer.Write(forwarded)
+		_, _ = writer.Write(relayed)
 	}))
 	t.Cleanup(proxy.Close)
-	return proxy
+	return proxy, forwarded
 }
 
 // TestDeferredTransactionAgainstOpenSSLMockServer drives a delayed enrollment and a delayed
@@ -191,7 +219,7 @@ func TestDeferredTransactionAgainstOpenSSLMockServer(t *testing.T) {
 	// The mock server returns this certificate verbatim, so it must already carry the enrolled key.
 	issued := issueLeaf(t, pki, certificateRequest, certificateRequest.PublicKey)
 	address := startOpenSSLMockServer(t, pki, issued, 1)
-	proxy := newSingleConnectionProxy(t, address)
+	proxy, _ := newSingleConnectionProxy(t, address)
 	request.EndpointURL = proxy.URL
 
 	client := NewClient()
@@ -219,19 +247,59 @@ func TestDeferredTransactionAgainstOpenSSLMockServer(t *testing.T) {
 			t.Fatalf("PollP10CR returned error after %d polls: %v", polls, err)
 		}
 	}
-	// Reaching this point means the delayed confirmation was polled to pkiConf as well, because the
-	// mock server delays certConf whenever it delays the enrollment.
-	if !result.ExplicitConfirmation {
-		t.Fatal("expected the transaction to be confirmed explicitly")
-	}
 	if len(result.Chain) == 0 {
 		t.Fatal("expected an issued certificate")
+	}
+	if result.PendingConfirmation == nil {
+		t.Fatal("expected the issued certificate to await confirmation")
+	}
+	// The mock server delays certConf whenever it delays the enrollment, so completing this drives
+	// the delayed confirmation through pollReq to pkiConf.
+	result, err = confirmToCompletion(t, client, request, result)
+	if err != nil {
+		t.Fatalf("confirmation returned error: %v", err)
+	}
+	if !result.ExplicitConfirmation {
+		t.Fatal("expected the transaction to be confirmed explicitly")
 	}
 	if !result.Chain[0].Equal(issued) {
 		t.Fatal("expected the certificate the mock server was configured to return")
 	}
 	if !PublicKeysEqual(certificateRequest.PublicKey, result.Chain[0].PublicKey) {
 		t.Fatal("expected the issued certificate to carry the enrolled public key")
+	}
+}
+
+// TestPinnedTransactionAgainstOpenSSLMockServer verifies that the transaction identifier a caller
+// pins so it can resume the transaction later is the identifier an independent CMP implementation
+// sees on the wire, and that the exchange still yields the certificate.
+func TestPinnedTransactionAgainstOpenSSLMockServer(t *testing.T) {
+	pki := newTestPKI(t)
+	request := baseEnrollmentRequest(t, pki, "")
+	request.Protection.Password = &PasswordProtection{Reference: []byte(opensslMockReference), Secret: []byte(opensslMockPassword), IterationCount: 1024}
+	request.TransactionID = []byte("openssl-pinned-transaction")
+	certificateRequest, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		t.Fatalf("parse CSR: %v", err)
+	}
+	// The mock server returns this certificate verbatim, so it must already carry the enrolled key.
+	issued := issueLeaf(t, pki, certificateRequest, certificateRequest.PublicKey)
+	proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLMockServer(t, pki, issued, 0))
+	request.EndpointURL = proxy.URL
+
+	result, err := NewClient().EnrollP10CR(context.Background(), request)
+	if err != nil {
+		t.Fatalf("EnrollP10CR returned error: %v", err)
+	}
+	if len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+		t.Fatal("expected the certificate the mock server was configured to return")
+	}
+	sent, err := pkicmp.ParsePKIMessage(forwarded.at(0))
+	if err != nil {
+		t.Fatalf("parse the message OpenSSL accepted: %v", err)
+	}
+	if !bytes.Equal(sent.Header.TransactionID, request.TransactionID) {
+		t.Fatal("expected the pinned transaction identifier to reach the server unchanged")
 	}
 }
 
