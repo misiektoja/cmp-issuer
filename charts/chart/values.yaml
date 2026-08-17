@@ -154,7 +154,9 @@ crd:
 ##
 logging:
   # Verbosity. One of 'debug', 'info' or 'error', or an integer where a higher number is more
-  # verbose. 'debug' reports every reconcile decision and each CMP message that is sent or received.
+  # verbose. 'info' logs one line per enrollment outcome, carrying the issued subject, serial,
+  # validity, SANs, key type, issuing CA and duration. 'debug' adds every reconcile decision and the
+  # body type and size of each CMP message that is sent or received.
   level: info
   # Level at and above which a stack trace is attached. One of 'info', 'error' or 'panic'.
   stacktraceLevel: panic
