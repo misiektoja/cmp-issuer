@@ -31,28 +31,60 @@ different release name or namespace.
 
 ### What the log contains
 
-Every failed reconcile is logged with the typed failure that caused it, which is the same message that
-appears on the `CertificateRequest` condition, for example:
+Every enrollment produces one line for its outcome at the default verbosity. A completed enrollment
+identifies the request, the issuer, the endpoint, the CMP transaction and the certificate itself:
 
 ```text
-{"level":"error","logger":"Reconcile","msg":"Got an error, will be retried.",
+{"level":"info","logger":"Reconcile","msg":"Issued certificate",
  "CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
- "error":"CMP process PKIStatus failed: pkicmp: status rejection, failInfo: badRequest, ..."}
+ "issuer":"CMPIssuer/demo/demo-issuer","endpoint":"http://ca.example.com/pkix/",
+ "transactionID":"5f3c1d0e9a4b7c26d81f0a3b5e7c9d11",
+ "subject":"CN=workload.example.com","serialNumber":"3b8f2a41",
+ "notBefore":"2026-05-04T09:12:31Z","notAfter":"2026-08-02T09:12:31Z",
+ "issuingCA":"CN=Example CA,O=Example","keyType":"RSA","keySize":2048,
+ "signatureAlgorithm":"SHA256-RSA","chainLength":2,
+ "dnsNames":["workload.example.com"],
+ "confirmation":"Explicit","polls":0,"duration":"412ms"}
 ```
 
-A successful enrollment is quiet. The controller emits no per-message log line of its own, so the log
-tells you why something failed rather than narrating what succeeded. Use `kubectl get cmptransactions`
-to follow progress and the `CertificateRequest` conditions and Events for the outcome.
+That answers what was issued, by which authority and how long it took, without decoding the Secret.
+
+| Message | Level | Meaning |
+| --- | --- | --- |
+| `Issued certificate` | info | The certificate was validated, recorded and returned to cert-manager |
+| `Waiting for the CMP server to issue the certificate` | info | The server answered `waiting`; the line carries `polls`, `maximumPolls`, `retryAfter` and `deadline` |
+| `Waiting for the CMP server to confirm the issued certificate` | info | The certificate exists and `certConf` has not been answered with `pkiConf` yet |
+| `Resumed CMP transaction` | info | A restart or retry picked up an unfinished transaction, with its `phase` |
+| `Returned the certificate already recorded for this CMP transaction` | info | A restart after issuance returned the recorded chain and sent no CMP message |
+| `CMP enrollment failed` | error | The typed failure, as `operation`, `failure` and `classification` |
+
+An asynchronous enrollment is therefore followable line by line: a wait, each poll interval, the
+resumption after a restart and finally the certificate. A silent gap means nothing is happening.
+
+A failure is logged with the typed failure that caused it, followed by the retry decision, which
+carries the same message that appears on the `CertificateRequest` condition:
+
+```text
+{"level":"error","logger":"Reconcile","msg":"CMP enrollment failed",
+ "CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
+ "issuer":"CMPIssuer/demo/demo-issuer","endpoint":"http://ca.example.com/pkix/",
+ "transactionID":"5f3c1d0e9a4b7c26d81f0a3b5e7c9d11",
+ "operation":"process PKIStatus","failure":"badRequest","classification":"Permanent",
+ "error":"CMP process PKIStatus failed: pkicmp: status rejection, failInfo: badRequest, ..."}
+{"level":"error","logger":"Reconcile","msg":"Got an error, will be retried.", ...}
+```
 
 **The log never contains credential values, private keys, CSR bodies or protected CMP message bytes.**
 Server-supplied status text is included in failure messages, because that is usually the reason you
-need. Raising verbosity is therefore safe on a running system.
+need, but it is stripped of line breaks and truncated first, so a server cannot flood the log or forge
+a log line. Raising verbosity is therefore safe on a running system.
 
 ### Increasing verbosity
 
-Raising the level adds controller-runtime internals such as cache syncs, leader election and client
-activity. It does **not** add CMP protocol detail, since the controller emits no message-level logging
-of its own. Raise it when you suspect a controller or Kubernetes API problem rather than a CMP one:
+Raising the level to `debug` adds the CMP message level: every request sent and every response
+received with its body type and size, the transaction record written before the first message, and the
+confirmation decisions. It also adds controller-runtime internals such as cache syncs, leader election
+and client activity:
 
 ```bash
 helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
@@ -67,7 +99,21 @@ helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
 | `logging.stacktraceLevel` | Level at and above which a stack trace is attached, `info`, `error` or `panic`. Default `panic` |
 | `logging.encoder` | `json` for log collectors, `console` for reading by eye. Default `json` |
 
-Set `logging.encoder=console` while debugging by hand, since JSON is hard to scan in a terminal.
+Set `logging.encoder=console` while debugging by hand, since JSON is hard to scan in a terminal. One
+enrollment then reads as its CMP exchange, ending in the same outcome line the default level prints:
+
+```text
+DEBUG  Recorded CMP transaction before sending the first message  {"operation": "P10CR v2", ...}
+DEBUG  Sending CMP request                {"operation": "p10cr", "bytes": 1193}
+DEBUG  Received CMP response              {"operation": "p10cr", "body": "cp", "bytes": 2841}
+DEBUG  Confirming the issued certificate  {"certReqID": 0, "polls": 0}
+DEBUG  Sending CMP request                {"operation": "certConf", "bytes": 402}
+DEBUG  Received CMP response              {"operation": "certConf", "body": "pkiconf", "bytes": 331}
+INFO   Issued certificate                 {"subject": "CN=workload.example.com", ...}
+```
+
+Only the body type and the size of each message are logged. The message content is never written to
+the log.
 
 With the manifest installation, pass the same settings as container arguments instead:
 `--zap-log-level=debug`, `--zap-stacktrace-level=error` and `--zap-encoder=console`.
