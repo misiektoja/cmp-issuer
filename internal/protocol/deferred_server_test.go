@@ -135,6 +135,10 @@ func TestDeferredIssuanceAgainstCMPServer(t *testing.T) {
 	if len(result.Chain) == 0 {
 		t.Fatal("expected an issued chain")
 	}
+	result, err = confirmToCompletion(t, client, request, result)
+	if err != nil {
+		t.Fatalf("confirmation returned error: %v", err)
+	}
 	if !result.ExplicitConfirmation {
 		t.Fatal("expected the deferred transaction to be confirmed explicitly")
 	}
