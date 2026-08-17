@@ -38,11 +38,36 @@ markdown_extensions:
 
 nav:
   - Overview: index.md
+  - Support matrix: support-matrix.md
+  - Architecture: architecture.md
+  - Installation: installation.md
+  - User guide:
+      - Enrollment: guide/enrollment.md
+      - P10CR renewal and KUR roadmap: guide/renewal-and-kur.md
+      - Transaction recovery: guide/transaction-recovery.md
+      - HTTP and HTTPS transport: guide/transport.md
+      - Message protection: guide/message-protection.md
+      - PasswordBasedMac: guide/password-based-mac.md
+      - Signature protection: guide/signature-protection.md
+      - CMP response trust: guide/cmp-response-trust.md
+      - cert-manager private-key handling: guide/private-key-handling.md
+  - Reference:
+      - CMPIssuer: reference/cmpissuer.md
+      - CMPClusterIssuer: reference/cmpclusterissuer.md
+  - Interoperability:
+      - Tested PKIs: interoperability/tested-pkis.md
   - Operations:
       - Credential Secret access: operations/secret-access.md
+      - Troubleshooting: operations/troubleshooting.md
   - Security:
+      - Security model: security/security-model.md
       - Threat model: security/threat-model.md
       - Provenance and supply chain: provenance.md
+  - Development:
+      - Development: development/development.md
+      - Testing: development/testing.md
+      - Release process: development/release-process.md
+  - Known limitations: known-limitations.md
   - Design decisions:
       - CMP library selection: adr/0001-cmp-library.md
       - go-pkicmp review: dependencies/go-pkicmp-review.md
