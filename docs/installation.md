@@ -61,6 +61,7 @@ helm install cmp-issuer ./charts/chart \
 | `certManagerApproval.create` | Let cert-manager approve requests for this issuer type, default `true` |
 | `certManagerApproval.serviceAccountName` and `.namespace` | Where cert-manager runs, default `cert-manager` in `cert-manager` |
 | `credentialNamespaces` | Namespaces to pre-authorize for `CMPIssuer` credential reads, default empty |
+| `logging.level`, `.stacktraceLevel`, `.encoder` | Controller log verbosity, stack traces and format |
 
 ## Install with the manifest
 
