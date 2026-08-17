@@ -37,4 +37,4 @@ IR and true KUR require workload private-key access for CRMF proof of possession
 
 ## Residual risks
 
-go-pkicmp is pre-v1, lightly adopted and has had little independent review. It remains a provisional security-sensitive dependency. CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.
+go-pkicmp is pre-v1, lightly adopted and has had little independent review. It remains a provisional security-sensitive dependency, so every response it parses is validated again by the project's own checks. CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.
