@@ -10,11 +10,10 @@ cmp-issuer requires cert-manager with external issuer support. Install cert-mana
 
 ## Installer manifest
 
-Build or download `dist/install.yaml`, then apply it:
+Every release attaches a self-contained `install.yaml`. Download it from the [releases page](https://github.com/misiektoja/cmp-issuer/releases) and apply it:
 
 ```bash
-make build-installer IMG=<registry>/cmp-issuer:<tag>
-kubectl apply -f dist/install.yaml
+kubectl apply -f install.yaml
 ```
 
 The manifest installs CRDs, RBAC, the controller Deployment in `cmp-issuer-system` and a ClusterRoleBinding that lets the controller read Secrets **only** in `cmp-issuer-system`.
@@ -38,8 +37,6 @@ Common values:
 | `manager.args` | Extra controller flags, for example `--cluster-resource-namespace=<ns>` |
 | `rbac.namespaced` | Scope RBAC to the release namespace instead of cluster-wide |
 | `crd.enabled` and `crd.keep` | Install CRDs and keep them on uninstall |
-
-Run `make helm-lint` to validate the chart locally.
 
 Both installation paths deploy the same CRDs and controller. Neither grants Secret access in workload namespaces.
 
