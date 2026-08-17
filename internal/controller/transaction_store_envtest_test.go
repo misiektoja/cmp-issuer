@@ -18,6 +18,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,6 +58,16 @@ func startEnvtest(t *testing.T) client.Client {
 	return kubeClient
 }
 
+// testTransactionDetail returns the recorded description of an enrolled request for store tests.
+func testTransactionDetail() transactionDetail {
+	return transactionDetail{
+		CSRDigest:       "6ca13d52ca70c883e0f0bb101e425a89e8624de51db2d2392593af6a84118090",
+		IssuerRef:       cmpv1alpha1.TransactionIssuerReference{Name: testIssuerName, Kind: cmpv1alpha1.TransactionIssuerKindNamespaced, UID: "33333333-3333-3333-3333-333333333333"},
+		Operation:       cmpv1alpha1.TransactionOperationP10CR,
+		ProtocolVersion: cmpProtocolVersion,
+	}
+}
+
 // TestTransactionStoreAgainstAPIServer verifies the recorded state round-trips through a real API server.
 func TestTransactionStoreAgainstAPIServer(t *testing.T) {
 	kubeClient := startEnvtest(t)
@@ -72,7 +83,7 @@ func TestTransactionStoreAgainstAPIServer(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(time.Hour).Truncate(time.Second)
-	created, err := store.create(ctx, namespace, testRequestName, testRequestUID, deadline)
+	created, err := store.create(ctx, namespace, testRequestName, testRequestUID, deadline, testTransactionDetail())
 	if err != nil {
 		t.Fatalf("create transaction: %v", err)
 	}
@@ -90,7 +101,6 @@ func TestTransactionStoreAgainstAPIServer(t *testing.T) {
 	if !loaded.Spec.Deadline.Time.Equal(deadline) {
 		t.Fatalf("expected the deadline %s, got %s", deadline, loaded.Spec.Deadline.Time)
 	}
-
 	_, _, signer := credentialSecrets(t, namespace)
 	pending := &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte{1, 2, 3, 4}, ResponseSigner: signer, RequestNonce: []byte{5, 6, 7, 8}}
 	if err := store.recordPending(ctx, loaded, pending); err != nil {
@@ -127,6 +137,67 @@ func TestTransactionStoreAgainstAPIServer(t *testing.T) {
 	}
 }
 
+// TestTransactionDurabilityAgainstAPIServer verifies the transaction detail and issued chain
+// round-trip through a real API server and are cleared when they expire.
+func TestTransactionDurabilityAgainstAPIServer(t *testing.T) {
+	kubeClient := startEnvtest(t)
+	ctx := context.Background()
+	namespace := "cmp-transaction-durability"
+	if err := kubeClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	store := &transactionStore{reader: kubeClient, writer: kubeClient}
+	detail := testTransactionDetail()
+	transaction, err := store.create(ctx, namespace, testRequestName, testRequestUID, time.Now().Add(time.Hour), detail)
+	if err != nil {
+		t.Fatalf("create transaction: %v", err)
+	}
+	if transaction.Spec.CSRDigest != detail.CSRDigest || transaction.Spec.Operation != detail.Operation || transaction.Spec.ProtocolVersion != detail.ProtocolVersion {
+		t.Fatalf("the transaction detail was not accepted: %+v", transaction.Spec)
+	}
+	if transaction.Spec.IssuerRef == nil || *transaction.Spec.IssuerRef != detail.IssuerRef {
+		t.Fatalf("the issuer reference was not accepted: %v", transaction.Spec.IssuerRef)
+	}
+
+	enrolling := mustLoad(t, ctx, store, namespace)
+	if !bytes.Equal(enrolling.Spec.TransactionID, transaction.Spec.TransactionID) {
+		t.Fatal("the pinned transaction identifier did not survive the API server round trip")
+	}
+
+	_, _, signer := credentialSecrets(t, namespace)
+	if err := store.recordPending(ctx, enrolling, &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte{1, 2, 3, 4}}); err != nil {
+		t.Fatalf("record pending state: %v", err)
+	}
+	polling := mustLoad(t, ctx, store, namespace)
+	if polling.Status.Phase != cmpv1alpha1.TransactionPhasePolling {
+		t.Fatalf("expected the polling phase to be accepted, got %q", polling.Status.Phase)
+	}
+
+	if err := store.recordIssued(ctx, polling, []*x509.Certificate{signer}); err != nil {
+		t.Fatalf("record the issued chain: %v", err)
+	}
+	issued := mustLoad(t, ctx, store, namespace)
+	if issued.Status.Phase != cmpv1alpha1.TransactionPhaseIssued {
+		t.Fatalf("expected the issued phase to be accepted, got %q", issued.Status.Phase)
+	}
+	if len(issued.Status.IssuedChain) != 1 || !bytes.Equal(issued.Status.IssuedChain[0], signer.Raw) {
+		t.Fatal("the issued chain did not survive the API server round trip")
+	}
+	if issued.Status.CompletionTime.IsZero() {
+		t.Fatal("expected the completion time to survive the API server round trip")
+	}
+}
+
+// mustLoad reads the recorded transaction of the test request, failing when it is absent.
+func mustLoad(t *testing.T, ctx context.Context, store *transactionStore, namespace string) *cmpv1alpha1.CMPTransaction {
+	t.Helper()
+	loaded, err := store.load(ctx, namespace, testRequestName, testRequestUID)
+	if err != nil || loaded == nil {
+		t.Fatalf("expected the recorded transaction, got %v and %v", loaded, err)
+	}
+	return loaded
+}
+
 // TestTransactionStoreDiscardsForeignStateAgainstAPIServer verifies a reused name is not resumed.
 func TestTransactionStoreDiscardsForeignStateAgainstAPIServer(t *testing.T) {
 	kubeClient := startEnvtest(t)
@@ -136,7 +207,7 @@ func TestTransactionStoreDiscardsForeignStateAgainstAPIServer(t *testing.T) {
 		t.Fatalf("create namespace: %v", err)
 	}
 	store := &transactionStore{reader: kubeClient, writer: kubeClient}
-	if _, err := store.create(ctx, namespace, testRequestName, testRequestUID, time.Now().Add(time.Hour)); err != nil {
+	if _, err := store.create(ctx, namespace, testRequestName, testRequestUID, time.Now().Add(time.Hour), testTransactionDetail()); err != nil {
 		t.Fatalf("create transaction: %v", err)
 	}
 	loaded, err := store.load(ctx, namespace, testRequestName, types.UID("99999999-9999-9999-9999-999999999999"))
