@@ -18,6 +18,9 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
+    - jsonPath: .spec.issuerRef.name
+      name: Issuer
+      type: string
     - jsonPath: .status.polls
       name: Polls
       type: integer
@@ -31,9 +34,11 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          CMPTransaction records the state of one in-flight CMP transaction so that an asynchronous
-          enrollment survives a controller restart. It is created and removed by the controller and is
-          garbage collected with the CertificateRequest that owns it.
+          CMPTransaction records the state of one CMP transaction so that an asynchronous enrollment
+          survives a controller restart and an issued certificate is never enrolled twice. The controller
+          creates it before the first message is sent, removes it when the transaction fails and retains it
+          with the issued chain afterwards, until it is garbage collected with the CertificateRequest that
+          owns it.
         properties:
           apiVersion:
             description: |-
@@ -65,11 +70,52 @@ spec:
                   that reuses a name.
                 maxLength: 253
                 type: string
+              csrDigest:
+                description: |-
+                  CSRDigest is the lowercase hexadecimal SHA-256 digest of the DER CSR this transaction enrolls.
+                  It identifies the enrolled request in diagnostics and guards a recorded chain from being
+                  returned for a different CSR.
+                maxLength: 64
+                type: string
               deadline:
                 description: Deadline is the instant after which the transaction is
                   abandoned as failed.
                 format: date-time
                 type: string
+              issuerRef:
+                description: IssuerRef identifies the issuer that served this transaction.
+                properties:
+                  kind:
+                    description: Kind is the issuer resource kind.
+                    enum:
+                    - CMPIssuer
+                    - CMPClusterIssuer
+                    type: string
+                  name:
+                    description: Name is the issuer resource name.
+                    maxLength: 253
+                    type: string
+                  uid:
+                    description: UID distinguishes a recreated issuer that reuses
+                      a name.
+                    maxLength: 253
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              operation:
+                description: Operation is the CMP operation this transaction performs.
+                enum:
+                - P10CR
+                type: string
+              protocolVersion:
+                description: ProtocolVersion is the CMP protocol version of every
+                  message in this transaction.
+                format: int32
+                maximum: 3
+                minimum: 2
+                type: integer
               transactionID:
                 description: TransactionID is the CMP transactionID that every message
                   of this transaction carries.
@@ -90,16 +136,33 @@ spec:
                   the server polls against.
                 format: int64
                 type: integer
+              completionTime:
+                description: CompletionTime records when the transaction reached the
+                  Issued phase.
+                format: date-time
+                type: string
+              issuedChain:
+                description: |-
+                  IssuedChain is the validated leaf-first certificate chain in DER form, recorded before the
+                  chain is returned so that a restart in that window does not enroll a second certificate.
+                items:
+                  format: byte
+                  type: string
+                maxItems: 16
+                type: array
               lastTransitionTime:
                 description: LastTransitionTime records when the phase last changed.
                 format: date-time
                 type: string
               phase:
-                description: Phase reports whether the enrollment request is in flight
-                  or the server asked the client to poll.
+                description: |-
+                  Phase reports whether the enrollment request is in flight, the server asked the client to poll,
+                  the certificate awaits confirmation, or the validated chain is recorded and confirmed.
                 enum:
                 - Enrolling
                 - Polling
+                - Confirming
+                - Issued
                 type: string
               polls:
                 description: |-
