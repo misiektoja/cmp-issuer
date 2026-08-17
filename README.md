@@ -41,6 +41,8 @@ The issuer waits for the interval the server requests in `pollRep`, clamped into
 
 One case is deliberately not recoverable. If the controller stops between recording a transaction and receiving the response to its enrollment request, the outcome of that request is unknown. The retry re-sends the enrollment under the same recorded transaction identifier, which is how a CMP server recognises a repeated request rather than a new enrollment, so servers that enforce transaction identifiers will not issue twice.
 
+A server may also delay the confirmation rather than the certificate, answering `certConf` with `waiting` instead of `pkiConf`. RFC 9483 section 4.4 applies delayed delivery to every operation, so the issuer polls for the confirmation as well. That wait is not governed by the settings above and is not recorded in a `CMPTransaction`, because the certificate has already been issued at that point and only the acknowledgement is outstanding. The issuer polls inline for up to one minute, waiting between one and ten seconds as the server requests, and fails the request if the confirmation does not arrive. Configure `implicitConfirm` to skip this exchange entirely on servers that grant it.
+
 ## Security boundaries
 
 For P10CR the controller forwards the signed PKCS #10 CSR supplied by cert-manager. It does not read the workload private key or cert-manager's staging private-key Secret. TLS trust and CMP response-protection trust are configured separately.
@@ -100,7 +102,9 @@ Like NCM, EJBCA answers P10CR with `certReqId` `0`. Pinning `-1` against it fail
 
 ## Automated verification
 
-Unit and envtest coverage runs with `make test`. It includes a deferred enrollment driven against a CMP server that answers `waiting`, polls and then issues, so the asynchronous path is exercised over real CMP messages rather than mocked, and it records transaction state through a real API server.
+Unit and envtest coverage runs with `make test`. It includes a deferred enrollment driven against a CMP server that answers `waiting`, polls and then issues, so the asynchronous path is exercised over real CMP messages rather than mocked, and it records transaction state through a real API server. Delayed confirmation is covered as well, including a server that echoes the nonce of the delayed request rather than of the last poll.
+
+The polling flow has also been verified by hand against the CMP mock server built into OpenSSL 3.6 (`openssl cmp -port`), an implementation unrelated to the one used in the tests, driving a full `P10CR` to `waiting` to `pollReq` to `certConf` to `waiting` to `pollReq` to `pkiConf` transaction. Note that this mock server keeps one transaction per connection, so it needs all messages of a transaction on a single HTTP connection, which RFC 6712 does not require of a CMP server.
 
 Controller behavior is verified against a real cluster by an end-to-end suite that needs no CMP server:
 
