@@ -170,7 +170,7 @@ func (s *Signer) exchange(ctx context.Context, enrollmentRequest protocol.Enroll
 	if transaction.Status.Polls >= limits.MaximumPolls {
 		return protocol.EnrollmentResult{}, issuersigner.PermanentError{Err: fmt.Errorf("CMP transaction reached the configured maximum of %d polls", limits.MaximumPolls)}
 	}
-	poll := protocol.PollRequest{Enrollment: enrollmentRequest, RecipNonce: transaction.Status.RecipNonce, CertReqID: *transaction.Status.CertReqID}
+	poll := protocol.PollRequest{Enrollment: enrollmentRequest, RecipNonce: transaction.Status.RecipNonce, CertReqID: *transaction.Status.CertReqID, RequestNonce: transaction.Status.RequestNonce}
 	if len(transaction.Status.ResponseSigner) > 0 {
 		signer, parseErr := x509.ParseCertificate(transaction.Status.ResponseSigner)
 		if parseErr != nil {
