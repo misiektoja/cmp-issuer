@@ -470,7 +470,7 @@ func TestSendCMPRejectsRedirect(t *testing.T) {
 	}))
 	defer redirect.Close()
 	request := EnrollmentRequest{Timeout: time.Second}
-	_, err := sendCMP(context.Background(), newHTTPClient(request), redirect.URL, []byte{1}, 1024)
+	_, err := sendCMP(context.Background(), newHTTPClient(request), redirect.URL, []byte{1}, 1024, operationEnrollment)
 	var typed *Error
 	if !errors.As(err, &typed) || typed.Failure != "redirectRejected" {
 		t.Fatalf("expected redirect rejection, got %v", err)
