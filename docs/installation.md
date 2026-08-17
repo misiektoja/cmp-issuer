@@ -60,6 +60,7 @@ helm install cmp-issuer ./charts/chart \
 | `crd.keep` | Keep the CRDs when the release is uninstalled, default `true` |
 | `certManagerApproval.create` | Let cert-manager approve requests for this issuer type, default `true` |
 | `certManagerApproval.serviceAccountName` and `.namespace` | Where cert-manager runs, default `cert-manager` in `cert-manager` |
+| `credentialNamespaces` | Namespaces to pre-authorize for `CMPIssuer` credential reads, default empty |
 
 ## Install with the manifest
 
@@ -126,9 +127,24 @@ For the manifest path, edit or remove the `cert-manager-approver-role` ClusterRo
 
 ## Namespace access for CMPIssuer
 
-Every namespace hosting a `CMPIssuer` needs a RoleBinding, described in
+The controller has no cluster-wide Secret access. Every namespace hosting a `CMPIssuer` needs a
+RoleBinding granting it the credential reader role there, described in
 [Credential Secret access](operations/secret-access.md). Without it the issuer stays Not Ready and names
 the missing authorization.
+
+The chart can create those bindings for namespaces you already know about:
+
+```bash
+helm install cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system --create-namespace \
+  --set 'credentialNamespaces={team-a,team-b}'
+```
+
+Each listed namespace must exist before the release is installed or upgraded, and each entry widens the
+boundary this project is built around, so name only the namespaces you have decided on. Namespaces
+added later still need the RoleBinding, either by listing them and upgrading or by applying it directly.
+This setting requires `rbac.namespaced=false`, because a RoleBinding in one namespace cannot reference a
+Role that lives in another.
 
 A `CMPClusterIssuer` reads its credentials only from the controller's cluster resource namespace and
 needs no per-namespace binding.
