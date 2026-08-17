@@ -29,9 +29,22 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/tsaarni/go-pkicmp/pkicmp"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/misiektoja/cmp-issuer/internal/logging"
+)
+
+const (
+	// operationEnrollment names the P10CR exchange in a log line.
+	operationEnrollment = "p10cr"
+	// operationPoll names the pollReq exchange in a log line.
+	operationPoll = "pollReq"
+	// operationConfirmation names the certConf exchange in a log line.
+	operationConfirmation = "certConf"
 )
 
 // CMPClient executes synchronous CMPv2 P10CR transactions with explicit transport policy.
@@ -61,7 +74,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 		return EnrollmentResult{}, err
 	}
 	httpClient := newHTTPClient(request)
-	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize)
+	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize, operationEnrollment)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -69,6 +82,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, security("parse CP", "badDataFormat", err)
 	}
+	logCMPResponse(ctx, operationEnrollment, response, len(responseDER))
 	responseSigner, err := verifyResponse(message, response, request, nil, nil)
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -138,7 +152,7 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 		return EnrollmentResult{}, permanent("encode pollReq", "badDataFormat", err)
 	}
 	httpClient := newHTTPClient(request)
-	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize)
+	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize, operationPoll)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -146,6 +160,7 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 	if err != nil {
 		return EnrollmentResult{}, security("parse poll response", "badDataFormat", err)
 	}
+	logCMPResponse(ctx, operationPoll, response, len(responseDER))
 	responseSigner, err := verifyResponse(message, response, request, poll.ResponseSigner, poll.RequestNonce)
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -253,13 +268,14 @@ func newHTTPClient(request EnrollmentRequest) *http.Client {
 }
 
 // sendCMP posts protected DER and accepts authenticated CMP bodies without deriving state from HTTP metadata.
-func sendCMP(ctx context.Context, client *http.Client, endpoint string, requestDER []byte, maximum int64) ([]byte, error) {
+func sendCMP(ctx context.Context, client *http.Client, endpoint string, requestDER []byte, maximum int64, operation string) ([]byte, error) {
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestDER))
 	if err != nil {
 		return nil, permanent("create HTTP request", "badRequest", err)
 	}
 	httpRequest.Header.Set("Content-Type", "application/pkixcmp")
 	httpRequest.Header.Set("Accept", "application/pkixcmp")
+	log.FromContext(ctx).V(1).Info("Sending CMP request", "operation", operation, "bytes", len(requestDER))
 	httpResponse, err := client.Do(httpRequest)
 	if err != nil {
 		return nil, retryable("HTTP exchange", "systemUnavail", err)
@@ -286,6 +302,11 @@ func sendCMP(ctx context.Context, client *http.Client, endpoint string, requestD
 		return nil, permanent("read HTTP response", "badDataFormat", fmt.Errorf("CMP response is empty"))
 	}
 	return body, nil
+}
+
+// logCMPResponse records the body a peer answered with, after the response has been parsed.
+func logCMPResponse(ctx context.Context, operation string, response *pkicmp.PKIMessage, size int) {
+	log.FromContext(ctx).V(1).Info("Received CMP response", "operation", operation, "body", response.Body.Type.String(), "bytes", size)
 }
 
 // verifyResponse authenticates the response and returns its trusted signature certificate when present.
@@ -500,7 +521,7 @@ func classifyStatus(status pkicmp.PKIStatusInfo) error {
 	if status.Status == pkicmp.StatusAccepted || status.Status == pkicmp.StatusGrantedWithMods {
 		return nil
 	}
-	statusErr := status.AsError()
+	statusErr := boundedStatus(status).AsError()
 	if status.Status == pkicmp.StatusWaiting {
 		return &Error{Kind: ErrorKindPending, Operation: "wait for certificate", Failure: "waiting", RequeueAfter: time.Second, Err: statusErr}
 	}
@@ -515,6 +536,17 @@ func classifyStatus(status pkicmp.PKIStatusInfo) error {
 		return retryable("process PKIStatus", status.FailInfo.String(), statusErr)
 	}
 	return permanent("process PKIStatus", "unknownStatus", statusErr)
+}
+
+// boundedStatus limits the free text a server attached to a status, because that text reaches
+// conditions, Events and the controller log and is chosen by the peer rather than by this project.
+func boundedStatus(status pkicmp.PKIStatusInfo) pkicmp.PKIStatusInfo {
+	if len(status.StatusString) == 0 {
+		return status
+	}
+	bounded := status
+	bounded.StatusString = pkicmp.PKIFreeText{logging.Text(strings.Join(status.StatusString, "; "))}
+	return bounded
 }
 
 // validateAndOrderChain verifies trust and returns the leaf followed by non-root intermediates.
@@ -594,13 +626,13 @@ func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pk
 	}
 	options := pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: confirm.RecipNonce}
 	var message *pkicmp.PKIMessage
-	operation := "certConf"
+	operation := operationConfirmation
 	if len(confirm.RequestNonce) > 0 {
 		// RFC 9483 section 4.4 requires certReqId -1 when polling for a delayed response that is a
 		// whole message rather than a CertResponse element.
 		poll := pkicmp.PollReqContent{ResponseCertReqIDStandard}
 		message = pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&poll), options)
-		operation = "pollReq"
+		operation = operationPoll
 	} else {
 		hash, err := certificateHash(confirm.Certificate)
 		if err != nil {
@@ -661,7 +693,7 @@ func exchangeProtected(ctx context.Context, client *http.Client, request Enrollm
 	if err != nil {
 		return nil, permanent("encode "+operation, "badDataFormat", err)
 	}
-	responseDER, err := sendCMP(ctx, client, request.EndpointURL, requestDER, request.MaxResponseSize)
+	responseDER, err := sendCMP(ctx, client, request.EndpointURL, requestDER, request.MaxResponseSize, operation)
 	if err != nil {
 		return nil, err
 	}
@@ -669,6 +701,7 @@ func exchangeProtected(ctx context.Context, client *http.Client, request Enrollm
 	if err != nil {
 		return nil, security("parse "+operation+" response", "badDataFormat", err)
 	}
+	logCMPResponse(ctx, operation, response, len(responseDER))
 	if _, err := verifyResponse(message, response, request, responseSigner, delayedRequestNonce); err != nil {
 		return nil, err
 	}
