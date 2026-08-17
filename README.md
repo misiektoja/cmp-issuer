@@ -8,7 +8,7 @@ This repository is under active initial development. PasswordBasedMac and certif
 
 ## Documentation
 
-Full documentation is published from the `docs/` site. Build it locally with `make docs-build`.
+Full documentation lives in [docs/](docs/).
 
 | Topic | Link |
 | --- | --- |
@@ -47,27 +47,13 @@ Secret access is intentionally not cluster-wide. Add the RoleBinding from [crede
 
 By default the issuer accepts `certReqId` `-1` or `0` in P10CR CP responses, echoes the received value in `certConf` and rejects any other value. Pin one value with `spec.protocol.p10crResponseCertReqId` when a server's behavior is known. Details are in the [CMPIssuer reference](docs/reference/cmpissuer.md) and [Tested PKIs](docs/interoperability/tested-pkis.md).
 
-## Automated verification
+## Verification
 
-| Command | Purpose |
-| --- | --- |
-| `make test` | Unit, protocol, controller and envtest suites including deferred CMP transactions |
-| `make test-e2e` | Kind-based controller tests without a CMP server |
-| `make docs-build` | Strict documentation build |
-| `make helm-lint` | Helm chart validation |
-| `make govulncheck` | Known reachable vulnerabilities |
-| `make gitleaks` | Credential scan of tree and history |
-
-OpenSSL CMP mock interoperability runs in CI on every push. Real CMP server testing is summarized in [Tested PKIs](docs/interoperability/tested-pkis.md).
+Every push runs the unit, protocol, controller and envtest suites, a Kind-based controller suite, OpenSSL CMP mock interoperability, Helm chart validation, vulnerability scanning and a credential scan. Results against real CMP servers are summarized in [Tested PKIs](docs/interoperability/tested-pkis.md).
 
 ## Installation
 
-```bash
-make build-installer IMG=<registry>/cmp-issuer:<tag>
-kubectl apply -f dist/install.yaml
-```
-
-Or install the Helm chart from `charts/chart`. See [Installation](docs/installation.md).
+Install the Helm chart from `charts/chart`, or apply the `install.yaml` manifest attached to a release. See [Installation](docs/installation.md).
 
 ## License
 
