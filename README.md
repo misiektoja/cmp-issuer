@@ -100,7 +100,9 @@ Like NCM, EJBCA answers P10CR with `certReqId` `0`. Pinning `-1` against it fail
 
 ## Automated verification
 
-Unit and envtest coverage runs with `make test`. Controller behavior is verified against a real cluster by an end-to-end suite that needs no CMP server:
+Unit and envtest coverage runs with `make test`. It includes a deferred enrollment driven against a CMP server that answers `waiting`, polls and then issues, so the asynchronous path is exercised over real CMP messages rather than mocked, and it records transaction state through a real API server.
+
+Controller behavior is verified against a real cluster by an end-to-end suite that needs no CMP server:
 
 ```bash
 make test-e2e
