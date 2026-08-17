@@ -4,9 +4,9 @@ This page describes the intended release workflow. No release has been published
 
 ## Versioning
 
-The changelog tracks `0.1.0` as the initial development release. Future versions follow semantic versioning for user-visible behavior.
+`RELEASE_NOTES.md` tracks `0.1.0` as the initial development release. Future versions follow semantic versioning for user-visible behavior.
 
-Determine the latest published GitHub Release from the default branch before bumping versions. See repository release policy in project guidance.
+Check the latest published GitHub Release on the default branch before choosing the next version.
 
 ## Release artifacts
 
@@ -36,7 +36,7 @@ Each release publishes:
 
 1. `make test`, `make lint`, `make docs-build`, `make helm-lint`
 2. `make test-e2e` when controller or e2e specs changed
-3. Update `CHANGELOG.md` with user-facing entries
+3. Update `RELEASE_NOTES.md` with user-facing entries
 4. Tag and push only when authorized to publish
 
 ## Supply chain verification
