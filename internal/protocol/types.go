@@ -31,11 +31,14 @@ const (
 	ResponseCertReqIDLegacyZero int64 = 0
 )
 
-// Client enrolls a signed PKCS #10 request through one protected CMP transaction and resumes a
-// transaction that the server answered with waiting.
+// Client enrolls a signed PKCS #10 request through one protected CMP transaction, resumes a
+// transaction that the server answered with waiting and confirms an issued certificate. Confirmation
+// is a separate call so the caller can record the validated chain before certConf is sent, which is
+// what lets an interrupted confirmation resume instead of losing a certificate that already exists.
 type Client interface {
 	EnrollP10CR(context.Context, EnrollmentRequest) (EnrollmentResult, error)
 	PollP10CR(context.Context, PollRequest) (EnrollmentResult, error)
+	ConfirmP10CR(context.Context, ConfirmRequest) (EnrollmentResult, error)
 }
 
 // TransactionCodec executes CMP message state transitions independently of controller contracts.
@@ -66,8 +69,9 @@ type Protection struct {
 // EnrollmentRequest contains validated inputs for one P10CR exchange.
 // A nil ResponseCertReqID accepts either the standard or the legacy zero response identifier.
 // TransactionID pins the CMP transaction identifier so a caller can persist it before the request
-// is sent and resume the same transaction later. It is generated when empty, so a caller that may
-// need to poll must supply it rather than let the transaction identifier be generated.
+// is sent and resume the same transaction later. It is generated when empty, so a caller that polls
+// or confirms must supply it rather than let the transaction identifier be generated. Every
+// enrollment that is not implicitly confirmed needs it, because confirmation is a separate call.
 type EnrollmentRequest struct {
 	EndpointURL       string
 	Timeout           time.Duration
@@ -101,6 +105,27 @@ type PollRequest struct {
 	RequestNonce []byte
 }
 
+// ConfirmRequest sends the certConf of an issued certificate, or resumes a confirmation the server
+// delayed. RequestNonce is empty on the first call and set once certConf has been sent, which is how
+// a resumed confirmation continues with pollReq rather than repeating certConf.
+type ConfirmRequest struct {
+	// Enrollment carries the unchanged issuer configuration, credentials and CSR of the transaction.
+	Enrollment EnrollmentRequest
+	// Certificate is the issued leaf whose hash certConf carries.
+	Certificate *x509.Certificate
+	// CertReqID identifies the confirmed request inside the transaction.
+	CertReqID int64
+	// RecipNonce is the sender nonce of the last accepted response.
+	RecipNonce []byte
+	// ResponseSigner is the signer already validated for this transaction, reused when a server omits
+	// extraCerts and senderKID from later messages.
+	ResponseSigner *x509.Certificate
+	// RequestNonce is the sender nonce of the certConf whose response the server delayed. RFC 9483
+	// section 4.4 requires the client to keep it because a conformant server echoes it in the
+	// recipNonce of the final pkiConf rather than the nonce of the last pollReq.
+	RequestNonce []byte
+}
+
 // PendingTransaction describes a server-side waiting response that the caller must poll for.
 type PendingTransaction struct {
 	// CertReqID identifies the pending request inside the transaction.
@@ -125,6 +150,10 @@ type EnrollmentResult struct {
 	ResponseCertReqID     int64
 	// Pending is set when the server has not decided yet and the transaction must be polled.
 	Pending *PendingTransaction
+	// PendingConfirmation is set when the certificate is issued and validated but not yet confirmed.
+	// Chain is populated alongside it, so the caller records the chain before confirming and a
+	// confirmation interrupted by a restart resumes instead of discarding an issued certificate.
+	PendingConfirmation *PendingTransaction
 }
 
 // ErrorKind classifies failures without matching text.
