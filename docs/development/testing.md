@@ -42,9 +42,9 @@ Requires Colima or Docker for Kind. The suite:
 
 Runtime is about one minute after the cluster is ready. **Do not run this suite against the production lab cluster.**
 
-## Lab interoperability
+## Interoperability against real CMP servers
 
-Real CMP server testing uses private lab machines with NCM and EJBCA. Results are recorded in private local notes, not in the public repository. Public documentation summarizes outcomes in [Tested PKIs](../interoperability/tested-pkis.md).
+Enrollment against NCM and EJBCA is verified manually against dedicated CMP servers, because running a certificate authority inside the test cluster costs far more per run than the rest of the suite. Outcomes are summarized in [Tested PKIs](../interoperability/tested-pkis.md).
 
 ## Lint and supply chain
 
