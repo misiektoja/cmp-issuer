@@ -30,7 +30,6 @@ It implements CMPv2 initial enrollment with a PKCS #10 request in P10CR and a CP
 ## Design decisions
 
 * [CMP library selection](adr/0001-cmp-library.md)
-* [go-pkicmp review](dependencies/go-pkicmp-review.md)
 
 ## Repository
 
