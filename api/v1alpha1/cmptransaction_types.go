@@ -146,7 +146,10 @@ type CMPTransactionStatus struct {
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Issuer",type=string,JSONPath=".spec.issuerRef.name"
 // +kubebuilder:printcolumn:name="Polls",type=integer,JSONPath=".status.polls"
-// +kubebuilder:printcolumn:name="Deadline",type=date,JSONPath=".spec.deadline"
+// A date column is rendered as an age relative to now, and kubectl prints an age it cannot express as
+// <invalid>. The deadline of an open transaction is always in the future, so a date column would be
+// unreadable for the whole time an operator has any reason to consult it. It is a string instead.
+// +kubebuilder:printcolumn:name="Deadline",type=string,JSONPath=".spec.deadline"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=".metadata.creationTimestamp"
 
 // CMPTransaction records the state of one CMP transaction so that an asynchronous enrollment
