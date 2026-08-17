@@ -107,6 +107,9 @@ func (t *transactionStore) recordPending(ctx context.Context, transaction *cmpv1
 	certReqID := pending.CertReqID
 	transaction.Status.Phase = cmpv1alpha1.TransactionPhasePolling
 	transaction.Status.RecipNonce = pending.RecipNonce
+	if len(pending.RequestNonce) > 0 {
+		transaction.Status.RequestNonce = pending.RequestNonce
+	}
 	transaction.Status.CertReqID = &certReqID
 	transaction.Status.LastTransitionTime = metav1.Now()
 	if pending.ResponseSigner != nil {
