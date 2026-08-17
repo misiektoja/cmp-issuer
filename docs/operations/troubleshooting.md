@@ -55,16 +55,6 @@ Wrong PSK or invalid response signer fail closed: no certificate accepted and no
 
 An HTTP issuer emits a one-time Ready warning about missing transport confidentiality. This is expected, not an error.
 
-## Controller e2e suite
-
-Run locally against Kind:
-
-```bash
-make test-e2e
-```
-
-This verifies issuer readiness, certReqId validation, denial handling, transport failures, private-key annotation isolation and namespace-bounded Secret access without a CMP server.
-
 ## Related pages
 
 * [Tested PKIs](../interoperability/tested-pkis.md)
