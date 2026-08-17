@@ -22,6 +22,7 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | Certificate substitution | Verify the issued leaf public key matches the signed CSR public key and validate the chain against CMP trust |
 | P10CR response identifier ambiguity | Accept only the standards value `-1` or the observed legacy value `0`, echo the received value in `certConf` and allow an issuer to pin one value |
 | Unverifiable confirmation response | Reuse only the response signer already validated against CMP trust when a server omits `extraCerts` and `senderKID` from `pkiConf`, and still reject invalid protection |
+| Unbounded wait for a delayed confirmation | Poll for a `pkiConf` the server delays only within fixed inline bounds, and fail the request rather than hold a reconcile open indefinitely |
 | Redirect or header state injection | Disable HTTP redirects and derive transaction state only from authenticated CMP DER |
 | Resource exhaustion | Bound response size, timeouts, polling, transaction duration and request concurrency |
 | Duplicate enrollment after a restart | Record the transaction identifier in a `CMPTransaction` before the first message is sent, resume the recorded transaction on the next reconcile and retry an unanswered enrollment under the same identifier rather than starting a new one |
