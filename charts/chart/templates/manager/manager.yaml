@@ -84,6 +84,15 @@ spec:
         - --metrics-bind-address=0
         {{- end }}
         - --health-probe-bind-address=:8081
+        {{- with .Values.logging.level }}
+        - --zap-log-level={{ . }}
+        {{- end }}
+        {{- with .Values.logging.stacktraceLevel }}
+        - --zap-stacktrace-level={{ . }}
+        {{- end }}
+        {{- with .Values.logging.encoder }}
+        - --zap-encoder={{ . }}
+        {{- end }}
         {{- range .Values.manager.args }}
         - {{ . }}
         {{- end }}
