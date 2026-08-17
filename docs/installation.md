@@ -58,6 +58,8 @@ helm install cmp-issuer ./charts/chart \
 | `rbac.namespaced` | Scope RBAC to the release namespace instead of cluster-wide |
 | `crd.enabled` | Install the CRDs with the chart, default `true` |
 | `crd.keep` | Keep the CRDs when the release is uninstalled, default `true` |
+| `certManagerApproval.create` | Let cert-manager approve requests for this issuer type, default `true` |
+| `certManagerApproval.serviceAccountName` and `.namespace` | Where cert-manager runs, default `cert-manager` in `cert-manager` |
 
 ## Install with the manifest
 
@@ -67,9 +69,9 @@ Every release also attaches a self-contained `install.yaml`:
 kubectl apply -f install.yaml
 ```
 
-It installs the same CRDs, RBAC and controller Deployment in `cmp-issuer-system`, and a
-ClusterRoleBinding that lets the controller read Secrets **only** in `cmp-issuer-system`. Neither
-installation path grants Secret access in workload namespaces.
+It installs the same CRDs, RBAC, cert-manager approval permission and controller Deployment in
+`cmp-issuer-system`, plus a ClusterRoleBinding that lets the controller read Secrets **only** in
+`cmp-issuer-system`. Neither installation path grants Secret access in workload namespaces.
 
 ## Custom resource definitions
 
@@ -94,41 +96,33 @@ kubectl delete crd \
 Set `crd.enabled=false` if you manage the CRDs separately, for example when a cluster administrator
 applies them ahead of the release.
 
-## Let cert-manager approve requests for cmp-issuer
+## cert-manager approval
 
-cert-manager's built-in approver approves requests only for issuer types it has explicit permission
-for. Without this permission every `CertificateRequest` referencing a `CMPIssuer` stays pending, no
-error is reported and no CMP message is sent.
+cert-manager's built-in approver acts only on issuer types it holds explicit permission for, and it
+reports nothing when it lacks that permission, so a `CertificateRequest` would simply stay pending
+forever. **Both installation paths grant that permission for you**, by creating a ClusterRole with
+`approve` on `signers` for `cmpissuers` and `cmpclusterissuers`, bound to the cert-manager controller.
 
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cert-manager-controller-approve-cmp-issuer
-rules:
-- apiGroups: ["cert-manager.io"]
-  resources: ["signers"]
-  verbs: ["approve"]
-  resourceNames:
-  - "cmpissuers.certmanager.misiektoja.github.io/*"
-  - "cmpclusterissuers.certmanager.misiektoja.github.io/*"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cert-manager-controller-approve-cmp-issuer
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cert-manager-controller-approve-cmp-issuer
-subjects:
-- kind: ServiceAccount
-  name: cert-manager
-  namespace: cert-manager
+The binding assumes the upstream default, the `cert-manager` ServiceAccount in the `cert-manager`
+namespace. Point it elsewhere when your installation differs:
+
+```bash
+helm install cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system --create-namespace \
+  --set certManagerApproval.serviceAccountName=<name> \
+  --set certManagerApproval.namespace=<namespace>
 ```
 
-Adjust the ServiceAccount to match your cert-manager installation. If you use approver-policy, express
-the same decision in a `CertificateRequestPolicy` instead.
+Turn it off entirely when [approver-policy](https://cert-manager.io/docs/policy/approval/approver-policy/)
+makes the decision instead, and express the same rule in a `CertificateRequestPolicy`:
+
+```bash
+helm install cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system --create-namespace \
+  --set certManagerApproval.create=false
+```
+
+For the manifest path, edit or remove the `cert-manager-approver-role` ClusterRole and its binding.
 
 ## Namespace access for CMPIssuer
 
