@@ -1,40 +1,30 @@
 # Known limitations
 
-Explicit gaps in the first delivery. Each item states the failure mode it leaves open.
+Behavior to plan around in the current release. Each item states what is not covered and the failure it can produce.
 
-## Phase 4 transaction persistence
+## Transaction durability
 
-The specification asked for more durable state than is implemented today. The controller persists enough to resume asynchronous enrollments across restarts, but not full forensic replay.
+cmp-issuer records enough state in `CMPTransaction` to resume an asynchronous enrollment after a controller restart. It does not keep a full record of the exchange.
 
-### Outbound DER not persisted
+### Enrollment messages are rebuilt rather than replayed
 
-**Gap:** The exact protected outbound DER is not stored in a controller-owned Secret before sending.
+The protected outbound message is not stored before it is sent. After a crash or an ambiguous HTTP timeout the controller rebuilds the enrollment request instead of resending identical bytes. The CMP transaction identifier is reused, so a server that enforces transaction identifiers still prevents a second issuance, but it cannot tell a lost response apart from a new attempt.
 
-**Failure mode:** After an ambiguous HTTP timeout or crash between send and response the controller rebuilds the enrollment message rather than replaying identical bytes. The transaction identifier is reused. Servers that treat rebuilt messages differently from true replays may accept or reject unpredictably. Servers that enforce transaction identifiers prevent duplicate issuance but cannot distinguish network loss from a new enrollment attempt.
+### Limited transaction detail
 
-### Enrollment context not persisted
+The CSR digest, issuer UID, CMP operation, protocol version and the final validated chain are not written to `CMPTransaction`. After a restart, diagnosis relies on the `CertificateRequest` and on server-side logs rather than on stored transaction detail.
 
-**Gap:** CSR hash, issuer UID, CMP operation, protocol version and the final validated chain are not stored on `CMPTransaction`.
+### Credential rotation is not detected
 
-**Failure mode:** Post-mortem analysis and cross-check after restart rely on the live `CertificateRequest` and server logs, not on persisted transaction artifacts.
+Credential Secret versions are not recorded when a transaction begins. Rotating a PasswordBasedMac or signature Secret while a transaction is open changes the protection material without an explicit signal. The transaction fails when the server rejects the new protection or when `maximumDuration` elapses, not at the moment of rotation.
 
-### Credential rotation not detected
+### Coarse progress reporting
 
-**Gap:** Credential Secret resourceVersions are not recorded when a transaction starts.
+`CMPTransaction.status.phase` reports only `Enrolling` or `Polling`, so `kubectl get cmptransactions` shows less detail than the underlying message flow. Confirmation and delayed confirmation are handled without a separate phase.
 
-**Failure mode:** Rotating a PBM or signature Secret during an open transaction changes protection material without an explicit detection event. The transaction fails when the server rejects the new protection or when `maximumDuration` elapses, not immediately at rotation time.
+### Delayed confirmation is not resumable
 
-### Simplified phase model
-
-**Gap:** `CMPTransaction.status.phase` has two values, `Enrolling` and `Polling`, rather than a finer-grained state machine.
-
-**Failure mode:** Operators see less granular progress in `kubectl get cmptransactions` than a multi-state design would provide. Reconciliation logic still handles confirmation and delayed confirmation internally.
-
-### Delayed confirmation not persisted
-
-**Gap:** When the server delays `pkiConf` after `certConf`, polling is inline for up to one minute and is not recorded in `CMPTransaction`.
-
-**Failure mode:** A controller restart during delayed confirmation may fail the request even though the certificate was already issued at the CMP layer. Configure implicit confirmation on servers that support it to avoid this window.
+When a server answers `certConf` with `waiting`, the issuer polls inline for up to one minute and records nothing in `CMPTransaction`. A controller restart inside that window can fail the `CertificateRequest` even though the certificate was already issued. Enable implicit confirmation on servers that grant it to avoid the window.
 
 ## Protocol and product scope
 
@@ -43,7 +33,7 @@ The specification asked for more durable state than is implemented today. The co
 | IR and CRMF | Planned |
 | KUR | Planned |
 | PBMAC1 | Planned |
-| mTLS to CMP endpoint | Planned |
+| mTLS to the CMP endpoint | Planned |
 | CMPv3 | Planned |
 | Revocation over CMP | Planned |
 | Kubernetes CSR signing | Unsupported by design |
@@ -53,17 +43,11 @@ See [Support matrix](support-matrix.md).
 
 ## Dependencies
 
-go-pkicmp is pre-v1 and lightly adopted. It remains isolated behind project-owned interfaces but is still a security-sensitive parser dependency. See [go-pkicmp review](dependencies/go-pkicmp-review.md).
+The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. It remains security sensitive, so responses are validated independently of it. See [ADR 0001](adr/0001-cmp-library.md).
 
 ## API stability
 
 `certmanager.misiektoja.github.io/v1alpha1` may change before a stable version.
-
-## issuer-lib denial detection
-
-issuer-lib `IsDenied` tests for `Ready=False` with reason `Denied` rather than a `Denied` condition type. A freshly denied request may appear neither approved nor denied in helper logic. cmp-issuer still sends no CMP traffic for denied requests.
-
-Consider reporting upstream to cert-manager issuer-lib.
 
 ## Related pages
 
