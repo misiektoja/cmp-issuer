@@ -4,15 +4,11 @@ Behavior to plan around in the current release. Each item states what is not cov
 
 ## Transaction durability
 
-cmp-issuer records enough state in `CMPTransaction` to resume an asynchronous enrollment after a controller restart. It does not keep a full record of the exchange.
+cmp-issuer records the transaction identifier, the transaction detail and the issued chain in `CMPTransaction`, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.
 
-### Enrollment messages are rebuilt rather than replayed
+### A lost enrollment response cannot be recovered
 
-The protected outbound message is not stored before it is sent. After a crash or an ambiguous HTTP timeout the controller rebuilds the enrollment request instead of resending identical bytes. The CMP transaction identifier is reused, so a server that enforces transaction identifiers still prevents a second issuance, but it cannot tell a lost response apart from a new attempt.
-
-### Limited transaction detail
-
-The CSR digest, issuer UID, CMP operation, protocol version and the final validated chain are not written to `CMPTransaction`. After a restart, diagnosis relies on the `CertificateRequest` and on server-side logs rather than on stored transaction detail.
+If the controller stops after sending an enrollment and the response never arrives, retrying under the recorded transaction identifier reliably prevents a second certificate but does not retrieve the first one. Neither tested server answers the repeat from its existing transaction: NCM 26.7 refuses it with `transactionIdInUse` and EJBCA CE 9.3.7 refuses it with `badRequest`. The `CertificateRequest` fails and cert-manager enrolls again under a new transaction identifier, which succeeds. The certificate the server issued for the lost response is orphaned and counts against any issuance quota or audit trail the certificate authority keeps.
 
 ### Credential rotation is not detected
 
@@ -20,11 +16,11 @@ Credential Secret versions are not recorded when a transaction begins. Rotating 
 
 ### Coarse progress reporting
 
-`CMPTransaction.status.phase` reports only `Enrolling` or `Polling`, so `kubectl get cmptransactions` shows less detail than the underlying message flow. Confirmation and delayed confirmation are handled without a separate phase.
+`CMPTransaction.status.phase` reports `Enrolling`, `Polling`, `Confirming` or `Issued`, so `kubectl get cmptransactions` shows less detail than the underlying message flow.
 
-### Delayed confirmation is not resumable
+### Completed transactions are retained
 
-When a server answers `certConf` with `waiting`, the issuer polls inline for up to one minute and records nothing in `CMPTransaction`. A controller restart inside that window can fail the `CertificateRequest` even though the certificate was already issued. Enable implicit confirmation on servers that grant it to avoid the window.
+A transaction that obtained a certificate keeps its record, including the issued chain, so that a restart before cert-manager stores the certificate does not enroll a second one. The record is removed only when the owning `CertificateRequest` is garbage collected, so `kubectl get cmptransactions` lists completed transactions next to in-flight ones.
 
 ## Protocol and product scope
 
