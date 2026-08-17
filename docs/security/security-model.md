@@ -49,9 +49,9 @@ flowchart TB
 
 ## Residual risks
 
-* go-pkicmp is pre-v1 and treated as a provisional dependency. See [go-pkicmp review](../dependencies/go-pkicmp-review.md).
+* The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. See [ADR 0001](../adr/0001-cmp-library.md).
 * CMP interoperability depends on server configuration.
-* Phase 4 persistence gaps leave specific ambiguous failure modes open. See [Known limitations](../known-limitations.md).
+* Transaction persistence gaps leave specific ambiguous failure modes open. See [Known limitations](../known-limitations.md).
 
 ## Supply chain
 
