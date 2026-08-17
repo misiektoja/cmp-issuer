@@ -274,6 +274,11 @@ func (in *CMPTransactionStatus) DeepCopyInto(out *CMPTransactionStatus) {
 		*out = make([]byte, len(*in))
 		copy(*out, *in)
 	}
+	if in.RequestNonce != nil {
+		in, out := &in.RequestNonce, &out.RequestNonce
+		*out = make([]byte, len(*in))
+		copy(*out, *in)
+	}
 	if in.CertReqID != nil {
 		in, out := &in.CertReqID, &out.CertReqID
 		*out = new(int64)
