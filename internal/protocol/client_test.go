@@ -38,6 +38,12 @@ import (
 	"github.com/tsaarni/go-pkicmp/pkicmp"
 )
 
+// Names used by the response sender comparison tests, modelled on a CA whose subject carries a UID.
+const (
+	testAuthorityCN = "ManagementCA"
+	testAuthorityO  = "Example Container Quickstart"
+)
+
 // testPKI contains ephemeral credentials used by one protocol test.
 type testPKI struct {
 	CAKey                crypto.Signer
@@ -53,6 +59,7 @@ type mockOptions struct {
 	InvalidProtection   bool
 	WrongTransactionID  bool
 	WrongNonce          bool
+	ImpostorAuthority   bool
 	MismatchedSenderKID bool
 	OmitPKIConfCerts    bool
 	InvalidPKIConf      bool
@@ -127,6 +134,25 @@ func newTestPKI(t *testing.T) testPKI {
 		t.Fatal(err)
 	}
 	return testPKI{CAKey: caKey, CACertificate: caCertificate, BootstrapKey: bootstrapKey, BootstrapCertificate: bootstrapCertificate}
+}
+
+// newSubordinateAuthority issues a CA certificate under the test root so it chains to the same trust anchor.
+func newSubordinateAuthority(t *testing.T, pki testPKI, commonName string) (crypto.Signer, *x509.Certificate) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{SerialNumber: big.NewInt(42), Subject: pkix.Name{CommonName: commonName}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour), KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature, BasicConstraintsValid: true, IsCA: true, SubjectKeyId: []byte{7, 8, 9}}
+	der, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, key.Public(), pki.CAKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificate, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key, certificate
 }
 
 // createCSR creates a signed DER CSR and returns its private key.
@@ -213,12 +239,22 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			response.Header.RecipNonce = []byte("wrong-nonce")
 		}
 		signingCertificate := pki.CACertificate
+		signingKey := pki.CAKey
+		if options.ImpostorAuthority {
+			// A subordinate authority under the same trust anchor, naming itself in the header. Its
+			// signature verifies and its sender matches its own subject, so only the recipient
+			// comparison can reject it.
+			impostorKey, impostorCertificate := newSubordinateAuthority(t, pki, "CMP Test Impostor CA")
+			signingCertificate = impostorCertificate
+			signingKey = impostorKey
+			response.Header.Sender = pkicmp.NewDirectoryName(impostorCertificate.Subject)
+		}
 		if options.MismatchedSenderKID {
-			copyCertificate := *pki.CACertificate
+			copyCertificate := *signingCertificate
 			copyCertificate.SubjectKeyId = []byte{9, 9, 9}
 			signingCertificate = &copyCertificate
 		}
-		credentials, err := pkicmp.NewSignatureCredentials(pki.CAKey, signingCertificate)
+		credentials, err := pkicmp.NewSignatureCredentials(signingKey, signingCertificate)
 		if err != nil {
 			t.Errorf("create response credentials: %v", err)
 			return
@@ -405,6 +441,7 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 		{name: "protection", options: mockOptions{CertReqID: -1, InvalidProtection: true}, failure: "badMessageCheck"},
 		{name: "transaction", options: mockOptions{CertReqID: -1, WrongTransactionID: true}, failure: "transactionIdMismatch"},
 		{name: "nonce", options: mockOptions{CertReqID: -1, WrongNonce: true}, failure: "nonceMismatch"},
+		{name: "impostor authority", options: mockOptions{CertReqID: -1, ImpostorAuthority: true}, failure: "wrongAuthority"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -471,5 +508,54 @@ func TestRefusedRetransmissionsFailPermanently(t *testing.T) {
 				t.Fatalf("expected the failure to report %q, got %q", failInfo.String(), classified.Failure)
 			}
 		})
+	}
+}
+
+// TestSenderMatchesRecipientIgnoresAttributeOrder covers the response sender comparison. A recipient
+// is configured as text and re-encoded by Go, while the sender arrives in whatever order the server
+// encoded it, so the two agree on content far more often than on order.
+func TestSenderMatchesRecipientIgnoresAttributeOrder(t *testing.T) {
+	recipient, err := ParseDistinguishedName("UID=c-0o1uffqidnca67k8g,CN=" + testAuthorityCN + ",O=" + testAuthorityO)
+	if err != nil {
+		t.Fatalf("parse recipient: %v", err)
+	}
+	reversed := pkix.RDNSequence{
+		{{Type: oidUserID, Value: "c-0o1uffqidnca67k8g"}},
+		{{Type: []int{2, 5, 4, 3}, Value: testAuthorityCN}},
+		{{Type: []int{2, 5, 4, 10}, Value: testAuthorityO}},
+	}
+	if !senderMatchesRecipient(pkicmp.GeneralName{DirectoryName: reversed}, recipient) {
+		t.Error("a sender carrying the configured attributes in encoded order should be accepted")
+	}
+}
+
+// TestSenderMatchesRecipientRejectsAnotherAuthority covers the case the comparison exists for.
+func TestSenderMatchesRecipientRejectsAnotherAuthority(t *testing.T) {
+	recipient, err := ParseDistinguishedName("CN=" + testAuthorityCN + ",O=" + testAuthorityO)
+	if err != nil {
+		t.Fatalf("parse recipient: %v", err)
+	}
+	other := pkicmp.NewDirectoryName(pkix.Name{CommonName: "Some Other CA", Organization: []string{testAuthorityO}})
+	if senderMatchesRecipient(other, recipient) {
+		t.Error("a sender naming a different authority should be rejected")
+	}
+	extra := pkicmp.NewDirectoryName(pkix.Name{CommonName: testAuthorityCN, Organization: []string{testAuthorityO}, Country: []string{"DE"}})
+	if senderMatchesRecipient(extra, recipient) {
+		t.Error("a sender carrying an attribute the recipient does not have should be rejected")
+	}
+}
+
+// TestSenderMatchesRecipientAcceptsAbsentName covers the RFC 4210 section 5.1.1 NULL DN, which carries
+// no name to compare, and a recipient the issuer left unset.
+func TestSenderMatchesRecipientAcceptsAbsentName(t *testing.T) {
+	recipient, err := ParseDistinguishedName("CN=" + testAuthorityCN)
+	if err != nil {
+		t.Fatalf("parse recipient: %v", err)
+	}
+	if !senderMatchesRecipient(pkicmp.GeneralName{}, recipient) {
+		t.Error("a NULL DN sender should be accepted")
+	}
+	if !senderMatchesRecipient(pkicmp.NewDirectoryName(pkix.Name{CommonName: testAuthorityCN}), pkix.Name{}) {
+		t.Error("an unset recipient should not reject a named sender")
 	}
 }
