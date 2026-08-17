@@ -147,6 +147,22 @@ crd:
   # Keep CRDs when uninstalling
   keep: true
 
+## Permission for the cert-manager approver to act on this issuer type.
+##
+## cert-manager's built-in approver only approves CertificateRequest resources for signer types it
+## holds this permission for, and it reports nothing when it lacks it. Without this, every request
+## referencing a CMPIssuer stays pending with no error and no CMP message is sent.
+##
+## Set create to false when approver-policy makes the approval decision instead.
+##
+certManagerApproval:
+  # Create the ClusterRole and ClusterRoleBinding that let cert-manager approve these requests
+  create: true
+  # ServiceAccount the cert-manager controller runs as
+  serviceAccountName: cert-manager
+  # Namespace cert-manager is installed in
+  namespace: cert-manager
+
 ## Controller metrics endpoint.
 ## Enable to expose /metrics endpoint
 ##
