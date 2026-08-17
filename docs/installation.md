@@ -4,8 +4,8 @@ cmp-issuer requires cert-manager with external issuer support. Install cert-mana
 
 ## Prerequisites
 
-* A Kubernetes cluster (v1.34 verified in the lab)
-* cert-manager with external issuer support (v1.20 in CI, v1.19 in the lab)
+* A Kubernetes cluster, verified on v1.34
+* cert-manager with external issuer support, verified on v1.19 and v1.20
 * For namespaced issuers: administrator-created RoleBindings in each workload namespace
 
 ## Installer manifest
