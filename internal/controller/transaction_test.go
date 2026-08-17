@@ -18,8 +18,15 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"testing"
 	"time"
 
@@ -172,8 +179,214 @@ func TestSignPollsRecordedTransactionUntilIssued(t *testing.T) {
 	if len(bundle.ChainPEM) == 0 {
 		t.Fatal("expected an issued chain")
 	}
-	if fixture.transaction(t) != nil {
-		t.Fatal("expected the completed transaction state to be removed")
+	completed := fixture.transaction(t)
+	if completed == nil || completed.Status.Phase != cmpv1alpha1.TransactionPhaseIssued {
+		t.Fatalf("expected the completed transaction to record the issued phase, got %v", completed)
+	}
+	if len(completed.Status.IssuedChain) != 1 || !bytes.Equal(completed.Status.IssuedChain[0], fixture.leaf.Raw) {
+		t.Fatal("expected the validated chain to be recorded before it was returned")
+	}
+	if completed.Status.CompletionTime.IsZero() {
+		t.Fatal("expected the completion time to be recorded")
+	}
+}
+
+// TestSignRecordsTransactionDetail verifies a transaction describes the request it enrolls.
+func TestSignRecordsTransactionDetail(t *testing.T) {
+	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the exchange to report waiting")
+	}
+	stored := fixture.transaction(t)
+	digest := sha256.Sum256(fixture.protocol.request.CSRDER)
+	if stored.Spec.CSRDigest != hex.EncodeToString(digest[:]) {
+		t.Fatalf("expected the CSR digest to be recorded, got %q", stored.Spec.CSRDigest)
+	}
+	if stored.Spec.IssuerRef == nil || stored.Spec.IssuerRef.Name != testIssuerName || stored.Spec.IssuerRef.Kind != cmpv1alpha1.TransactionIssuerKindNamespaced {
+		t.Fatalf("expected the issuer reference to be recorded, got %v", stored.Spec.IssuerRef)
+	}
+	if stored.Spec.Operation != cmpv1alpha1.TransactionOperationP10CR {
+		t.Fatalf("expected the CMP operation to be recorded, got %q", stored.Spec.Operation)
+	}
+	if stored.Spec.ProtocolVersion != cmpProtocolVersion {
+		t.Fatalf("expected the protocol version to be recorded, got %d", stored.Spec.ProtocolVersion)
+	}
+}
+
+// TestSignReusesThePinnedTransactionAfterInterruption verifies a retry that follows an interrupted
+// attempt enrolls under the transaction identifier already recorded, rather than a fresh one. A new
+// identifier would present the retry to the server as a separate enrollment and earn a second
+// certificate for a request that may already have been answered.
+func TestSignReusesThePinnedTransactionAfterInterruption(t *testing.T) {
+	fixture := newAsyncFixture(t, []fakeExchange{
+		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: "HTTP exchange", Failure: "systemUnavail", Err: errors.New("connection reset")}},
+		{result: waitingResult(0, "nonce", 0)},
+	})
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the transport failure to surface")
+	}
+	recorded := fixture.transaction(t)
+	if len(recorded.Spec.TransactionID) == 0 {
+		t.Fatal("expected the transaction identifier to be pinned before the message was sent")
+	}
+	if !bytes.Equal(fixture.protocol.request.TransactionID, recorded.Spec.TransactionID) {
+		t.Fatal("expected the first attempt to enroll under the pinned transaction identifier")
+	}
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the retry to report waiting")
+	}
+	if !bytes.Equal(fixture.protocol.request.TransactionID, recorded.Spec.TransactionID) {
+		t.Fatal("expected the retry to reuse the pinned transaction identifier")
+	}
+	if retried := fixture.transaction(t); !bytes.Equal(retried.Spec.TransactionID, recorded.Spec.TransactionID) {
+		t.Fatal("expected the recorded transaction identifier to be unchanged by the retry")
+	}
+}
+
+// issuedCertificateFor mints a certificate carrying the public key of a CSR, as a CMP server would,
+// so that a recorded chain can be checked against the request it belongs to.
+func issuedCertificateFor(t *testing.T, csrPEM []byte) *x509.Certificate {
+	t.Helper()
+	block, _ := pem.Decode(csrPEM)
+	if block == nil {
+		t.Fatal("expected the fixture CSR to be PEM encoded")
+	}
+	csr, err := x509.ParseCertificateRequest(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse the fixture CSR: %v", err)
+	}
+	issuingKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate an issuing key: %v", err)
+	}
+	template := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: csr.Subject, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour)}
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, csr.PublicKey, issuingKey)
+	if err != nil {
+		t.Fatalf("issue the fixture certificate: %v", err)
+	}
+	certificate, err := x509.ParseCertificate(certificateDER)
+	if err != nil {
+		t.Fatalf("parse the issued fixture certificate: %v", err)
+	}
+	return certificate
+}
+
+// TestSignReturnsRecordedChainAfterRestart verifies an issued transaction is not enrolled again.
+func TestSignReturnsRecordedChainAfterRestart(t *testing.T) {
+	fixture := newAsyncFixture(t, nil)
+	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	fixture.protocol.queue = []fakeExchange{{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}}
+	bundle, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("expected the enrollment to complete, got %v", err)
+	}
+	replayed, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("expected the recorded chain to be returned, got %v", err)
+	}
+	if !bytes.Equal(bundle.ChainPEM, replayed.ChainPEM) {
+		t.Fatal("expected the recorded chain to match the originally issued chain")
+	}
+	if fixture.protocol.calls != 1 || fixture.protocol.polls != 0 {
+		t.Fatalf("expected no further CMP traffic, got %d enrollments and %d polls", fixture.protocol.calls, fixture.protocol.polls)
+	}
+}
+
+// confirmingResult returns an enrollment outcome whose certificate is issued but not yet confirmed.
+func confirmingResult(issued *x509.Certificate, nonce string) protocol.EnrollmentResult {
+	return protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}, PendingConfirmation: &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte(nonce)}}
+}
+
+// TestSignRecordsTheChainBeforeConfirming verifies the certificate is durable before certConf is
+// sent, which is what allows an interrupted confirmation to resume rather than lose a certificate.
+func TestSignRecordsTheChainBeforeConfirming(t *testing.T) {
+	fixture := newAsyncFixture(t, nil)
+	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	fixture.protocol.queue = []fakeExchange{
+		{result: confirmingResult(issued, "confirm-nonce")},
+		{result: protocol.EnrollmentResult{ExplicitConfirmation: true}},
+	}
+	bundle, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("expected the enrollment to complete, got %v", err)
+	}
+	if fixture.protocol.confirms != 1 {
+		t.Fatalf("expected exactly one confirmation, got %d", fixture.protocol.confirms)
+	}
+	if fixture.protocol.confirmRequest.Certificate == nil || !fixture.protocol.confirmRequest.Certificate.Equal(issued) {
+		t.Fatal("expected the confirmation to name the issued certificate")
+	}
+	if len(fixture.protocol.confirmRequest.RequestNonce) != 0 {
+		t.Fatal("expected the first confirmation to send certConf rather than a poll")
+	}
+	completed := fixture.transaction(t)
+	if completed.Status.Phase != cmpv1alpha1.TransactionPhaseIssued {
+		t.Fatalf("expected the issued phase after confirmation, got %q", completed.Status.Phase)
+	}
+	if len(bundle.ChainPEM) == 0 {
+		t.Fatal("expected the confirmed chain to be returned")
+	}
+}
+
+// TestSignResumesADelayedConfirmationAfterRestart verifies a certificate whose confirmation the
+// server delayed is confirmed on a later reconcile instead of being enrolled again or discarded.
+func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
+	fixture := newAsyncFixture(t, nil)
+	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	fixture.protocol.queue = []fakeExchange{
+		{result: confirmingResult(issued, "confirm-nonce")},
+		{result: protocol.EnrollmentResult{PendingConfirmation: &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte("delayed-nonce"), RequestNonce: []byte("certconf-nonce"), CheckAfter: 2 * time.Second}}},
+		{result: protocol.EnrollmentResult{ExplicitConfirmation: true}},
+	}
+	requirePending(t, mustFail(fixture.sign(t)), 2*time.Second)
+
+	recorded := fixture.transaction(t)
+	if recorded.Status.Phase != cmpv1alpha1.TransactionPhaseConfirming {
+		t.Fatalf("expected the confirming phase, got %q", recorded.Status.Phase)
+	}
+	if len(recorded.Status.IssuedChain) != 1 {
+		t.Fatalf("expected the chain to be recorded before confirmation, got %d certificates", len(recorded.Status.IssuedChain))
+	}
+
+	bundle, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("expected the resumed confirmation to complete, got %v", err)
+	}
+	if fixture.protocol.calls != 1 {
+		t.Fatalf("expected no second enrollment, got %d", fixture.protocol.calls)
+	}
+	if string(fixture.protocol.confirmRequest.RequestNonce) != "certconf-nonce" {
+		t.Fatalf("expected the resumed confirmation to poll with the recorded certConf nonce, got %q", fixture.protocol.confirmRequest.RequestNonce)
+	}
+	if len(bundle.ChainPEM) == 0 {
+		t.Fatal("expected the confirmed chain to be returned")
+	}
+	if fixture.transaction(t).Status.Phase != cmpv1alpha1.TransactionPhaseIssued {
+		t.Fatal("expected the resumed transaction to reach the issued phase")
+	}
+}
+
+// mustFail returns the error of a Sign call that was expected not to complete.
+func mustFail(_ issuersigner.PEMBundle, err error) error { return err }
+
+// TestSignRejectsRecordedTransactionForADifferentCSR verifies a mismatched record is not resumed.
+func TestSignRejectsRecordedTransactionForADifferentCSR(t *testing.T) {
+	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the exchange to report waiting")
+	}
+	stored := fixture.transaction(t)
+	stored.Spec.CSRDigest = "0000000000000000000000000000000000000000000000000000000000000000"
+	if err := fixture.kube.Update(context.Background(), stored); err != nil {
+		t.Fatalf("rewrite the recorded CSR digest: %v", err)
+	}
+	_, err := fixture.sign(t)
+	var permanent issuersigner.PermanentError
+	if !errors.As(err, &permanent) {
+		t.Fatalf("expected a permanent mismatch failure, got %v", err)
+	}
+	if fixture.protocol.polls != 0 {
+		t.Fatal("expected no poll to be sent for a mismatched transaction")
 	}
 }
 
