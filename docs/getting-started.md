@@ -189,6 +189,18 @@ demo-tls   True    demo-tls   12s
 `READY True` means the CMP exchange finished, the response was authenticated and the certificate was
 stored.
 
+The controller logs one line for that outcome, which is the quickest account of what the CA issued:
+
+```bash
+kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager | grep "Issued certificate"
+```
+
+```text
+{"level":"info","msg":"Issued certificate","CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
+ "issuer":"CMPIssuer/demo/demo-issuer","subject":"CN=workload.example.com","serialNumber":"3b8f2a41",
+ "notAfter":"2026-08-02T09:12:31Z","keyType":"RSA","keySize":2048,"duration":"412ms", ...}
+```
+
 ## Step 6: look at what you got
 
 ```bash
