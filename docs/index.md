@@ -1,36 +1,50 @@
 # cmp-issuer
 
-cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP) servers.
+cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
+servers. Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2
+and stored in the usual TLS Secret, so workloads that already consume cert-manager Secrets need no
+change.
 
-It implements CMPv2 initial enrollment with a PKCS #10 request in P10CR and a CP response. CMP message protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and certificate-signature P10CR have completed protected cert-manager `Certificate` enrollments against NCM 26.7 and EJBCA Community Edition 9.3.7.
+It implements CMPv2 initial enrollment with a PKCS #10 request in P10CR and a CP response. CMP message
+protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and certificate-signature
+P10CR have completed protected cert-manager `Certificate` enrollments against NCM 26.7 and EJBCA
+Community Edition 9.3.7.
 
 !!! warning "Under active initial development"
 
-    The protocol adapter and controller foundation are not production ready. The API group `certmanager.misiektoja.github.io` is served at `v1alpha1` and may change.
+    The protocol adapter and controller foundation are not production ready. The API group
+    `certmanager.misiektoja.github.io` is served at `v1alpha1` and may change.
 
-## Documentation map
+## Start here
 
-| Topic | Page |
+**[Getting started](getting-started.md)** walks from an empty cluster to an issued certificate in seven
+steps. If you are new to cmp-issuer, read that page first and come back here for detail.
+
+## Then
+
+| I want to | Page |
 | --- | --- |
-| Feature support | [Support matrix](support-matrix.md) |
-| Components and flow | [Architecture](architecture.md) |
-| Install the controller | [Installation](installation.md) |
-| Issue certificates | [Enrollment](guide/enrollment.md) |
-| Issuer resources | [CMPIssuer](reference/cmpissuer.md), [CMPClusterIssuer](reference/cmpclusterissuer.md) |
-| Server-specific notes | [Tested PKIs](interoperability/tested-pkis.md) |
-| Persistence gaps | [Known limitations](known-limitations.md) |
+| Install a different way, or understand the CRD lifecycle | [Installation](installation.md) |
+| Know what is supported today | [Support matrix](support-matrix.md) |
+| Understand the request lifecycle | [Enrollment](guide/enrollment.md) |
+| Choose a protection mode | [Message protection](guide/message-protection.md) |
+| Configure which CA responses are trusted | [CMP response trust](guide/cmp-response-trust.md) |
+| Move off plain HTTP | [HTTP and HTTPS transport](guide/transport.md) |
+| Look up every field | [CMPIssuer](reference/cmpissuer.md), [CMPClusterIssuer](reference/cmpclusterissuer.md) |
+| Find notes for my CMP server | [Tested PKIs](interoperability/tested-pkis.md) |
+| Fix something that is stuck | [Troubleshooting](operations/troubleshooting.md) |
+| Understand what is not done yet | [Known limitations](known-limitations.md) |
 
-## Quick links
+## Design and operations
 
-* [Credential Secret access](operations/secret-access.md) - namespace boundary for Secret reads
+* [Architecture](architecture.md) - components and message flow
+* [Credential Secret access](operations/secret-access.md) - the namespace boundary for Secret reads
+* [Transaction recovery](guide/transaction-recovery.md) - what survives a controller restart
 * [Security model](security/security-model.md) and [Threat model](security/threat-model.md)
-* [Development](development/development.md) and [Testing](development/testing.md)
 * [Provenance and supply chain](provenance.md)
-
-## Design decisions
-
 * [CMP library selection](adr/0001-cmp-library.md)
 
-## Repository
+## Contributing
 
-Source, issues and the full README entry point: [github.com/misiektoja/cmp-issuer](https://github.com/misiektoja/cmp-issuer)
+* [Development](development/development.md) and [Testing](development/testing.md)
+* Source and issues: [github.com/misiektoja/cmp-issuer](https://github.com/misiektoja/cmp-issuer)
