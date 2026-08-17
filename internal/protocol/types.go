@@ -95,6 +95,10 @@ type PollRequest struct {
 	// ResponseSigner is the signer already validated for this transaction, reused when a server omits
 	// extraCerts and senderKID from later messages.
 	ResponseSigner *x509.Certificate
+	// RequestNonce is the sender nonce of the request whose response the server delayed. RFC 9483
+	// section 4.4 requires the client to keep it because a conformant server echoes it in the
+	// recipNonce of the final response rather than the nonce of the last pollReq.
+	RequestNonce []byte
 }
 
 // PendingTransaction describes a server-side waiting response that the caller must poll for.
@@ -108,6 +112,9 @@ type PendingTransaction struct {
 	// CheckAfter is the server-requested wait before the next poll. It is zero when the server did
 	// not state one, which happens on the first waiting response because only pollRep carries it.
 	CheckAfter time.Duration
+	// RequestNonce is the sender nonce of the request whose response the server delayed, which the
+	// caller must persist and return in the next PollRequest.
+	RequestNonce []byte
 }
 
 // EnrollmentResult contains a validated leaf-first certificate chain, or the state needed to poll.
