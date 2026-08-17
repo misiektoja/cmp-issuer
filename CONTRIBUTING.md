@@ -10,6 +10,16 @@ Never commit credentials, private keys, protected CMP messages, full CSRs or non
 
 ## Development checks
 
-Run formatting, static analysis, unit tests and documentation validation before submitting a change. Protocol changes need negative tests and an RFC citation. Interoperability claims need sanitized evidence from the named product and version.
+Run these before submitting a change:
+
+```bash
+make lint
+make test
+make docs-build
+```
+
+`make test` also runs `go fmt` and `go vet`. Run `make test-e2e` when the controller or the end-to-end specs change, and `make helm-lint` when the chart changes.
+
+Protocol changes need negative tests and an RFC citation. Interoperability claims need sanitized evidence naming the product and version.
 
 Every change must comply with the Developer Certificate of Origin 1.1. Use `git commit -s` only when you intend to provide that certification.
