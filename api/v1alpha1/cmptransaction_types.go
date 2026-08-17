@@ -25,7 +25,39 @@ const (
 	TransactionPhaseEnrolling = "Enrolling"
 	// TransactionPhasePolling marks a transaction the server answered with waiting.
 	TransactionPhasePolling = "Polling"
+	// TransactionPhaseConfirming marks a transaction whose certificate is issued and validated but
+	// not yet confirmed. The chain is already recorded, so confirmation resumes after a restart
+	// instead of failing a request whose certificate exists.
+	TransactionPhaseConfirming = "Confirming"
+	// TransactionPhaseIssued marks a transaction whose validated chain is recorded and confirmed, so
+	// that a restart before cert-manager stored the certificate returns it instead of enrolling again.
+	TransactionPhaseIssued = "Issued"
+
+	// TransactionOperationP10CR is the CMP operation of a PKCS #10 initial enrollment.
+	TransactionOperationP10CR = "P10CR"
+
+	// TransactionIssuerKindNamespaced identifies a namespaced CMPIssuer.
+	TransactionIssuerKindNamespaced = "CMPIssuer"
+	// TransactionIssuerKindCluster identifies a cluster scoped CMPClusterIssuer.
+	TransactionIssuerKindCluster = "CMPClusterIssuer"
 )
+
+// TransactionIssuerReference identifies the issuer that served a transaction, including its UID so
+// that a recreated issuer reusing the same name is distinguishable in the recorded history.
+type TransactionIssuerReference struct {
+	// Name is the issuer resource name.
+	// +kubebuilder:validation:MaxLength=253
+	// +required
+	Name string `json:"name"`
+	// Kind is the issuer resource kind.
+	// +kubebuilder:validation:Enum=CMPIssuer;CMPClusterIssuer
+	// +required
+	Kind string `json:"kind"`
+	// UID distinguishes a recreated issuer that reuses a name.
+	// +kubebuilder:validation:MaxLength=253
+	// +optional
+	UID string `json:"uid,omitempty"`
+}
 
 // CMPTransactionSpec identifies the CertificateRequest that owns an in-flight CMP transaction.
 // The controller writes this resource before it sends the enrollment request, so that a restart
@@ -46,14 +78,41 @@ type CMPTransactionSpec struct {
 	// Deadline is the instant after which the transaction is abandoned as failed.
 	// +required
 	Deadline metav1.Time `json:"deadline"`
+	// CSRDigest is the lowercase hexadecimal SHA-256 digest of the DER CSR this transaction enrolls.
+	// It identifies the enrolled request in diagnostics and guards a recorded chain from being
+	// returned for a different CSR.
+	// +kubebuilder:validation:MaxLength=64
+	// +optional
+	CSRDigest string `json:"csrDigest,omitempty"`
+	// IssuerRef identifies the issuer that served this transaction.
+	// +optional
+	IssuerRef *TransactionIssuerReference `json:"issuerRef,omitempty"`
+	// Operation is the CMP operation this transaction performs.
+	// +kubebuilder:validation:Enum=P10CR
+	// +optional
+	Operation string `json:"operation,omitempty"`
+	// ProtocolVersion is the CMP protocol version of every message in this transaction.
+	// +kubebuilder:validation:Minimum=2
+	// +kubebuilder:validation:Maximum=3
+	// +optional
+	ProtocolVersion int32 `json:"protocolVersion,omitempty"`
 }
 
 // CMPTransactionStatus records the progress of an in-flight CMP transaction.
 type CMPTransactionStatus struct {
-	// Phase reports whether the enrollment request is in flight or the server asked the client to poll.
-	// +kubebuilder:validation:Enum=Enrolling;Polling
+	// Phase reports whether the enrollment request is in flight, the server asked the client to poll,
+	// the certificate awaits confirmation, or the validated chain is recorded and confirmed.
+	// +kubebuilder:validation:Enum=Enrolling;Polling;Confirming;Issued
 	// +optional
 	Phase string `json:"phase,omitempty"`
+	// IssuedChain is the validated leaf-first certificate chain in DER form, recorded before the
+	// chain is returned so that a restart in that window does not enroll a second certificate.
+	// +kubebuilder:validation:MaxItems=16
+	// +optional
+	IssuedChain [][]byte `json:"issuedChain,omitempty"`
+	// CompletionTime records when the transaction reached the Issued phase.
+	// +optional
+	CompletionTime metav1.Time `json:"completionTime,omitzero"`
 	// RecipNonce is the sender nonce of the last accepted response, echoed by the next request.
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
@@ -85,13 +144,16 @@ type CMPTransactionStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Issuer",type=string,JSONPath=".spec.issuerRef.name"
 // +kubebuilder:printcolumn:name="Polls",type=integer,JSONPath=".status.polls"
 // +kubebuilder:printcolumn:name="Deadline",type=date,JSONPath=".spec.deadline"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=".metadata.creationTimestamp"
 
-// CMPTransaction records the state of one in-flight CMP transaction so that an asynchronous
-// enrollment survives a controller restart. It is created and removed by the controller and is
-// garbage collected with the CertificateRequest that owns it.
+// CMPTransaction records the state of one CMP transaction so that an asynchronous enrollment
+// survives a controller restart and an issued certificate is never enrolled twice. The controller
+// creates it before the first message is sent, removes it when the transaction fails and retains it
+// with the issued chain afterwards, until it is garbage collected with the CertificateRequest that
+// owns it.
 type CMPTransaction struct {
 	metav1.TypeMeta `json:",inline"`
 
