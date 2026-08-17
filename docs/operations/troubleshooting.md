@@ -48,6 +48,11 @@ identifies the request, the issuer, the endpoint, the CMP transaction and the ce
 ```
 
 That answers what was issued, by which authority and how long it took, without decoding the Secret.
+controller-runtime adds its own fields to every line, such as `controller` and `reconcileID`, which are
+left out of the examples on this page.
+
+`transactionID` is the CMP transaction identifier the server sees, so it is the field to search for in
+the CMP server's own log when you need both sides of one exchange.
 
 | Message | Level | Meaning |
 | --- | --- | --- |
@@ -73,6 +78,14 @@ carries the same message that appears on the `CertificateRequest` condition:
  "error":"CMP process PKIStatus failed: pkicmp: status rejection, failInfo: badRequest, ..."}
 {"level":"error","logger":"Reconcile","msg":"Got an error, will be retried.", ...}
 ```
+
+`classification` tells you what happens next without reading the message:
+
+| Classification | Meaning |
+| --- | --- |
+| `Permanent` | The request cannot succeed as sent. cert-manager marks it failed and issues a new one |
+| `Retryable` | Transport or server unavailability. The same transaction is retried under its recorded identifier |
+| `Security` | An authenticated transaction invariant failed, such as protection, trust or a nonce. Treated as permanent and never retried |
 
 **The log never contains credential values, private keys, CSR bodies or protected CMP message bytes.**
 Server-supplied status text is included in failure messages, because that is usually the reason you
