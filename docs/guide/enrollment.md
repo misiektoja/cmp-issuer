@@ -75,7 +75,6 @@ Servers that answer `waiting` trigger polling until a certificate arrives or lim
 
 ## Related pages
 
-* [PasswordBasedMac](password-based-mac.md)
-* [Signature protection](signature-protection.md)
+* [Message protection](message-protection.md)
 * [Tested PKIs](../interoperability/tested-pkis.md)
 * [Troubleshooting](../operations/troubleshooting.md)
