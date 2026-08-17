@@ -32,15 +32,6 @@ import (
 	"github.com/tsaarni/go-pkicmp/pkicmp"
 )
 
-// Bounds for inline polling of a delayed pkiConf. The certificate is already issued once certConf is
-// sent, so a server that delays the confirmation is expected to answer within seconds. These bounds
-// keep that wait from stalling a reconcile when a server requests an unreasonable delay.
-const (
-	confirmationPollMinimum = time.Second
-	confirmationPollMaximum = 10 * time.Second
-	confirmationPollBudget  = time.Minute
-)
-
 // CMPClient executes synchronous CMPv2 P10CR transactions with explicit transport policy.
 type CMPClient struct{}
 
@@ -63,25 +54,9 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
-	sender := pkicmp.GeneralName{}
-	if request.Sender != nil {
-		sender = pkicmp.NewDirectoryName(*request.Sender)
-	} else if request.Protection.Signature != nil {
-		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
-	}
-	message := pkicmp.NewPKIMessage(pkicmp.NewP10CRBody(csr), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID})
-	if request.Protection.Password != nil {
-		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
-	}
-	if request.ImplicitConfirm {
-		message.Header.GeneralInfo = append(message.Header.GeneralInfo, pkicmp.ImplicitConfirmInfoValue())
-	}
-	if err := credentials.Protect(message); err != nil {
-		return EnrollmentResult{}, permanent("protect P10CR", "badAlg", err)
-	}
-	requestDER, err := message.MarshalBinary()
+	message, requestDER, err := protectedEnrollment(request, csr, credentials)
 	if err != nil {
-		return EnrollmentResult{}, permanent("encode P10CR", "badDataFormat", err)
+		return EnrollmentResult{}, err
 	}
 	httpClient := newHTTPClient(request)
 	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize)
@@ -96,7 +71,32 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	return finishTransaction(ctx, httpClient, request, credentials, message, response, csr, responseSigner, message.Header.SenderNonce)
+	return finishTransaction(request, response, csr, responseSigner, message.Header.SenderNonce)
+}
+
+// protectedEnrollment builds and protects the enrollment message sent for this transaction.
+func protectedEnrollment(request EnrollmentRequest, csr *x509.CertificateRequest, credentials pkicmp.Credentials) (*pkicmp.PKIMessage, []byte, error) {
+	sender := pkicmp.GeneralName{}
+	if request.Sender != nil {
+		sender = pkicmp.NewDirectoryName(*request.Sender)
+	} else if request.Protection.Signature != nil {
+		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
+	}
+	message := pkicmp.NewPKIMessage(pkicmp.NewP10CRBody(csr), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID})
+	if request.Protection.Password != nil {
+		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
+	}
+	if request.ImplicitConfirm {
+		message.Header.GeneralInfo = append(message.Header.GeneralInfo, pkicmp.ImplicitConfirmInfoValue())
+	}
+	if err := credentials.Protect(message); err != nil {
+		return nil, nil, permanent("protect P10CR", "badAlg", err)
+	}
+	requestDER, err := message.MarshalBinary()
+	if err != nil {
+		return nil, nil, permanent("encode P10CR", "badDataFormat", err)
+	}
+	return message, requestDER, nil
 }
 
 // PollP10CR sends one pollReq for a transaction the server answered with waiting and returns either
@@ -155,12 +155,12 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 		}
 		return EnrollmentResult{Pending: pending}, nil
 	}
-	return finishTransaction(ctx, httpClient, request, credentials, message, response, csr, responseSigner, poll.RequestNonce)
+	return finishTransaction(request, response, csr, responseSigner, poll.RequestNonce)
 }
 
 // finishTransaction turns an authenticated CP into a validated chain, or reports that polling continues.
 // delayedRequestNonce is the sender nonce that identifies this transaction to a server that delays responses.
-func finishTransaction(ctx context.Context, httpClient *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
+func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
 	issued, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -178,10 +178,11 @@ func finishTransaction(ctx context.Context, httpClient *http.Client, request Enr
 	if request.ImplicitConfirm && issued.ImplicitGranted {
 		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil
 	}
-	if err := exchangeConfirmation(ctx, httpClient, request, credentials, requestMessage, response, issued, responseSigner); err != nil {
-		return EnrollmentResult{}, err
-	}
-	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: true, ResponseCertReqID: issued.CertReqID}, nil
+	// Confirmation is handed back rather than completed here, so the caller can make the validated
+	// chain durable before certConf is sent. An interruption after this point then resumes the
+	// confirmation instead of failing a request whose certificate the server already issued.
+	pending := &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner}
+	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil
 }
 
 // extractPollRep validates a pollRep body and returns the state required for the next poll.
@@ -457,7 +458,10 @@ func classifyStatus(status pkicmp.PKIStatusInfo) error {
 	if status.Status == pkicmp.StatusWaiting {
 		return &Error{Kind: ErrorKindPending, Operation: "wait for certificate", Failure: "waiting", RequeueAfter: time.Second, Err: statusErr}
 	}
-	permanentBits := pkicmp.FailBadPOP | pkicmp.FailBadRequest | pkicmp.FailBadCertTemplate | pkicmp.FailNotAuthorized | pkicmp.FailBadAlg | pkicmp.FailBadMessageCheck | pkicmp.FailSignerNotTrusted
+	// transactionIdInUse answers a retransmission the server has already accepted. Retrying the same
+	// bytes can never succeed, so the request fails and cert-manager enrolls again under a new
+	// transaction identifier.
+	permanentBits := pkicmp.FailBadPOP | pkicmp.FailBadRequest | pkicmp.FailBadCertTemplate | pkicmp.FailNotAuthorized | pkicmp.FailBadAlg | pkicmp.FailBadMessageCheck | pkicmp.FailSignerNotTrusted | pkicmp.FailTransactionIdInUse
 	if status.FailInfo&permanentBits != 0 {
 		return permanent("process PKIStatus", status.FailInfo.String(), statusErr)
 	}
@@ -493,52 +497,76 @@ func validateAndOrderChain(leaf *x509.Certificate, candidates []*x509.Certificat
 	return chain, nil
 }
 
-// exchangeConfirmation sends certConf and requires a protected linked pkiConf response, polling while
-// the server reports the confirmation as delayed. RFC 9483 section 4.4 applies delayed delivery to
-// every operation, so a server may answer certConf with an error carrying status waiting. Unlike a
-// pending enrollment the certificate is already issued at this point, so the remaining wait is short
-// and is completed inline within bounds rather than through durable transaction state.
-func exchangeConfirmation(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, enrollmentRequest *pkicmp.PKIMessage, enrollmentResponse *pkicmp.PKIMessage, issued issuedCertificate, responseSigner *x509.Certificate) error {
-	certificateHash, err := certificateHash(issued.Certificate)
-	if err != nil {
-		return permanent("compute certificate hash", "badAlg", err)
+// ConfirmP10CR sends the certConf of an issued certificate, or continues a confirmation the server
+// delayed. RFC 9483 section 4.4 applies delayed delivery to every operation, so a server may answer
+// certConf with status waiting. The certificate already exists at that point, so the wait is reported
+// to the caller as a pending confirmation and resumed from recorded state rather than held inline.
+func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (EnrollmentResult, error) {
+	request := confirm.Enrollment
+	if err := validateEnrollmentRequest(request); err != nil {
+		return EnrollmentResult{}, err
 	}
-	confirmation := pkicmp.CertConfirmContent{{CertHash: certificateHash, CertReqID: issued.CertReqID}}
-	message := pkicmp.NewPKIMessage(pkicmp.NewCertConfBody(&confirmation), pkicmp.MessageOptions{Sender: enrollmentRequest.Header.Sender, Recipient: enrollmentRequest.Header.Recipient, TransactionID: enrollmentRequest.Header.TransactionID, RecipNonce: enrollmentResponse.Header.SenderNonce})
-	message.Header.SenderKID = append([]byte(nil), enrollmentRequest.Header.SenderKID...)
-	confirmationNonce := append([]byte(nil), message.Header.SenderNonce...)
-	response, err := exchangeProtected(ctx, client, request, credentials, message, responseSigner, nil, "certConf")
-	if err != nil {
-		return err
+	// The recipient nonce is not required, because a server that omits senderNonce from its CP leaves
+	// nothing to echo and the rest of the exchange still authenticates.
+	if confirm.Certificate == nil || len(request.TransactionID) == 0 {
+		return EnrollmentResult{}, permanent("validate confirmation request", "badRequest", fmt.Errorf("certificate and transaction ID are required to confirm"))
 	}
-	deadline := time.Now().Add(confirmationPollBudget)
-	for {
-		if response.Body.Type == pkicmp.BodyTypePKIConf {
-			return nil
-		}
-		checkAfter, err := confirmationDelay(response)
-		if err != nil {
-			return err
-		}
-		wait := clampConfirmationDelay(checkAfter)
-		if time.Now().Add(wait).After(deadline) {
-			return permanent("await pkiConf", "systemUnavail", fmt.Errorf("server did not confirm the transaction within %s", confirmationPollBudget))
-		}
-		select {
-		case <-ctx.Done():
-			return retryable("await pkiConf", "systemUnavail", ctx.Err())
-		case <-time.After(wait):
-		}
+	credentials, err := credentialsFor(request.Protection)
+	if err != nil {
+		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
+	}
+	message, operation, err := confirmationMessage(request, confirm)
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	confirmationNonce := append([]byte(nil), confirm.RequestNonce...)
+	if len(confirmationNonce) == 0 {
+		confirmationNonce = append([]byte(nil), message.Header.SenderNonce...)
+	}
+	response, err := exchangeProtected(ctx, newHTTPClient(request), request, credentials, message, confirm.ResponseSigner, confirm.RequestNonce, operation)
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	if response.Body.Type == pkicmp.BodyTypePKIConf {
+		return EnrollmentResult{ExplicitConfirmation: true, ResponseCertReqID: confirm.CertReqID}, nil
+	}
+	checkAfter, err := confirmationDelay(response)
+	if err != nil {
+		return EnrollmentResult{}, err
+	}
+	pending := &PendingTransaction{CertReqID: confirm.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: confirm.ResponseSigner, CheckAfter: checkAfter, RequestNonce: confirmationNonce}
+	return EnrollmentResult{PendingConfirmation: pending}, nil
+}
+
+// confirmationMessage builds the certConf that starts a confirmation, or the pollReq that resumes one.
+func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pkicmp.PKIMessage, string, error) {
+	sender := pkicmp.GeneralName{}
+	if request.Sender != nil {
+		sender = pkicmp.NewDirectoryName(*request.Sender)
+	} else if request.Protection.Signature != nil {
+		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
+	}
+	options := pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: confirm.RecipNonce}
+	var message *pkicmp.PKIMessage
+	operation := "certConf"
+	if len(confirm.RequestNonce) > 0 {
 		// RFC 9483 section 4.4 requires certReqId -1 when polling for a delayed response that is a
 		// whole message rather than a CertResponse element.
 		poll := pkicmp.PollReqContent{ResponseCertReqIDStandard}
-		message = pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&poll), pkicmp.MessageOptions{Sender: enrollmentRequest.Header.Sender, Recipient: enrollmentRequest.Header.Recipient, TransactionID: enrollmentRequest.Header.TransactionID, RecipNonce: response.Header.SenderNonce})
-		message.Header.SenderKID = append([]byte(nil), enrollmentRequest.Header.SenderKID...)
-		response, err = exchangeProtected(ctx, client, request, credentials, message, responseSigner, confirmationNonce, "pollReq")
+		message = pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&poll), options)
+		operation = "pollReq"
+	} else {
+		hash, err := certificateHash(confirm.Certificate)
 		if err != nil {
-			return err
+			return nil, "", permanent("compute certificate hash", "badAlg", err)
 		}
+		confirmation := pkicmp.CertConfirmContent{{CertHash: hash, CertReqID: confirm.CertReqID}}
+		message = pkicmp.NewPKIMessage(pkicmp.NewCertConfBody(&confirmation), options)
 	}
+	if request.Protection.Password != nil {
+		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
+	}
+	return message, operation, nil
 }
 
 // confirmationDelay reports the wait requested by a server that has not yet returned pkiConf, and
@@ -576,17 +604,6 @@ func confirmationDelay(response *pkicmp.PKIMessage) (time.Duration, error) {
 	default:
 		return 0, permanent("validate confirmation", "unsupportedBody", fmt.Errorf("expected pkiConf response"))
 	}
-}
-
-// clampConfirmationDelay bounds a server requested confirmation delay so one reconcile cannot stall.
-func clampConfirmationDelay(checkAfter time.Duration) time.Duration {
-	if checkAfter < confirmationPollMinimum {
-		return confirmationPollMinimum
-	}
-	if checkAfter > confirmationPollMaximum {
-		return confirmationPollMaximum
-	}
-	return checkAfter
 }
 
 // exchangeProtected protects, sends and authenticates one message of the confirmation exchange.
