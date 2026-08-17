@@ -46,6 +46,25 @@ The transaction `Phase` column tells you where a request stopped. `Enrolling` me
 | pkiConf verification failed before fix | Signer not retained | Upgrade to a build with confirmation signer retention |
 | Pinning certReqId -1 | NCM returns 0 | Omit pin or set `p10crResponseCertReqId: 0` |
 
+## Requests stay pending and nothing happens
+
+A `CertificateRequest` that never gains an `Approved` condition, with no error anywhere and no CMP
+traffic, almost always means cert-manager was never permitted to approve requests for this issuer type.
+Its built-in approver acts only on issuer types it holds explicit permission for, and it reports
+nothing when it lacks that permission.
+
+```bash
+kubectl get certificaterequest -n <namespace>
+kubectl describe certificaterequest <name> -n <namespace>
+```
+
+An `APPROVED` column that is empty rather than `True` confirms it. Apply the ClusterRole and
+ClusterRoleBinding from [Installation](../installation.md#let-cert-manager-approve-requests-for-cmp-issuer),
+or express the same decision in a `CertificateRequestPolicy` if you use approver-policy.
+
+To confirm the diagnosis before changing RBAC, approve one request by hand with
+`cmctl approve <name> -n <namespace>` and watch it proceed.
+
 ## Denied or unapproved requests
 
 cmp-issuer sends **no** CMP message for unapproved or denied `CertificateRequest` resources. Verify cert-manager approval policies and `CertificateRequest` conditions.
