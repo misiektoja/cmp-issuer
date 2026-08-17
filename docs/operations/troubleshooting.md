@@ -21,6 +21,7 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | --- | --- |
 | P10CR CP certReqId | Server returned an unexpected identifier; adjust `p10crResponseCertReqId` or use default |
 | Response protection / trust | Wrong CMP trust anchors or unexpected signer |
+| Response sender does not name the configured recipient | The server answers under a different name than `spec.protocol.recipient`. Set the recipient to the name the server puts in its responses. Attribute order does not matter, so only a genuine difference in attributes or values causes this |
 | Transaction deadline / maximum polls | Server queue too slow; increase `spec.transaction` limits |
 | Connection refused / timeout | Wrong URL, network policy or server down |
 | HTTP redirect rejected | Endpoint redirects; use the final CMP URL |
