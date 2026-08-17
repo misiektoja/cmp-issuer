@@ -82,7 +82,7 @@ func (f *asyncFixture) transaction(t *testing.T) *cmpv1alpha1.CMPTransaction {
 
 // waitingResult returns an enrollment outcome that reports a server-side waiting status.
 func waitingResult(certReqID int64, nonce string, checkAfter time.Duration) protocol.EnrollmentResult {
-	return protocol.EnrollmentResult{Pending: &protocol.PendingTransaction{CertReqID: certReqID, RecipNonce: []byte(nonce), CheckAfter: checkAfter}}
+	return protocol.EnrollmentResult{Pending: &protocol.PendingTransaction{CertReqID: certReqID, RecipNonce: []byte(nonce), CheckAfter: checkAfter, RequestNonce: []byte("request-nonce")}}
 }
 
 // requirePending asserts that a Sign call asked for another reconcile after the expected delay.
@@ -150,7 +150,13 @@ func TestSignPollsRecordedTransactionUntilIssued(t *testing.T) {
 	if fixture.protocol.pollRequest.CertReqID != protocol.ResponseCertReqIDStandard {
 		t.Fatalf("expected the poll to carry the recorded certReqId, got %d", fixture.protocol.pollRequest.CertReqID)
 	}
+	if string(fixture.protocol.pollRequest.RequestNonce) != "request-nonce" {
+		t.Fatalf("expected the poll to carry the recorded request nonce, got %q", fixture.protocol.pollRequest.RequestNonce)
+	}
 	stored := fixture.transaction(t)
+	if string(stored.Status.RequestNonce) != "request-nonce" {
+		t.Fatalf("expected the delayed request nonce to be persisted, got %q", stored.Status.RequestNonce)
+	}
 	if string(stored.Status.RecipNonce) != "nonce-two" {
 		t.Fatalf("expected the nonce to advance, got %q", stored.Status.RecipNonce)
 	}
