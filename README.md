@@ -40,43 +40,10 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
   --create-namespace
 ```
 
-A packaged chart and a self-contained `install.yaml` are attached to every release. Other install
-paths, and what happens to the CRDs on uninstall, are in [Installation](docs/installation.md).
-
-### Let cert-manager approve requests for cmp-issuer
-
-cert-manager's built-in approver approves requests only for issuer types it has explicit permission
-for. **Without this, every `CertificateRequest` stays pending with no error and no CMP message is
-sent.**
-
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cert-manager-controller-approve-cmp-issuer
-rules:
-- apiGroups: ["cert-manager.io"]
-  resources: ["signers"]
-  verbs: ["approve"]
-  resourceNames:
-  - "cmpissuers.certmanager.misiektoja.github.io/*"
-  - "cmpclusterissuers.certmanager.misiektoja.github.io/*"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cert-manager-controller-approve-cmp-issuer
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cert-manager-controller-approve-cmp-issuer
-subjects:
-- kind: ServiceAccount
-  name: cert-manager
-  namespace: cert-manager
-EOF
-```
+This installs the CRDs, the controller and the permission cert-manager needs before it will approve
+requests for this issuer type. A packaged chart and a self-contained `install.yaml` are attached to
+every release. Other install paths, pointing the approval permission at a non-default cert-manager, and
+what happens to the CRDs on uninstall, are all in [Installation](docs/installation.md).
 
 ## Issue your first certificate
 
