@@ -220,6 +220,7 @@ Check progress at any time with:
 ```bash
 kubectl get cmptransactions -n demo
 kubectl describe certificaterequest -n demo
+kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manager -f
 ```
 
 [Troubleshooting](operations/troubleshooting.md) covers these in more detail.
