@@ -29,7 +29,7 @@ spec:
       type: integer
     - jsonPath: .spec.deadline
       name: Deadline
-      type: date
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
