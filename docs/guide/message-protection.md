@@ -119,7 +119,7 @@ spec:
 ### extraCerts layout
 
 cmp-issuer sends the protection end-entity certificate first, followed by the configured intermediates.
-Some servers resolve the signing certificate from `extraCerts` using `senderKID`, and NCM requires the
+Some servers resolve the signing certificate from `extraCerts` using `senderKID`, and Nokia NCM requires the
 end-entity certificate to appear there for P10CR.
 
 ### EJBCA client mode
@@ -159,7 +159,7 @@ Protected error responses are verified the same way. A verification failure fail
 
 Some servers omit `extraCerts` and `senderKID` from `pkiConf`. cmp-issuer retains the signer certificate
 already validated when `cp` was accepted and verifies the linked `pkiConf` against it. Invalid
-confirmation protection is still rejected. See [Tested PKIs](../interoperability/tested-pkis.md) for NCM
+confirmation protection is still rejected. See [Tested PKIs](../interoperability/tested-pkis.md) for Nokia NCM
 behavior.
 
 ## Credential rotation

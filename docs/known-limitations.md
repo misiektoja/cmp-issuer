@@ -8,7 +8,7 @@ cmp-issuer records the transaction identifier, the transaction detail and the is
 
 ### A lost enrollment response cannot be recovered
 
-If the controller stops after sending an enrollment and the response never arrives, retrying under the recorded transaction identifier reliably prevents a second certificate but does not retrieve the first one. Neither tested server answers the repeat from its existing transaction: NCM 26.7 refuses it with `transactionIdInUse` and EJBCA CE 9.3.7 refuses it with `badRequest`. The `CertificateRequest` fails and cert-manager enrolls again under a new transaction identifier, which succeeds. The certificate the server issued for the lost response is orphaned and counts against any issuance quota or audit trail the certificate authority keeps.
+If the controller stops after sending an enrollment and the response never arrives, retrying under the recorded transaction identifier reliably prevents a second certificate but does not retrieve the first one. Neither tested server answers the repeat from its existing transaction: Nokia NCM 26.7 refuses it with `transactionIdInUse` and EJBCA CE 9.3.7 refuses it with `badRequest`. The `CertificateRequest` fails and cert-manager enrolls again under a new transaction identifier, which succeeds. The certificate the server issued for the lost response is orphaned and counts against any issuance quota or audit trail the certificate authority keeps.
 
 ### Credential rotation is not detected
 

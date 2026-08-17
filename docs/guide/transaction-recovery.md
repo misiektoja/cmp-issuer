@@ -82,7 +82,7 @@ If the controller stops after sending the enrollment but before receiving the re
 
 | Server | Answer to a repeated transaction identifier |
 | --- | --- |
-| NCM 26.7 | Protected `error`, `rejection`, failInfo **`transactionIdInUse`** |
+| Nokia NCM 26.7 | Protected `error`, `rejection`, failInfo **`transactionIdInUse`** |
 | EJBCA CE 9.3.7 | Protected `error`, `rejection`, failInfo **`badRequest`**, because issuance already moved the end entity to `GENERATED` |
 
 Neither server issued a second certificate. Both answers are protected and echo the transaction identifier and nonce, so the refusal is authenticated rather than guessed. The request then **fails permanently**, and cert-manager enrolls again under a new transaction identifier. The certificate created by the lost response is orphaned and never used, because the controller never received it.

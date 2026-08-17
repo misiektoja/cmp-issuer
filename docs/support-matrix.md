@@ -60,7 +60,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 
 | Server | Protection modes tested | Status |
 | --- | --- | --- |
-| NCM 26.7 / Insta Certifier 7.20 | PasswordBasedMac, Signature | Interoperability tested |
+| Nokia NCM 26.7 / Insta Certifier 7.20 | PasswordBasedMac, Signature | Interoperability tested |
 | EJBCA Community Edition 9.3.7 (client mode alias) | PasswordBasedMac, Signature | Interoperability tested |
 | OpenSSL CMP mock (`openssl cmp`) | PasswordBasedMac | Interoperability tested in CI |
 

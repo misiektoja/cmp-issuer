@@ -16,7 +16,7 @@ Whether that succeeds depends entirely on the CMP server profile:
 
 cmp-issuer does **not** implement KUR. Repeat P10CR is not KUR even when it happens to work.
 
-## NCM REST renewal
+## Nokia NCM REST renewal
 
 Some Nokia deployments expose certificate renewal through NCM REST APIs. That path is unrelated to CMP KUR and is **Unsupported** by cmp-issuer.
 
@@ -36,6 +36,6 @@ Initial Registration with CRMF (`IR`) is also planned and shares the private-key
 | P10CR repeat enrollment | Server dependent, not KUR |
 | KUR | Planned |
 | IR (CRMF) | Planned |
-| NCM REST renewal | Unsupported |
+| Nokia NCM REST renewal | Unsupported |
 
 See [Support matrix](../support-matrix.md).

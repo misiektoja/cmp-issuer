@@ -45,7 +45,7 @@ Runtime is about one minute after the cluster is ready. **Do not run this suite 
 
 ## Interoperability against real CMP servers
 
-Enrollment against NCM and EJBCA is verified manually against dedicated CMP servers, because running a certificate authority inside the test cluster costs far more per run than the rest of the suite. Outcomes are summarized in [Tested PKIs](../interoperability/tested-pkis.md).
+Enrollment against Nokia NCM and EJBCA is verified manually against dedicated CMP servers, because running a certificate authority inside the test cluster costs far more per run than the rest of the suite. Outcomes are summarized in [Tested PKIs](../interoperability/tested-pkis.md).
 
 ## Lint and supply chain
 

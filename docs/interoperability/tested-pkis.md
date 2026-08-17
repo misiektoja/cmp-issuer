@@ -2,11 +2,11 @@
 
 cmp-issuer has completed protected P10CR enrollments through real cert-manager `Certificate` resources against the servers below. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.
 
-## NCM 26.7 / Insta Certifier 7.20
+## Nokia NCM 26.7 / Insta Certifier 7.20
 
 | Item | Value |
 | --- | --- |
-| Product | NCM 26.7 |
+| Product | Nokia NCM 26.7 |
 | CMP implementation | Insta Certifier 7.20 |
 | Protection tested | PasswordBasedMac, certificate signature |
 | Confirmation | Explicit `certConf` and protected `pkiConf` |

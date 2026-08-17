@@ -38,7 +38,7 @@ The transaction `Phase` column tells you where a request stopped. `Enrolling` me
 | Subject mismatch | Signature mode enrolls bootstrap DN only | Match Certificate SAN/CN to registered end entity or use PBM with correct profile |
 | Wrong protection | Alias authentication modules | Confirm alias uses HMAC for PBM and EndEntityCertificate for signature |
 
-## NCM
+## Nokia NCM
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |

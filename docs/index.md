@@ -7,7 +7,7 @@ change.
 
 It implements CMPv2 initial enrollment with a PKCS #10 request in P10CR and a CP response. CMP message
 protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and certificate-signature
-P10CR have completed protected cert-manager `Certificate` enrollments against NCM 26.7 and EJBCA
+P10CR have completed protected cert-manager `Certificate` enrollments against Nokia NCM 26.7 and EJBCA
 Community Edition 9.3.7.
 
 !!! warning "Under active initial development"
