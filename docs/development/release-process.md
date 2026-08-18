@@ -66,4 +66,4 @@ Details in [Provenance and supply chain](../provenance.md).
 
 ## License
 
-Release artifacts contain GPL-3.0-only original code plus dependency notices in `THIRD_PARTY_NOTICES.md`.
+Release artifacts contain Apache-2.0 original code plus dependency notices in `THIRD_PARTY_NOTICES.md`.
