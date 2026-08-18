@@ -57,6 +57,18 @@ make deploy IMG=$IMG
 
 `make build-installer` rewrites `config/manager/kustomization.yaml` image tags. Restore with `git checkout -- config/manager/kustomization.yaml` when finished if a clean worktree is required.
 
+## Chart regeneration
+
+The chart directory is named after the chart, `charts/cmp-issuer`, so that a clone matches the packaged
+artifact. The kubebuilder Helm plugin does not support that name. It writes to `<output>/chart`, where
+`output` is the value in `PROJECT`, so `kubebuilder edit --plugins=helm.kubebuilder.io/v2-alpha` scaffolds
+a fresh `charts/chart` beside the real chart instead of updating it. Nothing packages or lints that
+directory, so regenerated CRD and RBAC templates would be silently left out of the release.
+
+If you regenerate, move the refreshed templates into `charts/cmp-issuer` and delete `charts/chart`.
+`make helm-lint` fails while `charts/chart` exists, so CI catches a regeneration that was left in place.
+`Chart.yaml` is never overwritten by the plugin, so the metadata in the real chart is safe either way.
+
 ## API changes
 
 Use kubebuilder CLI to scaffold new APIs or webhooks. Do not delete `// +kubebuilder:scaffold:*` markers.
