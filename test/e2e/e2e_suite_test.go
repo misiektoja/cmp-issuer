@@ -107,16 +107,21 @@ func deployManager() {
 	scopeApproverPermission()
 }
 
-// scopeApproverPermission narrows the shipped approval grant to the one issuer the specs want approved.
+// scopeApproverPermission narrows the shipped approval grant to the issuers the specs want approved.
 func scopeApproverPermission() {
 	// The shipped ClusterRole grants approval for every issuer of this type, which is what an operator
 	// wants and what the chart installs. A spec that has to observe a denied CertificateRequest cannot
 	// race the built-in approver for it, because cert-manager refuses a status carrying both decisions.
-	// Naming the approved issuer here leaves every other issuer for a spec to decide on itself.
-	By("scoping the cert-manager approval permission to the auto-approved issuer")
+	// Naming the approved issuers here leaves every other issuer for a spec to decide on itself.
+	By("scoping the cert-manager approval permission to the auto-approved issuers")
+	approved := make([]string, 0, 1+len(ejbcaIssuers))
+	approved = append(approved, fmt.Sprintf("\"cmpissuers.%s/%s.%s\"", apiGroup, cmpNamespace, readyIssuer))
+	for _, issuer := range ejbcaIssuers {
+		approved = append(approved, fmt.Sprintf("\"cmpissuers.%s/%s.%s\"", apiGroup, ejbcaNamespace, issuer))
+	}
 	patch := fmt.Sprintf(
-		`[{"op":"replace","path":"/rules/0/resourceNames","value":["cmpissuers.%s/%s.%s"]}]`,
-		apiGroup, cmpNamespace, readyIssuer,
+		`[{"op":"replace","path":"/rules/0/resourceNames","value":[%s]}]`,
+		strings.Join(approved, ","),
 	)
 	cmd := exec.Command("kubectl", "patch", "clusterrole", approverClusterRole, "--type=json", "-p", patch)
 	_, err := utils.Run(cmd)
