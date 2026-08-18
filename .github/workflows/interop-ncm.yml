@@ -30,7 +30,12 @@
 # | Variable | Required | Contents |
 # | --- | --- | --- |
 # | `NCM_CMP_CERT_PROFILE` | no | Certificate profile name sent as `spec.protocol.certProfile` |
-# | `NCM_CMP_COMMON_NAME` | no | Common name to enroll, default `cmp-issuer-interop.example` |
+# | `NCM_CMP_COMMON_NAME` | no | Common name to enroll. Unset gives `cmp-issuer-test-<UTC YYMMDD-HHMMSS>`, unique per run |
+# | `NCM_CMP_COUNTRY` | no | Country requested in the subject, for example `PL`. Omitted when unset |
+# | `NCM_CMP_ORGANIZATION` | no | Organization requested in the subject, for example `cmp-issuer`. Omitted when unset |
+#
+# A CA that enforces its own subject answers `grantedWithMods`, which the issuer rejects under
+# `policy.grantedModifications: Reject`. Clear the country and organization variables if that happens.
 #
 # The endpoint URLs and the recipient are held as secrets rather than variables so that a run against a
 # private instance does not print them in the log.
@@ -400,8 +405,17 @@ jobs:
         if: steps.configured.outputs.run == 'true'
         env:
           COMMON_NAME: ${{ vars.NCM_CMP_COMMON_NAME }}
+          COUNTRY: ${{ vars.NCM_CMP_COUNTRY }}
+          ORGANIZATION: ${{ vars.NCM_CMP_ORGANIZATION }}
         run: |
-          cat <<YAML | kubectl apply -f -
+          # An unset common name gets a UTC timestamp, so each run enrolls a distinct identity. A
+          # server profile that authorizes an identity to enroll only once would otherwise refuse
+          # every run after the first.
+          common_name="${COMMON_NAME:-cmp-issuer-test-$(date -u +%y%m%d-%H%M%S)}"
+          echo "enrolling CN=${common_name}"
+
+          {
+            cat <<YAML
           apiVersion: cert-manager.io/v1
           kind: Certificate
           metadata:
@@ -409,7 +423,21 @@ jobs:
             namespace: ${ISSUER_NAMESPACE}
           spec:
             secretName: interop-tls
-            commonName: ${COMMON_NAME:-cmp-issuer-interop.example}
+            commonName: "${common_name}"
+          YAML
+            # Country and organization are only requested when set, because a CA that enforces its own
+            # subject answers grantedWithMods, which policy.grantedModifications Reject turns into a
+            # failed enrollment. Clear both variables to fall back to a bare common name.
+            if [ -n "$COUNTRY" ] || [ -n "$ORGANIZATION" ]; then
+              echo "  subject:"
+              if [ -n "$COUNTRY" ]; then
+                echo "    countries: [\"${COUNTRY}\"]"
+              fi
+              if [ -n "$ORGANIZATION" ]; then
+                echo "    organizations: [\"${ORGANIZATION}\"]"
+              fi
+            fi
+            cat <<'YAML'
             privateKey:
               algorithm: RSA
               size: 2048
@@ -419,6 +447,7 @@ jobs:
               kind: CMPIssuer
               group: certmanager.misiektoja.github.io
           YAML
+          } | kubectl apply -f -
 
           kubectl wait certificate/interop -n "$ISSUER_NAMESPACE" --for condition=Ready --timeout 10m
 
