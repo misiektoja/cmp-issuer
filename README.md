@@ -17,6 +17,7 @@ change.
 CMP message protection is mandatory. HTTP and HTTPS are both supported, and HTTP provides no transport
 confidentiality. PasswordBasedMac and certificate-signature P10CR have both completed protected
 cert-manager `Certificate` enrollments against two independent CMP servers: Nokia NCM 26.7 and EJBCA Community Edition 9.3.7.
+Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
