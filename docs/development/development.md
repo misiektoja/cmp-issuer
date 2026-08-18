@@ -69,4 +69,4 @@ CMP encoding and protection sit behind project-owned interfaces. go-pkicmp types
 
 ## License
 
-Original code is GPL-3.0-only. Dependencies retain their own licenses. See `THIRD_PARTY_NOTICES.md`.
+Original code is Apache-2.0. Dependencies retain their own licenses. See `THIRD_PARTY_NOTICES.md`.
