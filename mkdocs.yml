@@ -3,7 +3,7 @@ site_description: A vendor-neutral cert-manager external issuer for Certificate 
 site_url: https://misiektoja.github.io/cmp-issuer/
 repo_url: https://github.com/misiektoja/cmp-issuer
 repo_name: misiektoja/cmp-issuer
-copyright: Copyright the cmp-issuer Authors, licensed under GPL-3.0-only
+copyright: Copyright the cmp-issuer Authors, licensed under Apache-2.0
 
 theme:
   name: material
