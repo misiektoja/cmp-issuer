@@ -75,6 +75,34 @@ It installs the same CRDs, RBAC, cert-manager approval permission and controller
 `cmp-issuer-system`, plus a ClusterRoleBinding that lets the controller read Secrets **only** in
 `cmp-issuer-system`. Neither installation path grants Secret access in workload namespaces.
 
+## Install without registry access
+
+Every release attaches `cmp-issuer-<version>-airgap.tar.gz`, which carries everything an air-gapped
+cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, `install.yaml`,
+the licence and notices, and an `INSTALL.txt` repeating the two commands below.
+
+Copy the image into a registry your cluster can reach:
+
+```bash
+skopeo copy --all oci-archive:images/cmp-issuer-image.tar docker://<registry>/cmp-issuer:<version>
+```
+
+Import it straight into each node's container runtime instead when you have no registry at all:
+
+```bash
+ctr --namespace k8s.io images import images/cmp-issuer-image.tar
+```
+
+Then install from the bundled chart, pointing it at wherever the image now lives:
+
+```bash
+helm install cmp-issuer charts/cmp-issuer-*.tgz --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer
+```
+
+The archive holds the image that was published, exported from the same build rather than rebuilt, so its
+digest matches the one covered by the release provenance attestation described in
+[Provenance and supply chain](provenance.md).
+
 ## Custom resource definitions
 
 The CRDs ship inside the chart rather than in Helm's separate `crds/` directory, so `helm upgrade`
