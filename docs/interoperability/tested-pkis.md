@@ -35,6 +35,12 @@ NCM answers a repeat of an enrollment it already accepted with a protected error
 
 NCM keys this on the transaction ID rather than on the message content, so any repeat under an identifier it has already answered draws the same protected error regardless of how the message is built. Pinning the transaction ID across a retry is therefore what prevents a duplicate certificate on this server.
 
+### Renewal through repeat P10CR
+
+NCM re-enrolls an identity it has already certified. A cert-manager renewal was exercised for both values of `privateKey.rotationPolicy`: with `Always`, where the CSR carries a new public key, and with `Never`, where it carries the key the first certificate already used. Both produced a new certificate with a new serial number, and the server recorded each as its own transaction answered with a certificate response.
+
+This is P10CR re-enrollment rather than KUR. It differs from a retransmission, which reuses the identifier of a transaction NCM has already answered and draws `transactionIdInUse`.
+
 ### Request rate limiting
 
 The NCM CMP listener applies a per-host request limit that is independent of CMP semantics. Once a client exceeds it, the listener answers HTTP 503 with an HTML body and no CMP message, rejecting the request before it parses the header or reaches the CA engine. The limit counts every CMP request from the source address, including `certConf` and `pollReq`, so a busy controller or a tight retry loop can trip it. cmp-issuer reports these as transport errors and retries with backoff.
