@@ -16,7 +16,10 @@ manager:
   replicas: 1
 
   image:
-    repository: controller
+    ## Published manager image. Set this to your own registry when mirroring the image, or to a
+    ## `repository@sha256:...` reference to pin a digest instead of a tag.
+    ##
+    repository: ghcr.io/misiektoja/cmp-issuer
     ## Image tag (defaults to Chart.appVersion if not set)
     ##
     # tag: ""
