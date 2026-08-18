@@ -103,6 +103,24 @@ func deployManager() {
 	cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", managerImage))
 	_, err = utils.Run(cmd)
 	Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
+
+	scopeApproverPermission()
+}
+
+// scopeApproverPermission narrows the shipped approval grant to the one issuer the specs want approved.
+func scopeApproverPermission() {
+	// The shipped ClusterRole grants approval for every issuer of this type, which is what an operator
+	// wants and what the chart installs. A spec that has to observe a denied CertificateRequest cannot
+	// race the built-in approver for it, because cert-manager refuses a status carrying both decisions.
+	// Naming the approved issuer here leaves every other issuer for a spec to decide on itself.
+	By("scoping the cert-manager approval permission to the auto-approved issuer")
+	patch := fmt.Sprintf(
+		`[{"op":"replace","path":"/rules/0/resourceNames","value":["cmpissuers.%s/%s.%s"]}]`,
+		apiGroup, cmpNamespace, readyIssuer,
+	)
+	cmd := exec.Command("kubectl", "patch", "clusterrole", approverClusterRole, "--type=json", "-p", patch)
+	_, err := utils.Run(cmd)
+	Expect(err).NotTo(HaveOccurred(), "Failed to scope the cert-manager approval permission")
 }
 
 // undeployManager removes the controller, the CRDs and the manager namespace.
