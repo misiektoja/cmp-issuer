@@ -201,6 +201,18 @@ gitleaks: gitleaks-tool ## Scan the working tree and the commit history for leak
 	"$(GITLEAKS)" dir . --config .gitleaks.toml --redact --no-banner
 	"$(GITLEAKS)" git . --config .gitleaks.toml --redact --no-banner --log-opts="$(GITLEAKS_LOG_OPTS)"
 
+# Standard library security fixes ship in Go patch releases, so a module left on an older patch reports
+# them through govulncheck even when its dependency graph has not moved. These targets are kept out of
+# the supply-chain target on purpose: govulncheck already fails on the consequence, and reaching go.dev
+# would make an offline run of that target fail for a reason unrelated to any vulnerability.
+.PHONY: go-patch-check
+go-patch-check: ## Report whether go.mod declares the newest Go patch in its release series.
+	hack/go-patch-version.sh check
+
+.PHONY: go-patch-update
+go-patch-update: ## Move go.mod and the documented prerequisite to the newest Go patch in its series.
+	hack/go-patch-version.sh update
+
 .PHONY: sbom
 sbom: cyclonedx-gomod ## Generate a CycloneDX software bill of materials for the module.
 	mkdir -p dist
