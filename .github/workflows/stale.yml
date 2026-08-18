@@ -12,11 +12,14 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           days-before-stale: 30
           days-before-close: 7
+          # Pull requests are left alone. Touching one needs pull-requests: write, which this workflow
+          # deliberately does not hold.
+          days-before-pr-stale: -1
           stale-issue-message: "This issue has been marked as stale because it has been inactive for 30 days. It will be closed in 7 days if no further activity occurs."
           close-issue-message: "Closing this issue due to inactivity. Feel free to reopen if needed."
           exempt-issue-labels: "pinned,important"
