@@ -69,3 +69,4 @@ nav:
   - Known limitations: known-limitations.md
   - Design decisions:
       - CMP library selection: adr/0001-cmp-library.md
+      - Issuer reconciliation library: adr/0002-issuer-lib.md
