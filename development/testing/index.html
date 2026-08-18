@@ -1302,6 +1302,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#enrollment-against-a-cmp-server-in-the-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enrollment against a CMP server in the cluster
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#interoperability-against-real-cmp-servers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1636,6 +1647,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#enrollment-against-a-cmp-server-in-the-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enrollment against a CMP server in the cluster
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#interoperability-against-real-cmp-servers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1805,8 +1827,44 @@
 </tbody>
 </table>
 <p>The two older rows pin a digest, taken from the node images published for the Kind release pinned as <code>KIND_VERSION</code> in the <code>Makefile</code>, so they have to be updated with it. The newest row pins no image and follows the Kind default.</p>
+<h2 id="enrollment-against-a-cmp-server-in-the-cluster">Enrollment against a CMP server in the cluster<a class="headerlink" href="#enrollment-against-a-cmp-server-in-the-cluster" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>test-e2e-ejbca
+</code></pre></div>
+<p>This runs a second set of specs that enroll real certificates from EJBCA Community Edition running in the same Kind cluster, through cert-manager <code>Certificate</code> resources and the full controller path:</p>
+<table>
+<thead>
+<tr>
+<th>Spec</th>
+<th>What it enrolls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shared secret over HTTP</td>
+<td><code>PasswordBasedMac</code> protected P10CR against a plain endpoint</td>
+</tr>
+<tr>
+<td>Shared secret over HTTPS</td>
+<td>the same request over TLS, with the endpoint certificate verified against a pinned authority</td>
+</tr>
+<tr>
+<td>Certificate signature over HTTP</td>
+<td><code>Signature</code> protected P10CR using a registration certificate</td>
+</tr>
+<tr>
+<td>Transaction records</td>
+<td>one <code>CMPTransaction</code> per enrollment, each reporting <code>Issued</code></td>
+</tr>
+</tbody>
+</table>
+<p>Each issued certificate is checked against the authority that signed it and against the chain stored in its Secret. The CMP response trust anchor and the endpoint TLS trust anchor are two different authorities, so a run also proves the two trust decisions stay separate.</p>
+<p>The server image already carries its certification authorities, its CMP aliases and a TLS certificate issued for the Service name the suite uses, so a run costs a container start rather than a certificate authority setup. It is pulled when it has been published and built locally otherwise:</p>
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>ejbca-test-image
+</code></pre></div>
+<p><code>EJBCA_VERSION</code> in the <code>Makefile</code> selects the upstream release, and <code>EJBCA_IMAGE_REVISION</code> republishes the image after a configuration change. <code>test/e2e/ejbca/README.md</code> describes what the image contains and why the aliases are configured the way they are.</p>
+<p>CI runs these specs in their own job, and rebuilds the server image only when the upstream release it is built from is republished under a new digest.</p>
 <h2 id="interoperability-against-real-cmp-servers">Interoperability against real CMP servers<a class="headerlink" href="#interoperability-against-real-cmp-servers" title="Permanent link">&para;</a></h2>
-<p>Enrollment against Nokia NCM and EJBCA is verified manually against dedicated CMP servers, because running a certificate authority inside the test cluster costs far more per run than the rest of the suite. Outcomes are summarized in <a href="../../interoperability/tested-pkis/">Tested PKIs</a>.</p>
+<p>Enrollment against Nokia NCM is verified against a dedicated CMP server, because that product is not distributable as a test image. Outcomes are summarized in <a href="../../interoperability/tested-pkis/">Tested PKIs</a>.</p>
 <h3 id="enrolling-from-a-hosted-ncm-instance-in-ci">Enrolling from a hosted NCM instance in CI<a class="headerlink" href="#enrolling-from-a-hosted-ncm-instance-in-ci" title="Permanent link">&para;</a></h3>
 <p><code>interop-ncm.yml</code> performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a <code>CMPIssuer</code>, enrolls a <code>Certificate</code> and inspects the certificate that comes back.</p>
 <p>It is the only workflow that reaches a PKI outside the repository, so it never runs on a push or a pull request. Start it from the Actions tab, optionally choosing the Kubernetes and cert-manager versions, and enable the repeat enrollment when the server profile allows the same identity to enroll twice.</p>

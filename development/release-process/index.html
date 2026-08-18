@@ -1730,7 +1730,11 @@ exporters, so the bundled archive is the published image rather than a second bu
 </tr>
 <tr>
 <td><code>test-e2e.yml</code></td>
-<td>Kind e2e suite, once per supported Kubernetes and cert-manager version</td>
+<td>Kind e2e suite, once per supported Kubernetes and cert-manager version, plus enrollment from a CMP server started in the cluster</td>
+</tr>
+<tr>
+<td><code>ejbca-test-image.yml</code></td>
+<td>Publishes the preconfigured CMP server image, rebuilding it only when the upstream release moves</td>
 </tr>
 <tr>
 <td><code>interop-ncm.yml</code></td>
@@ -1771,7 +1775,7 @@ racing.</p>
 <h2 id="pre-release-checklist">Pre-release checklist<a class="headerlink" href="#pre-release-checklist" title="Permanent link">&para;</a></h2>
 <ol>
 <li><code>make test</code>, <code>make lint</code>, <code>make docs-build</code>, <code>make helm-lint</code></li>
-<li><code>make test-e2e</code> when controller or e2e specs changed</li>
+<li><code>make test-e2e</code> when controller or e2e specs changed, and <code>make test-e2e-ejbca</code> when enrollment changed</li>
 <li>Update <code>RELEASE_NOTES.md</code> with user-facing entries</li>
 <li>Tag and push only when authorized to publish</li>
 </ol>

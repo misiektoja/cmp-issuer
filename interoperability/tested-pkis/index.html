@@ -985,6 +985,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#continuously-verified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuously verified
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ra-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RA mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#client-mode-constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1736,6 +1758,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#continuously-verified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuously verified
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ra-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RA mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#client-mode-constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1876,11 +1920,15 @@
 </tr>
 <tr>
 <td>Mode</td>
-<td>CMP alias in <strong>client mode</strong></td>
+<td>CMP alias in <strong>client mode</strong> and in <strong>RA mode</strong></td>
 </tr>
 <tr>
 <td>Protection tested</td>
 <td>PasswordBasedMac, certificate signature</td>
+</tr>
+<tr>
+<td>Transports tested</td>
+<td>HTTP and HTTPS</td>
 </tr>
 <tr>
 <td>Authentication modules</td>
@@ -1888,6 +1936,10 @@
 </tr>
 </tbody>
 </table>
+<h3 id="continuously-verified">Continuously verified<a class="headerlink" href="#continuously-verified" title="Permanent link">&para;</a></h3>
+<p>Enrollment against EJBCA runs in CI on every change, against a server started in the test cluster. Each run issues real certificates through cert-manager <code>Certificate</code> resources over three combinations: a shared secret over HTTP, the same over HTTPS, and a certificate signature over HTTP. The endpoint certificate is verified against a pinned authority that did not sign the CMP responses, so a run also confirms that the CMP trust and the transport trust are decided separately.</p>
+<h3 id="ra-mode">RA mode<a class="headerlink" href="#ra-mode" title="Permanent link">&para;</a></h3>
+<p>In RA mode EJBCA registers the end entity from the request itself, using <code>ra.namegenerationscheme</code> <code>DN</code> with <code>ra.namegenerationparameters</code> <code>CN</code> to take the name from the request subject. A repeated enrollment of the same subject is answered with a new certificate rather than refused, so RA mode avoids the client mode constraint below. Response protection is still signed by the issuing CA, which is what <code>spec.cmpTrust.caSecretRef</code> pins.</p>
 <h3 id="client-mode-constraints">Client mode constraints<a class="headerlink" href="#client-mode-constraints" title="Permanent link">&para;</a></h3>
 <p><strong>End entity must exist and returns to a used state.</strong> Client mode treats the enrollment code as one-time. After issuance the end entity moves to <code>GENERATED</code> and refuses another request until an administrator sets it back to <code>NEW</code> or the profile allows multiple requests.</p>
 <p><strong>Certificate authentication enrolls only the authenticating identity.</strong> With <code>EndEntityCertificate</code> in client mode EJBCA requires the requested subject DN to match the registered end entity. Signature protection therefore issues for the bootstrap identity.</p>
@@ -1903,7 +1955,7 @@
 <ul>
 <li>Compatibility with arbitrary CMP servers or profiles</li>
 <li>IR, KUR, revocation or CMPv3</li>
-<li>mTLS or HTTPS interoperability beyond custom trust configuration</li>
+<li>mTLS to a CMP endpoint. HTTPS is verified against EJBCA above, and the endpoints of the other servers listed here serve CMP over plain HTTP only</li>
 <li>NCM REST renewal</li>
 </ul>
 <p>See <a href="../../support-matrix/">Support matrix</a>.</p>
