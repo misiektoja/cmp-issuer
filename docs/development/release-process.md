@@ -38,7 +38,8 @@ make docker-archive IMG=ghcr.io/misiektoja/cmp-issuer:v0.1.0 VERSION=v0.1.0
 | Workflow | Purpose |
 | --- | --- |
 | `test.yml` | Unit tests and OpenSSL interoperability |
-| `lint.yml` | golangci-lint |
+| `lint.yml` | golangci-lint and actionlint |
+| `codeql.yml` | CodeQL static analysis of the Go code |
 | `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
 | `test-chart.yml` | Helm lint |
 | `test-e2e.yml` | Kind e2e suite, once per supported Kubernetes and cert-manager version, plus enrollment from a CMP server started in the cluster |
