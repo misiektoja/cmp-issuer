@@ -43,7 +43,7 @@ helm install cmp-issuer ./cmp-issuer-<version>.tgz \
 Use this when you are modifying the chart itself:
 
 ```bash
-helm install cmp-issuer ./charts/chart \
+helm install cmp-issuer ./charts/cmp-issuer \
   --namespace cmp-issuer-system \
   --create-namespace
 ```
