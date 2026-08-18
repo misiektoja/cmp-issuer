@@ -28,7 +28,8 @@ Each release publishes:
 | `lint.yml` | golangci-lint |
 | `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
 | `test-chart.yml` | Helm lint |
-| `test-e2e.yml` | Kind e2e suite |
+| `test-e2e.yml` | Kind e2e suite, once per supported Kubernetes and cert-manager version |
+| `interop-ncm.yml` | Enrollment against a hosted Nokia NCM instance, started by hand |
 | `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
 | `release.yml` | Build and publish on tag (not yet run) |
 | `publish-chart.yml` | Add the released chart to the Helm repository index (not yet run) |
