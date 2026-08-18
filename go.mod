@@ -1,6 +1,6 @@
 module github.com/misiektoja/cmp-issuer
 
-go 1.26.1
+go 1.26.6
 
 require (
 	github.com/cert-manager/issuer-lib v0.12.0
