@@ -25,6 +25,7 @@ Key directories:
 | `docs/` | MkDocs site |
 | `test/e2e/` | Kind-based controller tests |
 | `test/e2e/ejbca/` | Preconfigured CMP server image that the enrollment tests start |
+| `test/workflows/` | Supply chain checks over the GitHub Actions workflow definitions |
 
 ## Common commands
 
@@ -32,7 +33,7 @@ Key directories:
 make test            # Unit and envtest suites
 make test-e2e        # Kind-based controller tests
 make test-e2e-ejbca  # Enrollment from a CMP server started in the test cluster
-make lint            # golangci-lint v2.12.2
+make lint            # golangci-lint v2.12.2 and actionlint v1.7.12
 make run             # Run controller locally against current kubeconfig
 make manifests       # Regenerate CRDs and RBAC from markers
 make generate        # Regenerate DeepCopy code
@@ -44,6 +45,8 @@ make clean           # Remove build, test and documentation outputs
 `make clean` keeps the tool binaries downloaded into `bin/`, so the next build does not re-download the toolchain. `make clean-tools` removes those as well and `make clean-all` does both.
 
 After editing `*_types.go` run `make manifests generate`. After editing Go sources run `make lint-fix test`.
+
+`make lint` lints the GitHub Actions workflows as well, so a mistyped trigger or a bad expression is reported before a push rather than by a workflow run that has already started. `lint-fix` and `lint-config` stay Go-only. actionlint runs shellcheck over `run:` blocks when shellcheck is on PATH, which it is on the GitHub-hosted runners, so install it locally to see the same findings CI does.
 
 ## Local controller
 
