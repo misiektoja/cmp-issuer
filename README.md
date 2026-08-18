@@ -190,5 +190,5 @@ Full documentation is in [docs/](docs/).
 
 ## License
 
-Original cmp-issuer code is licensed under GPL-3.0-only. Dependencies retain their own licenses. See
+Original cmp-issuer code is licensed under Apache-2.0. Dependencies retain their own licenses. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
