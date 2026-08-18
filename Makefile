@@ -415,14 +415,17 @@ HELM_NAMESPACE ?= cmp-issuer-system
 ## Name of the Helm release
 HELM_RELEASE ?= cmp-issuer
 ## Path to the Helm chart directory
-HELM_CHART_DIR ?= charts/chart
+HELM_CHART_DIR ?= charts/cmp-issuer
 ## Additional arguments to pass to helm commands
 HELM_EXTRA_ARGS ?=
+## Kubernetes version the lint render targets. Without a reachable cluster helm assumes v1.20.0, which
+## the chart's kubeVersion range rejects, so the render is pinned to a version the project verifies
+HELM_KUBE_VERSION ?= v1.34.0
 
 .PHONY: helm-lint
 helm-lint: helm ## Validate that the chart renders and passes the Helm linter.
-	$(HELM) lint $(HELM_CHART_DIR)
-	$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) > /dev/null
+	$(HELM) lint $(HELM_CHART_DIR) --kube-version $(HELM_KUBE_VERSION)
+	$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) > /dev/null
 
 .PHONY: helm-deploy
 helm-deploy: helm ## Deploy manager to the K8s cluster via Helm. Specify an image with IMG.
