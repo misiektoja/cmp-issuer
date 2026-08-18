@@ -185,6 +185,13 @@ docs-serve: ## Serve the documentation site locally with live reload.
 govulncheck: govulncheck-tool ## Report known vulnerabilities that reach the module or its dependencies.
 	"$(GOVULNCHECK)" $$($(GO_PACKAGES))
 
+# GITLEAKS_LOG_OPTS selects the history the commit scan walks. gh-pages carries the rendered
+# documentation site rather than source, and its HTML trips the private-key rule on the placeholder key
+# block in docs/guide/message-protection.md once mkdocs wraps that block in markup. The markdown the
+# branch is generated from is scanned in full, so excluding the branch loses no coverage. An exclude
+# pattern that matches no ref is ignored, so this stays correct where gh-pages was never fetched.
+GITLEAKS_LOG_OPTS ?= --full-history --exclude=refs/remotes/*/gh-pages --exclude=refs/heads/gh-pages --all
+
 .PHONY: gitleaks
 gitleaks: gitleaks-tool ## Scan the working tree and the commit history for leaked credentials.
 # The gitleaks config allowlists local/ so the working tree scan skips uncommitted lab material. That
@@ -192,7 +199,7 @@ gitleaks: gitleaks-tool ## Scan the working tree and the commit history for leak
 # directory is ignored by git, and this guard fails the target if anything there is tracked anyway.
 	@test -z "$$(git ls-files local/ 2>/dev/null)" || { echo "error: tracked files under local/ are excluded from the gitleaks scan by .gitleaks.toml"; exit 1; }
 	"$(GITLEAKS)" dir . --config .gitleaks.toml --redact --no-banner
-	"$(GITLEAKS)" git . --config .gitleaks.toml --redact --no-banner
+	"$(GITLEAKS)" git . --config .gitleaks.toml --redact --no-banner --log-opts="$(GITLEAKS_LOG_OPTS)"
 
 .PHONY: sbom
 sbom: cyclonedx-gomod ## Generate a CycloneDX software bill of materials for the module.
