@@ -25,6 +25,14 @@ The image is pushed and exported to the OCI archive by a single `make docker-rel
 exporters, so the bundled archive is the published image rather than a second build of the same source.
 `make release-bundle VERSION=<version>` then assembles the tarball from what is already in `dist`.
 
+Every target that writes a release artifact requires `VERSION` and names its output after it, so the
+exported image archive is `dist/cmp-issuer-<version>-image.tar` alongside the packaged chart and the
+bundle. Set it to the tag carried by `IMG`, for example:
+
+```bash
+make docker-archive IMG=ghcr.io/misiektoja/cmp-issuer:v0.1.0 VERSION=v0.1.0
+```
+
 ## CI workflows
 
 | Workflow | Purpose |
