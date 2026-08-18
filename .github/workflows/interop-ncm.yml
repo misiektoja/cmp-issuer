@@ -42,7 +42,7 @@ on:
         description: "cert-manager version to install"
         required: false
         type: string
-        default: v1.20.2
+        default: v1.20.3
       renewal:
         description: "Re-enroll the certificate afterwards to exercise repeat P10CR"
         required: false
