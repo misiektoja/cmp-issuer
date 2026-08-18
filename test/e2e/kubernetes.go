@@ -145,6 +145,14 @@ func certificateRequestName(namespace string, certificate string) (string, error
 	return names[0], nil
 }
 
+// opposingDecision returns the approval decision that cannot coexist with the given one.
+func opposingDecision(decision string) string {
+	if decision == "Denied" {
+		return "Approved"
+	}
+	return "Denied"
+}
+
 // setRequestCondition appends an approval decision to a CertificateRequest without dropping existing conditions.
 func setRequestCondition(namespace string, name string, decision string, message string) error {
 	conditions, err := resourceConditions("certificaterequest", namespace, name)
@@ -155,6 +163,11 @@ func setRequestCondition(namespace string, name string, decision string, message
 	for _, condition := range conditions {
 		if condition.Type == decision {
 			return nil
+		}
+		// cert-manager refuses a status that carries both decisions, so report the cause here rather
+		// than letting the admission webhook reject the patch for a reason that reads like a defect.
+		if condition.Type == opposingDecision(decision) && condition.Status == "True" {
+			return fmt.Errorf("cannot record %s on %q: it already carries %s", decision, name, condition.Type)
 		}
 		updated = append(updated, map[string]string{
 			"type": condition.Type, "status": condition.Status,
