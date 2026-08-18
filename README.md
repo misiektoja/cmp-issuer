@@ -53,11 +53,11 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
 This installs the CRDs, the controller and the permission cert-manager needs before it will approve
 requests for this issuer type. A packaged chart and a self-contained `install.yaml` are attached to
 every release. Other install paths, pointing the approval permission at a non-default cert-manager, and
-what happens to the CRDs on uninstall, are all in [Installation](docs/installation.md).
+what happens to the CRDs on uninstall, are all in [Installation](https://misiektoja.github.io/cmp-issuer/installation/).
 
 ## Issue your first certificate
 
-The short version is below. [Getting started](docs/getting-started.md) explains each step, shows the
+The short version is below. [Getting started](https://misiektoja.github.io/cmp-issuer/getting-started/) explains each step, shows the
 expected output and lists what to check when something does not work.
 
 Store the credential and the CMP trust anchor, then authorize the controller to read them in that
@@ -179,24 +179,23 @@ received value in `certConf` and rejects anything else. Pin one value with
 
 **Verification.** Every push runs unit, protocol, controller and envtest suites, a Kind-based controller
 suite, OpenSSL CMP mock interoperability, Helm chart validation, vulnerability scanning and a credential
-scan. Results against real CMP servers are in [Tested PKIs](docs/interoperability/tested-pkis.md).
+scan. Results against real CMP servers are in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
 
 ## Documentation
 
-Full documentation is in [docs/](docs/).
+Full documentation is at
+[misiektoja.github.io/cmp-issuer](https://misiektoja.github.io/cmp-issuer/).
 
-| Topic | Link |
-| --- | --- |
-| Getting started | [docs/getting-started.md](docs/getting-started.md) |
-| Installation | [docs/installation.md](docs/installation.md) |
-| Support matrix | [docs/support-matrix.md](docs/support-matrix.md) |
-| Enrollment guide | [docs/guide/enrollment.md](docs/guide/enrollment.md) |
-| Message protection | [docs/guide/message-protection.md](docs/guide/message-protection.md) |
-| CMPIssuer reference | [docs/reference/cmpissuer.md](docs/reference/cmpissuer.md) |
-| Tested PKIs | [docs/interoperability/tested-pkis.md](docs/interoperability/tested-pkis.md) |
-| Troubleshooting | [docs/operations/troubleshooting.md](docs/operations/troubleshooting.md) |
-| Known limitations | [docs/known-limitations.md](docs/known-limitations.md) |
-| Threat model | [docs/security/threat-model.md](docs/security/threat-model.md) |
+* [Getting started](https://misiektoja.github.io/cmp-issuer/getting-started/)
+* [Installation](https://misiektoja.github.io/cmp-issuer/installation/)
+* [Support matrix](https://misiektoja.github.io/cmp-issuer/support-matrix/)
+* [Enrollment guide](https://misiektoja.github.io/cmp-issuer/guide/enrollment/)
+* [Message protection](https://misiektoja.github.io/cmp-issuer/guide/message-protection/)
+* [CMPIssuer reference](https://misiektoja.github.io/cmp-issuer/reference/cmpissuer/)
+* [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/)
+* [Troubleshooting](https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/)
+* [Known limitations](https://misiektoja.github.io/cmp-issuer/known-limitations/)
+* [Threat model](https://misiektoja.github.io/cmp-issuer/security/threat-model/)
 
 ## License
 
