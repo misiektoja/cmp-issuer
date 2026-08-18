@@ -21,7 +21,7 @@ Key directories:
 | `internal/controller/` | Reconciliation and signer |
 | `internal/protocol/` | CMP adapter |
 | `config/` | Kustomize and Helm inputs |
-| `charts/chart/` | Helm chart |
+| `charts/cmp-issuer/` | Helm chart |
 | `docs/` | MkDocs site |
 | `test/e2e/` | Kind-based controller tests |
 
