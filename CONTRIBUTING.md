@@ -4,7 +4,7 @@ cmp-issuer is a cert-manager external issuer for CMP servers. Bug reports, inter
 
 ## Before contributing
 
-Read [docs/provenance.md](docs/provenance.md) and [docs/security/threat-model.md](docs/security/threat-model.md). Contribute only code you have the right to license under GPL-3.0-only, and record any source that materially influenced protocol code in the provenance page.
+Read [docs/provenance.md](docs/provenance.md) and [docs/security/threat-model.md](docs/security/threat-model.md). Contribute only code you have the right to license under Apache-2.0, and record any source that materially influenced protocol code in the provenance page.
 
 Never commit credentials, private keys, protected CMP messages, full CSRs or non-public PKI documentation. Keep scratch files and local test state out of commits.
 
