@@ -107,7 +107,13 @@ Configure it under **Settings, Secrets and variables, Actions**. A repository wi
 | Variable | Required | Contents |
 | --- | --- | --- |
 | `NCM_CMP_CERT_PROFILE` | no | Certificate profile sent as `spec.protocol.certProfile` |
-| `NCM_CMP_COMMON_NAME` | no | Common name to enroll, default `cmp-issuer-interop.example` |
+| `NCM_CMP_COMMON_NAME` | no | Common name to enroll. Left unset it becomes `cmp-issuer-test-<UTC YYMMDD-HHMMSS>`, so every run enrolls a distinct identity |
+| `NCM_CMP_COUNTRY` | no | Country requested in the subject, for example `PL`. Omitted entirely when unset |
+| `NCM_CMP_ORGANIZATION` | no | Organization requested in the subject, for example `cmp-issuer`. Omitted entirely when unset |
+
+Leave `NCM_CMP_COMMON_NAME` unset unless you need a fixed name. A server profile that authorizes an identity to enroll only once refuses every run after the first, and a timestamped name sidesteps that without any server-side cleanup between runs.
+
+Requesting a country or an organization is a request, not an instruction. A CA that enforces its own subject answers `grantedWithMods`, which the issuer rejects under `policy.grantedModifications: Reject`, so an enrollment that fails only after these variables are set points at the server profile rather than at the issuer. Clear both to fall back to a bare common name.
 
 `NCM_CMP_RESPONSE_TRUST` and `NCM_CMP_HTTPS_TRUST` are two different anchors and are frequently confused. The first is CMP trust, which verifies the signature protecting the response message and the chain that comes back in it. The second is transport trust, which verifies the TLS server certificate and is used only on the HTTPS rows. A server may present a publicly trusted TLS certificate while issuing from a private CA, in which case only the first is needed. See [HTTP and HTTPS transport](../guide/transport.md).
 
