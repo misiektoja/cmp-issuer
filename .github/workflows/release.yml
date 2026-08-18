@@ -60,9 +60,11 @@ jobs:
       - name: Build and push the multi architecture image
         env:
           IMG: ${{ steps.release.outputs.image }}
+          VERSION: ${{ steps.release.outputs.version }}
         # One build with two exporters, so the archive that ships in the air-gapped bundle is the
-        # published image rather than a rebuild of the same source.
-        run: make docker-release IMG="$IMG" PLATFORMS=linux/amd64,linux/arm64
+        # published image rather than a rebuild of the same source. VERSION names the exported
+        # archive, so the bundle step later finds the archive this build wrote.
+        run: make docker-release IMG="$IMG" VERSION="$VERSION" PLATFORMS=linux/amd64,linux/arm64
 
       - name: Resolve the published image digest
         id: digest
