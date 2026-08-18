@@ -216,8 +216,11 @@ clean: ## Remove build, test and documentation outputs, keeping the downloaded t
 	rm -f bin/manager cover.out Dockerfile.cross
 	rm -rf dist site
 
+# setup-envtest extracts the Kubernetes test assets into a read-only directory, so the write bit has
+# to be restored before anything inside it can be unlinked.
 .PHONY: clean-tools
 clean-tools: ## Remove the tool binaries downloaded into bin.
+	@test ! -d "$(LOCALBIN)" || chmod -R u+w "$(LOCALBIN)"
 	rm -rf "$(LOCALBIN)"
 
 .PHONY: clean-all
