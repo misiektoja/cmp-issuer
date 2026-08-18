@@ -38,7 +38,10 @@ make manifests       # Regenerate CRDs and RBAC from markers
 make generate        # Regenerate DeepCopy code
 make docs-build      # Strict MkDocs build
 make helm-lint       # Helm chart lint
+make clean           # Remove build, test and documentation outputs
 ```
+
+`make clean` keeps the tool binaries downloaded into `bin/`, so the next build does not re-download the toolchain. `make clean-tools` removes those as well and `make clean-all` does both.
 
 After editing `*_types.go` run `make manifests generate`. After editing Go sources run `make lint-fix test`.
 
