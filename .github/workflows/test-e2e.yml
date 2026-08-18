@@ -1,7 +1,8 @@
 # Runs the Kind e2e suite across the supported Kubernetes and cert-manager versions.
 #
-# The node image tags come from the Kind release pinned in the Makefile, so they have to be updated
-# together with KIND_VERSION. An empty node image uses the default that Kind ships with.
+# The node images are the ones published for the Kind release pinned as KIND_VERSION in the Makefile, so
+# they have to be updated together with it. The newest row pins no image and follows the default that
+# Kind itself ships with, so a Kind bump moves it automatically.
 name: E2E Tests
 
 on:
@@ -24,12 +25,12 @@ jobs:
         include:
           - kubernetes: "1.36"
             nodeImage: ""
-            certManager: v1.20.2
+            certManager: v1.21.1
           - kubernetes: "1.35"
-            nodeImage: kindest/node:v1.35.0
-            certManager: v1.20.2
+            nodeImage: kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95
+            certManager: v1.20.3
           - kubernetes: "1.34"
-            nodeImage: kindest/node:v1.34.0
+            nodeImage: kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256
             certManager: v1.19.6
     steps:
       - name: Clone the code
