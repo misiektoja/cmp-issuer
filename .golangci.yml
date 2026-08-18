@@ -57,8 +57,6 @@ linters:
       - third_party$
       - builtin$
       - examples$
-      - local$
-      - ^local/
 formatters:
   enable:
     - gofmt
