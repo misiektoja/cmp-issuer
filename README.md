@@ -32,9 +32,9 @@ cert-manager `Certificate` enrollments against two independent CMP servers: Noki
 
 ## Prerequisites
 
-* A Kubernetes cluster, verified on v1.34
+* A Kubernetes cluster, verified on v1.34, v1.35 and v1.36
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support, verified on
-  v1.19 and v1.20
+  v1.19, v1.20 and v1.21
 * [Helm](https://helm.sh/docs/intro/install/) v3
 * A CMP server, plus its endpoint URL, recipient DN, a credential and the CA certificate that signs its
   CMP responses
