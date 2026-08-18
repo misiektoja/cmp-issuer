@@ -52,7 +52,7 @@ helm install cmp-issuer ./charts/chart \
 
 | Value | Purpose |
 | --- | --- |
-| `manager.image.repository` and `manager.image.tag` | Controller image and tag |
+| `manager.image.repository` and `manager.image.tag` | Controller image and tag. Defaults to `ghcr.io/misiektoja/cmp-issuer` at the chart's `appVersion`. Set the repository to a `name@sha256:...` reference to pin a digest, in which case the tag is ignored |
 | `manager.replicas` | Controller replica count |
 | `manager.args` | Extra controller flags, for example `--cluster-resource-namespace=<ns>` |
 | `rbac.namespaced` | Scope RBAC to the release namespace instead of cluster-wide |
