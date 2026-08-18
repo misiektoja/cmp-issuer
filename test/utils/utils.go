@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	defaultCertManagerVersion = "v1.20.2"
+	defaultCertManagerVersion = "v1.20.3"
 	certmanagerURLTmpl        = "https://github.com/cert-manager/cert-manager/releases/download/%s/cert-manager.yaml"
 
 	defaultKindBinary  = "kind"
