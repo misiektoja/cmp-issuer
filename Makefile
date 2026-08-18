@@ -56,10 +56,8 @@ fmt: ## Run go fmt against code.
 	go fmt ./...
 
 # GO_PACKAGES selects the packages the routine targets act on. test/e2e carries a build tag and runs
-# from its own targets. The programs under local/ are one-off probes kept outside version control and
-# run by hand, so they are excluded here to keep a local run identical to a continuous integration run,
-# where that directory does not exist at all. golangci-lint already skips it through .golangci.yml.
-GO_PACKAGES = go list ./... | grep -v '/e2e' | grep -v '/local/'
+# from its own targets.
+GO_PACKAGES = go list ./... | grep -v '/e2e'
 
 # COVER_PACKAGES is the code the coverage figure is measured over. Coverage defaults to the package a
 # test binary lives in, so without this a package carrying no test file of its own reports 0% even when
@@ -189,6 +187,10 @@ govulncheck: govulncheck-tool ## Report known vulnerabilities that reach the mod
 
 .PHONY: gitleaks
 gitleaks: gitleaks-tool ## Scan the working tree and the commit history for leaked credentials.
+# The gitleaks config allowlists local/ so the working tree scan skips uncommitted lab material. That
+# allowlist also applies to the history scan, so a tracked file under local/ would evade both. The
+# directory is ignored by git, and this guard fails the target if anything there is tracked anyway.
+	@test -z "$$(git ls-files local/ 2>/dev/null)" || { echo "error: tracked files under local/ are excluded from the gitleaks scan by .gitleaks.toml"; exit 1; }
 	"$(GITLEAKS)" dir . --config .gitleaks.toml --redact --no-banner
 	"$(GITLEAKS)" git . --config .gitleaks.toml --redact --no-banner
 
