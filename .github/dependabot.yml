@@ -43,6 +43,26 @@ updates:
           - minor
           - patch
 
+  # The documentation toolchain is pinned in docs/requirements.txt and the site build runs with
+  # --strict, so a MkDocs or theme release that changes a warning into an error breaks the build. That
+  # is worth learning from a pull request rather than from the first push after a release.
+  - package-ecosystem: pip
+    directory: "/docs"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      docs-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: docker
     directory: "/"
     schedule:
