@@ -198,14 +198,16 @@ TRIVY_IMAGE ?= aquasec/trivy:0.74.0
 TRIVY_CACHE ?= $(HOME)/.cache/trivy
 TRIVY_SEVERITY ?= HIGH,CRITICAL
 
-# The image is scanned from an exported archive so no container runtime socket has to be shared.
+# The image is scanned from an exported archive so no container runtime socket has to be shared. The
+# archive is scanner input rather than a release artifact, so it is written to its own directory and
+# never sits next to the versioned archives the release ships.
 .PHONY: scan-image
 scan-image: ## Scan the manager image for known operating system and language vulnerabilities.
-	mkdir -p dist "$(TRIVY_CACHE)"
-	$(CONTAINER_TOOL) save "${IMG}" -o dist/manager-image.tar
+	mkdir -p dist/scan "$(TRIVY_CACHE)"
+	$(CONTAINER_TOOL) save "${IMG}" -o dist/scan/manager-image.tar
 	$(CONTAINER_TOOL) run --rm \
 		-v "$(TRIVY_CACHE)":/root/.cache/trivy \
-		-v "$(CURDIR)/dist":/scan \
+		-v "$(CURDIR)/dist/scan":/scan \
 		$(TRIVY_IMAGE) image --scanners vuln --severity $(TRIVY_SEVERITY) \
 		--ignore-unfixed --exit-code 1 --input /scan/manager-image.tar
 
@@ -275,11 +277,20 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+# VERSION labels every release artifact written under dist, for example VERSION=v0.1.0. The targets
+# that write one require it, so an archive always names the release it carries and a second build
+# cannot overwrite the first. Set it to the tag carried by IMG.
+VERSION ?=
+
+.PHONY: require-version
+require-version:
+	@test -n "$(VERSION)" || { echo "Set VERSION, for example VERSION=v0.1.0" >&2; exit 1; }
+
 ## Multi-architecture image archive that the air-gapped bundle carries
-IMAGE_ARCHIVE ?= dist/cmp-issuer-image.tar
+IMAGE_ARCHIVE ?= dist/cmp-issuer-$(VERSION)-image.tar
 
 .PHONY: docker-archive
-docker-archive: ## Export the manager image for every release platform as an OCI archive. Specify an image with IMG.
+docker-archive: require-version ## Export the manager image for every release platform as an OCI archive. Specify IMG and VERSION.
 	mkdir -p dist
 	# The cross Dockerfile builds the Go binary on the native platform and cross-compiles for the
 	# target, which is much faster than emulating the compiler. It lives under dist so no generated
@@ -294,7 +305,7 @@ docker-archive: ## Export the manager image for every release platform as an OCI
 	echo "$(PLATFORMS)" > dist/image-platforms.txt
 
 .PHONY: docker-release
-docker-release: ## Push the manager image and export the same build as an OCI archive in one pass. Specify an image with IMG.
+docker-release: require-version ## Push the manager image and export the same build as an OCI archive in one pass. Specify IMG and VERSION.
 	mkdir -p dist
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > dist/Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name cmp-issuer-releaser
@@ -306,8 +317,7 @@ docker-release: ## Push the manager image and export the same build as an OCI ar
 	echo "$(PLATFORMS)" > dist/image-platforms.txt
 
 .PHONY: release-bundle
-release-bundle: ## Assemble the air-gapped install bundle from the artifacts already in dist. Specify VERSION.
-	@test -n "$(VERSION)" || { echo "Set VERSION, for example VERSION=v0.1.0" >&2; exit 1; }
+release-bundle: require-version ## Assemble the air-gapped install bundle from the artifacts already in dist. Specify VERSION.
 	@test -f "$(IMAGE_ARCHIVE)" || { echo "Run docker-archive first, $(IMAGE_ARCHIVE) is missing" >&2; exit 1; }
 	@test -f dist/install.yaml || { echo "Run build-installer first, dist/install.yaml is missing" >&2; exit 1; }
 	mkdir -p "dist/cmp-issuer-$(VERSION)/images" "dist/cmp-issuer-$(VERSION)/charts"
