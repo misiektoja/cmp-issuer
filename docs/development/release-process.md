@@ -26,7 +26,7 @@ Each release publishes:
 | --- | --- |
 | `test.yml` | Unit tests and OpenSSL interoperability |
 | `lint.yml` | golangci-lint |
-| `docs.yml` | Strict MkDocs build |
+| `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
 | `test-chart.yml` | Helm lint |
 | `test-e2e.yml` | Kind e2e suite |
 | `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
@@ -41,11 +41,22 @@ branch, so `helm repo add` picks it up.
 
 The chart archives stay attached to their GitHub Release and the index points at those asset URLs, so
 GitHub Pages serves only `index.yaml`. Existing entries are merged rather than replaced, which keeps
-older versions installable, and the index lives under `charts/` so a documentation site can occupy the
+older versions installable, and the index lives under `charts/` so the documentation site occupies the
 root of the same Pages site.
 
 The first run creates the `gh-pages` branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.
+
+## Documentation site
+
+`docs.yml` runs the strict MkDocs build on every push and pull request. On the default branch it also
+publishes the rendered site to the root of the `gh-pages` branch, so the documentation and the chart
+repository share one Pages site.
+
+The publishing step replaces the previous documentation, so a page removed from `docs/` disappears from
+the site, but it leaves `charts/index.yaml` and `.nojekyll` alone. Both publishers take the `gh-pages`
+concurrency group, so a release that lands while a documentation change is publishing waits instead of
+racing.
 
 ## Pre-release checklist
 
