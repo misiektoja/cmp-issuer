@@ -46,6 +46,7 @@ make docker-archive IMG=ghcr.io/misiektoja/cmp-issuer:v0.1.0 VERSION=v0.1.0
 | `ejbca-test-image.yml` | Publishes the preconfigured CMP server image, rebuilding it only when the upstream release moves |
 | `interop-ncm.yml` | Enrollment against a hosted Nokia NCM instance, started by hand |
 | `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
+| `go-patch.yml` | Weekly check for a newer Go patch in the targeted release series, opening the bump as a pull request |
 | `release.yml` | Build and publish on tag (not yet run) |
 | `publish-chart.yml` | Add the released chart to the Helm repository index (not yet run) |
 
