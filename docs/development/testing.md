@@ -72,30 +72,46 @@ Enrollment against Nokia NCM and EJBCA is verified manually against dedicated CM
 
 ### Enrolling from a hosted NCM instance in CI
 
-`interop-ncm.yml` performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a `CMPIssuer`, enrolls a `Certificate` and inspects the certificate that comes back. It runs both protection mechanisms as separate jobs.
+`interop-ncm.yml` performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a `CMPIssuer`, enrolls a `Certificate` and inspects the certificate that comes back.
 
 It is the only workflow that reaches a PKI outside the repository, so it never runs on a push or a pull request. Start it from the Actions tab, optionally choosing the Kubernetes and cert-manager versions, and enable the repeat enrollment when the server profile allows the same identity to enroll twice.
 
-Configure it under **Settings, Secrets and variables, Actions**. A repository without these values reports which mechanisms are unconfigured and skips the enrollment rather than failing:
+### What each run covers
+
+One job runs per protection mechanism and transport, so a fully configured endpoint exercises four independent enrollments:
+
+| | HTTP | HTTPS |
+| --- | --- | --- |
+| **PasswordBasedMac** | shared secret, plain transport | shared secret, TLS transport |
+| **Signature** | request signing certificate, plain transport | request signing certificate, TLS transport |
+
+Each job builds its own Kind cluster, so the four run in parallel and a failure in one does not mask the others. Configure only the transports the server exposes: a missing `NCM_CMP_HTTP_URL` or `NCM_CMP_HTTPS_URL` skips that column rather than failing it. Every job asserts that the endpoint it received actually uses the scheme of its own row, so a secret pasted into the wrong box fails loudly instead of quietly enrolling over HTTP twice.
+
+### Configuration
+
+Configure it under **Settings, Secrets and variables, Actions**. A repository without these values reports what is unconfigured and skips the enrollment rather than failing:
 
 | Secret | Required | Contents |
 | --- | --- | --- |
-| `NCM_CMP_URL` | yes | CMP endpoint URL |
-| `NCM_CMP_RECIPIENT` | yes | Recipient distinguished name of the issuing CA |
-| `NCM_CMP_TRUST` | yes | PEM anchor that signs the CMP responses |
-| `NCM_CMP_PBM_REFERENCE` | for PasswordBasedMac | Reference value |
-| `NCM_CMP_PBM_SECRET` | for PasswordBasedMac | Secret value |
-| `NCM_CMP_SIGNER_CERT` | for Signature | PEM certificate that protects the request |
-| `NCM_CMP_SIGNER_KEY` | for Signature | PEM private key for that certificate |
-| `NCM_CMP_SIGNER_CHAIN` | no | PEM chain sent in `extraCerts`, which also sets `chainKey` |
-| `NCM_CMP_TLS_TRUST` | no | PEM anchor for the HTTPS server certificate |
+| `NCM_CMP_HTTP_URL` | one URL at least | Plain HTTP CMP endpoint, for example `http://ncm.example:8080/pkix/` |
+| `NCM_CMP_HTTPS_URL` | one URL at least | HTTPS CMP endpoint, for example `https://ncm.example/pkix/` |
+| `NCM_CMP_RECIPIENT_DN` | yes | Distinguished name of the issuing CA, sent as `spec.protocol.recipient` |
+| `NCM_CMP_RESPONSE_TRUST` | yes | PEM anchor that signs the CMP responses and the issued chain |
+| `NCM_CMP_PBM_REFERENCE` | for PasswordBasedMac | Reference number identifying the shared secret |
+| `NCM_CMP_PBM_SECRET` | for PasswordBasedMac | Shared secret value |
+| `NCM_CMP_BOOTSTRAP_CERT` | for Signature | PEM certificate that signs the CMP requests |
+| `NCM_CMP_BOOTSTRAP_KEY` | for Signature | PEM private key for that certificate |
+| `NCM_CMP_BOOTSTRAP_CHAIN` | no | PEM issuers of that certificate, sent in `extraCerts`, which also sets `chainKey` |
+| `NCM_CMP_HTTPS_TRUST` | no | PEM anchor for the HTTPS server certificate, when it is not publicly trusted |
 
 | Variable | Required | Contents |
 | --- | --- | --- |
 | `NCM_CMP_CERT_PROFILE` | no | Certificate profile sent as `spec.protocol.certProfile` |
 | `NCM_CMP_COMMON_NAME` | no | Common name to enroll, default `cmp-issuer-interop.example` |
 
-Every value is written from the environment into a file and read back with `--from-file`, so no credential reaches a command line, and the endpoint and recipient are secrets rather than variables so a run against a private instance does not print them.
+`NCM_CMP_RESPONSE_TRUST` and `NCM_CMP_HTTPS_TRUST` are two different anchors and are frequently confused. The first is CMP trust, which verifies the signature protecting the response message and the chain that comes back in it. The second is transport trust, which verifies the TLS server certificate and is used only on the HTTPS rows. A server may present a publicly trusted TLS certificate while issuing from a private CA, in which case only the first is needed. See [HTTP and HTTPS transport](../guide/transport.md).
+
+Every value is written from the environment into a file and read back with `--from-file`, so no credential reaches a command line, and the endpoint URLs and the recipient are secrets rather than variables so a run against a private instance does not print them.
 
 ## Lint and supply chain
 
