@@ -127,10 +127,12 @@ jobs:
             signature=true
           fi
 
-          echo "passwordbasedmac=${passwordbasedmac}" >> "$GITHUB_OUTPUT"
-          echo "signature=${signature}" >> "$GITHUB_OUTPUT"
-          echo "http=${http}" >> "$GITHUB_OUTPUT"
-          echo "https=${https}" >> "$GITHUB_OUTPUT"
+          {
+            echo "passwordbasedmac=${passwordbasedmac}"
+            echo "signature=${signature}"
+            echo "http=${http}"
+            echo "https=${https}"
+          } >> "$GITHUB_OUTPUT"
           {
             echo "| Protection | Configured |"
             echo "| --- | --- |"
