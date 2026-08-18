@@ -1,6 +1,6 @@
 apiVersion: v2
 name: cmp-issuer
-description: A Helm chart to distribute cmp-issuer
+description: A vendor-neutral cert-manager external issuer for Certificate Management Protocol servers
 type: application
 
 version: 0.1.0
@@ -24,6 +24,14 @@ maintainers:
 keywords:
   - kubernetes
   - operator
+  - cert-manager
+  - cmp
+  - cmpv2
+  - rfc4210
+  - pki
+  - certificates
+  - x509
+  - issuer
 
 annotations:
   kubebuilder.io/generated-by: kubebuilder
