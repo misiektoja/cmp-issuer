@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [0.1.0] - TBD
 
-First development release of cmp-issuer, a vendor-neutral cert-manager external issuer that enrolls certificates from CMPv2 servers. A cert-manager `Certificate` referencing a `CMPIssuer` or `CMPClusterIssuer` is enrolled over CMP with mandatory message protection, and the certificate lands in the usual TLS Secret. Certificate authorities that queue requests or require manual approval are supported: enrollment polls to completion, survives a controller restart, and never issues a duplicate certificate. Every enrollment is recorded in the controller log with the certificate it produced, so `kubectl logs` explains an issuance without access to the CMP server. The release ships a Helm chart, a documentation set and attested multi-architecture images.
+First development release of cmp-issuer, a vendor-neutral cert-manager external issuer that enrolls certificates from CMPv2 servers. A cert-manager `Certificate` referencing a `CMPIssuer` or `CMPClusterIssuer` is enrolled over CMP with mandatory message protection, and the certificate lands in the usual TLS Secret. Certificate authorities that queue requests or require manual approval are supported: enrollment polls to completion, survives a controller restart, and never issues a duplicate certificate. Every enrollment is recorded in the controller log with the certificate it produced, so `kubectl logs` explains an issuance without access to the CMP server. The release ships a Helm chart, a documentation set and attested multi-architecture images, and is licensed under Apache-2.0.
 
 ### Features
 
