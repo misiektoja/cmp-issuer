@@ -1,0 +1,77 @@
+name: Bug report
+description: Enrollment fails, a resource is stuck, or behavior does not match the documentation
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report a suspected vulnerability here. Follow [SECURITY.md](https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md) instead.
+
+        Never paste credentials, private keys, full CSRs or protected CMP messages into an issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The steps, with the `CMPIssuer` or `CMPClusterIssuer` spec and the `Certificate` you applied. Redact the endpoint, recipient and any credential.
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: Resource status
+      description: |
+        Output of the commands below, redacted. `CMPTransaction` records the phase an enrollment reached.
+        ```
+        kubectl describe cmpissuer <name> -n <namespace>
+        kubectl describe certificaterequest <name> -n <namespace>
+        kubectl get cmptransactions -A
+        ```
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Controller log
+      description: "`kubectl logs -n cmp-issuer-system deployment/cmp-issuer-controller-manager`. Setting `logging.level=debug` adds the CMP message flow."
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: cmp-issuer version
+      placeholder: chart version, image tag or commit
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Kubernetes and cert-manager versions
+      placeholder: Kubernetes v1.34, cert-manager v1.20.3
+    validations:
+      required: true
+
+  - type: input
+    id: server
+    attributes:
+      label: CMP server
+      description: Product and version, and the protection mechanism in use.
+      placeholder: EJBCA CE 9.3.7, PasswordBasedMac
+    validations:
+      required: false
