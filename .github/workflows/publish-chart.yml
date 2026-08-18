@@ -5,7 +5,9 @@
 # `helm repo add` serves it. It is inert until a release is published by hand or it is dispatched.
 #
 # The chart archives stay attached to their GitHub Release. Only `index.yaml` lives on the `gh-pages`
-# branch, under `charts/`, so a documentation site can occupy the root of the same Pages site.
+# branch, under `charts/`, so the documentation site published by `docs.yml` occupies the root of the
+# same Pages site. That workflow leaves `charts/` alone, and both take the same concurrency group so
+# they never push to the branch at the same time.
 name: Publish chart repository
 
 on:
@@ -27,6 +29,9 @@ jobs:
     permissions:
       # Reading the release assets and pushing the refreshed index to gh-pages.
       contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - name: Clone the code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
