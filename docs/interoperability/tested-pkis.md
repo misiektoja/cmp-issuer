@@ -50,9 +50,18 @@ The NCM CMP listener applies a per-host request limit that is independent of CMP
 | Item | Value |
 | --- | --- |
 | Product | EJBCA CE 9.3.7 |
-| Mode | CMP alias in **client mode** |
+| Mode | CMP alias in **client mode** and in **RA mode** |
 | Protection tested | PasswordBasedMac, certificate signature |
+| Transports tested | HTTP and HTTPS |
 | Authentication modules | HMAC and EndEntityCertificate |
+
+### Continuously verified
+
+Enrollment against EJBCA runs in CI on every change, against a server started in the test cluster. Each run issues real certificates through cert-manager `Certificate` resources over three combinations: a shared secret over HTTP, the same over HTTPS, and a certificate signature over HTTP. The endpoint certificate is verified against a pinned authority that did not sign the CMP responses, so a run also confirms that the CMP trust and the transport trust are decided separately.
+
+### RA mode
+
+In RA mode EJBCA registers the end entity from the request itself, using `ra.namegenerationscheme` `DN` with `ra.namegenerationparameters` `CN` to take the name from the request subject. A repeated enrollment of the same subject is answered with a new certificate rather than refused, so RA mode avoids the client mode constraint below. Response protection is still signed by the issuing CA, which is what `spec.cmpTrust.caSecretRef` pins.
 
 ### Client mode constraints
 
@@ -80,7 +89,7 @@ The mock keeps one transaction per TCP connection. The test reaches it through a
 
 * Compatibility with arbitrary CMP servers or profiles
 * IR, KUR, revocation or CMPv3
-* mTLS or HTTPS interoperability beyond custom trust configuration
+* mTLS to a CMP endpoint. HTTPS is verified against EJBCA above, and the endpoints of the other servers listed here serve CMP over plain HTTP only
 * NCM REST renewal
 
 See [Support matrix](../support-matrix.md).
