@@ -207,6 +207,22 @@ supply-chain: govulncheck gitleaks sbom ## Run every supply chain check that nee
 build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
+# The downloaded tools under bin are deliberately kept, so a clean build does not re-download the
+# whole toolchain. Remove those with clean-tools. Removing bin/manager does change the mtime of bin
+# itself, which every tool target depends on, so the next lint run rebuilds the custom golangci-lint
+# binary once. The tools themselves are not downloaded again.
+.PHONY: clean
+clean: ## Remove build, test and documentation outputs, keeping the downloaded tools.
+	rm -f bin/manager cover.out Dockerfile.cross
+	rm -rf dist site
+
+.PHONY: clean-tools
+clean-tools: ## Remove the tool binaries downloaded into bin.
+	rm -rf "$(LOCALBIN)"
+
+.PHONY: clean-all
+clean-all: clean clean-tools ## Remove every generated artifact, including the downloaded tools.
+
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./cmd/main.go
