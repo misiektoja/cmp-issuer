@@ -1,3 +1,7 @@
+# Runs the Kind e2e suite across the supported Kubernetes and cert-manager versions.
+#
+# The node image tags come from the Kind release pinned in the Makefile, so they have to be updated
+# together with KIND_VERSION. An empty node image uses the default that Kind ships with.
 name: E2E Tests
 
 on:
@@ -10,9 +14,23 @@ jobs:
   test-e2e:
     permissions:
       contents: read
-    name: Run on Ubuntu
+    name: Kubernetes ${{ matrix.kubernetes }}, cert-manager ${{ matrix.certManager }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # One failing combination must not hide the result of the others.
+      fail-fast: false
+      matrix:
+        include:
+          - kubernetes: "1.36"
+            nodeImage: ""
+            certManager: v1.20.2
+          - kubernetes: "1.35"
+            nodeImage: kindest/node:v1.35.0
+            certManager: v1.20.2
+          - kubernetes: "1.34"
+            nodeImage: kindest/node:v1.34.0
+            certManager: v1.19.6
     steps:
       - name: Clone the code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -25,6 +43,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Running Test e2e
+        env:
+          KIND_NODE_IMAGE: ${{ matrix.nodeImage }}
+          CERT_MANAGER_VERSION: ${{ matrix.certManager }}
         run: |
           go mod tidy
           make test-e2e
