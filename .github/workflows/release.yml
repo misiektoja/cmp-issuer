@@ -92,7 +92,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           make helm
-          ./bin/helm package charts/chart --destination dist --version "${VERSION#v}" --app-version "${VERSION}"
+          ./bin/helm package charts/cmp-issuer --destination dist --version "${VERSION#v}" --app-version "${VERSION}"
 
       - name: Assemble the air-gapped install bundle
         env:
