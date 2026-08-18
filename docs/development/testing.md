@@ -66,9 +66,36 @@ CI runs the suite once per supported combination, so a change that only works on
 
 The two older rows pin a digest, taken from the node images published for the Kind release pinned as `KIND_VERSION` in the `Makefile`, so they have to be updated with it. The newest row pins no image and follows the Kind default.
 
+## Enrollment against a CMP server in the cluster
+
+```bash
+make test-e2e-ejbca
+```
+
+This runs a second set of specs that enroll real certificates from EJBCA Community Edition running in the same Kind cluster, through cert-manager `Certificate` resources and the full controller path:
+
+| Spec | What it enrolls |
+| --- | --- |
+| Shared secret over HTTP | `PasswordBasedMac` protected P10CR against a plain endpoint |
+| Shared secret over HTTPS | the same request over TLS, with the endpoint certificate verified against a pinned authority |
+| Certificate signature over HTTP | `Signature` protected P10CR using a registration certificate |
+| Transaction records | one `CMPTransaction` per enrollment, each reporting `Issued` |
+
+Each issued certificate is checked against the authority that signed it and against the chain stored in its Secret. The CMP response trust anchor and the endpoint TLS trust anchor are two different authorities, so a run also proves the two trust decisions stay separate.
+
+The server image already carries its certification authorities, its CMP aliases and a TLS certificate issued for the Service name the suite uses, so a run costs a container start rather than a certificate authority setup. It is pulled when it has been published and built locally otherwise:
+
+```bash
+make ejbca-test-image
+```
+
+`EJBCA_VERSION` in the `Makefile` selects the upstream release, and `EJBCA_IMAGE_REVISION` republishes the image after a configuration change. `test/e2e/ejbca/README.md` describes what the image contains and why the aliases are configured the way they are.
+
+CI runs these specs in their own job, and rebuilds the server image only when the upstream release it is built from is republished under a new digest.
+
 ## Interoperability against real CMP servers
 
-Enrollment against Nokia NCM and EJBCA is verified manually against dedicated CMP servers, because running a certificate authority inside the test cluster costs far more per run than the rest of the suite. Outcomes are summarized in [Tested PKIs](../interoperability/tested-pkis.md).
+Enrollment against Nokia NCM is verified against a dedicated CMP server, because that product is not distributable as a test image. Outcomes are summarized in [Tested PKIs](../interoperability/tested-pkis.md).
 
 ### Enrolling from a hosted NCM instance in CI
 
