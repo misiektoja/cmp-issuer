@@ -1691,7 +1691,7 @@
 <tr>
 <td>Leaked credentials</td>
 <td>gitleaks</td>
-<td>Working tree and full commit history</td>
+<td>Working tree and full source history, excluding the generated documentation site</td>
 </tr>
 <tr>
 <td>Bill of materials</td>
@@ -1702,6 +1702,26 @@
 <td>Container vulnerabilities</td>
 <td>Trivy</td>
 <td>Base image packages and the compiled manager binary, fixed findings only</td>
+</tr>
+<tr>
+<td>Static analysis</td>
+<td>CodeQL</td>
+<td>Go code, built with the toolchain named in <code>go.mod</code>, reported under code scanning</td>
+</tr>
+<tr>
+<td>Workflow definitions</td>
+<td>actionlint</td>
+<td>Trigger, expression and shell errors in the GitHub Actions workflows</td>
+</tr>
+<tr>
+<td>Workflow supply chain</td>
+<td><code>test/workflows</code></td>
+<td>Commit-SHA action pinning, least-privilege token scopes and no interpolated shell</td>
+</tr>
+<tr>
+<td>Toolchain currency</td>
+<td><code>go-patch.yml</code></td>
+<td>Newest Go patch in the release series <code>go.mod</code> targets</td>
 </tr>
 <tr>
 <td>Documentation</td>

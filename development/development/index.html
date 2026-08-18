@@ -1685,7 +1685,7 @@
 <p>Guide for building and running cmp-issuer from source.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Go 1.26 or later</li>
+<li>Go 1.26.6 or later, the minimum <code>go.mod</code> declares so every build carries the standard library security fixes from that patch</li>
 <li>Docker or Podman for image builds</li>
 <li>Kubebuilder v4.15 for API scaffolding (optional for day-to-day work)</li>
 <li>Python with MkDocs dependencies for documentation (<code>make docs-deps</code>)</li>
@@ -1733,20 +1733,27 @@
 <td><code>test/e2e/ejbca/</code></td>
 <td>Preconfigured CMP server image that the enrollment tests start</td>
 </tr>
+<tr>
+<td><code>test/workflows/</code></td>
+<td>Supply chain checks over the GitHub Actions workflow definitions</td>
+</tr>
 </tbody>
 </table>
 <h2 id="common-commands">Common commands<a class="headerlink" href="#common-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span><span class="nb">test</span><span class="w">            </span><span class="c1"># Unit and envtest suites</span>
 make<span class="w"> </span>test-e2e<span class="w">        </span><span class="c1"># Kind-based controller tests</span>
 make<span class="w"> </span>test-e2e-ejbca<span class="w">  </span><span class="c1"># Enrollment from a CMP server started in the test cluster</span>
-make<span class="w"> </span>lint<span class="w">            </span><span class="c1"># golangci-lint v2.12.2</span>
+make<span class="w"> </span>lint<span class="w">            </span><span class="c1"># golangci-lint v2.12.2 and actionlint v1.7.12</span>
 make<span class="w"> </span>run<span class="w">             </span><span class="c1"># Run controller locally against current kubeconfig</span>
 make<span class="w"> </span>manifests<span class="w">       </span><span class="c1"># Regenerate CRDs and RBAC from markers</span>
 make<span class="w"> </span>generate<span class="w">        </span><span class="c1"># Regenerate DeepCopy code</span>
 make<span class="w"> </span>docs-build<span class="w">      </span><span class="c1"># Strict MkDocs build</span>
 make<span class="w"> </span>helm-lint<span class="w">       </span><span class="c1"># Helm chart lint</span>
+make<span class="w"> </span>clean<span class="w">           </span><span class="c1"># Remove build, test and documentation outputs</span>
 </code></pre></div>
+<p><code>make clean</code> keeps the tool binaries downloaded into <code>bin/</code>, so the next build does not re-download the toolchain. <code>make clean-tools</code> removes those as well and <code>make clean-all</code> does both.</p>
 <p>After editing <code>*_types.go</code> run <code>make manifests generate</code>. After editing Go sources run <code>make lint-fix test</code>.</p>
+<p><code>make lint</code> lints the GitHub Actions workflows as well, so a mistyped trigger or a bad expression is reported before a push rather than by a workflow run that has already started. <code>lint-fix</code> and <code>lint-config</code> stay Go-only. actionlint runs shellcheck over <code>run:</code> blocks when shellcheck is on PATH, which it is on the GitHub-hosted runners, so install it locally to see the same findings CI does.</p>
 <h2 id="local-controller">Local controller<a class="headerlink" href="#local-controller" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>run
 </code></pre></div>

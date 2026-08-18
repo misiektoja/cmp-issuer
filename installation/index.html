@@ -1869,10 +1869,10 @@ helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class
 cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, <code>install.yaml</code>,
 the licence and notices, and an <code>INSTALL.txt</code> repeating the two commands below.</p>
 <p>Copy the image into a registry your cluster can reach:</p>
-<div class="highlight"><pre><span></span><code>skopeo<span class="w"> </span>copy<span class="w"> </span>--all<span class="w"> </span>oci-archive:images/cmp-issuer-image.tar<span class="w"> </span>docker://&lt;registry&gt;/cmp-issuer:&lt;version&gt;
+<div class="highlight"><pre><span></span><code>skopeo<span class="w"> </span>copy<span class="w"> </span>--all<span class="w"> </span>oci-archive:images/cmp-issuer-*-image.tar<span class="w"> </span>docker://&lt;registry&gt;/cmp-issuer:&lt;version&gt;
 </code></pre></div>
 <p>Import it straight into each node's container runtime instead when you have no registry at all:</p>
-<div class="highlight"><pre><span></span><code>ctr<span class="w"> </span>--namespace<span class="w"> </span>k8s.io<span class="w"> </span>images<span class="w"> </span>import<span class="w"> </span>images/cmp-issuer-image.tar
+<div class="highlight"><pre><span></span><code>ctr<span class="w"> </span>--namespace<span class="w"> </span>k8s.io<span class="w"> </span>images<span class="w"> </span>import<span class="w"> </span>images/cmp-issuer-*-image.tar
 </code></pre></div>
 <p>Then install from the bundled chart, pointing it at wherever the image now lives:</p>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>charts/cmp-issuer-*.tgz<span class="w"> </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span>--create-namespace<span class="w"> </span>--set<span class="w"> </span>manager.image.repository<span class="o">=</span>&lt;registry&gt;/cmp-issuer

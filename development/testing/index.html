@@ -1762,6 +1762,18 @@
 <li>Delayed confirmation and nonce echo rules</li>
 <li>Transaction identifier pinning across a retry and recovery of an already issued chain</li>
 </ul>
+<p>The run writes <code>cover.out</code> and reports one figure for <code>api/</code> and <code>internal/</code> together, set by
+<code>COVER_PACKAGES</code>. Go otherwise credits coverage only to the package a test binary lives in, which makes
+a package holding no test file of its own read as 0% even when every run executes it. Inspect the result
+per function with <code>go tool cover -func=cover.out</code> or in a browser with <code>go tool cover -html=cover.out</code>.
+<code>cmd/</code> and <code>test/utils/</code> are reported as having no test files, which is accurate: the first is manager
+wiring and the second is scaffolding for the e2e suite.</p>
+<p><code>test/workflows</code> runs in the same command and checks the GitHub Actions workflow definitions rather than
+Go code, so it reports no coverage either. It fails a change that references an action by tag or branch
+instead of a commit SHA, that drops the version comment which makes a pinned SHA reviewable, that
+interpolates a <code>${{ }}</code> expression into a <code>run:</code> block instead of passing the value through <code>env</code>, or
+that adds a workflow with no top-level <code>permissions</code> key. These are the conventions every workflow here
+already follows, and nothing else enforces them.</p>
 <h2 id="openssl-cmp-interoperability">OpenSSL CMP interoperability<a class="headerlink" href="#openssl-cmp-interoperability" title="Permanent link">&para;</a></h2>
 <p>CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.</p>
 <p>Locally set <code>OPENSSL_BIN</code> to select a non-default OpenSSL binary. The test skips when OpenSSL is missing.</p>
@@ -1995,9 +2007,16 @@
 make<span class="w"> </span>govulncheck
 make<span class="w"> </span>gitleaks
 make<span class="w"> </span>sbom
+make<span class="w"> </span>go-patch-check
 make<span class="w"> </span>scan-image<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>&lt;image&gt;
 </code></pre></div>
 <p>CI runs these on push and on a weekly schedule.</p>
+<p><code>make go-patch-check</code> reports whether <code>go.mod</code> still names the newest Go patch in the release series it targets, and <code>make go-patch-update</code> moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. <code>go-patch.yml</code> runs the same check weekly and opens the bump as a pull request. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.</p>
+<p><code>make lint</code> runs golangci-lint over the Go code and actionlint over <code>.github/workflows</code>. actionlint
+delegates <code>run:</code> blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
+install shellcheck locally to see the same findings CI does. <code>codeql.yml</code> additionally runs CodeQL
+static analysis over the Go code on every push to the default branch, on pull requests and weekly, and
+reports under Security, Code scanning.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../development/">Development</a></li>
