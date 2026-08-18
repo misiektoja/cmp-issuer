@@ -4,29 +4,35 @@
 # or a pull request. Start it by hand, or enable the schedule below once the endpoint is stable.
 #
 # It is inert until the repository carries the configuration. Every run begins with a preflight job
-# that reports which protection mechanisms are configured and stops cleanly when none are, so a fork or
-# a repository without the endpoint gets a green skip rather than a failure.
+# that reports which protection mechanisms and which transports are configured and stops cleanly when
+# either dimension is empty, so a fork or a repository without the endpoint gets a green skip rather
+# than a failure.
+#
+# One job runs per protection mechanism and transport, so a complete configuration exercises four
+# enrollments: PasswordBasedMac over HTTP, PasswordBasedMac over HTTPS, Signature over HTTP and
+# Signature over HTTPS. Configure only the transports the server actually exposes.
 #
 # Repository configuration, all under Settings, Secrets and variables, Actions:
 #
 # | Secret | Required | Contents |
 # | --- | --- | --- |
-# | `NCM_CMP_URL` | yes | CMP endpoint URL, for example `https://host.example/pkix/` |
-# | `NCM_CMP_RECIPIENT` | yes | Recipient distinguished name of the issuing CA |
-# | `NCM_CMP_TRUST` | yes | PEM anchor that signs the CMP responses |
-# | `NCM_CMP_PBM_REFERENCE` | PasswordBasedMac | PasswordBasedMac reference value |
-# | `NCM_CMP_PBM_SECRET` | PasswordBasedMac | PasswordBasedMac secret value |
-# | `NCM_CMP_SIGNER_CERT` | Signature | PEM certificate that protects the request |
-# | `NCM_CMP_SIGNER_KEY` | Signature | PEM private key for that certificate |
-# | `NCM_CMP_SIGNER_CHAIN` | no | PEM chain sent in `extraCerts` when the CA needs it |
-# | `NCM_CMP_TLS_TRUST` | no | PEM anchor for the HTTPS server certificate, when it is not publicly trusted |
+# | `NCM_CMP_HTTP_URL` | one URL at least | Plain HTTP CMP endpoint, for example `http://host.example:8080/pkix/` |
+# | `NCM_CMP_HTTPS_URL` | one URL at least | HTTPS CMP endpoint, for example `https://host.example/pkix/` |
+# | `NCM_CMP_RECIPIENT_DN` | yes | Distinguished name of the issuing CA, the CMP recipient |
+# | `NCM_CMP_RESPONSE_TRUST` | yes | PEM anchor that signs the CMP responses and the issued chain |
+# | `NCM_CMP_PBM_REFERENCE` | PasswordBasedMac | Reference number identifying the shared secret |
+# | `NCM_CMP_PBM_SECRET` | PasswordBasedMac | Shared secret value |
+# | `NCM_CMP_BOOTSTRAP_CERT` | Signature | PEM certificate that signs the CMP requests |
+# | `NCM_CMP_BOOTSTRAP_KEY` | Signature | PEM private key for that certificate |
+# | `NCM_CMP_BOOTSTRAP_CHAIN` | no | PEM issuers of that certificate, sent in `extraCerts` |
+# | `NCM_CMP_HTTPS_TRUST` | no | PEM anchor for the HTTPS server certificate, when it is not publicly trusted |
 #
 # | Variable | Required | Contents |
 # | --- | --- | --- |
 # | `NCM_CMP_CERT_PROFILE` | no | Certificate profile name sent as `spec.protocol.certProfile` |
 # | `NCM_CMP_COMMON_NAME` | no | Common name to enroll, default `cmp-issuer-interop.example` |
 #
-# The endpoint URL and the recipient are held as secrets rather than variables so that a run against a
+# The endpoint URLs and the recipient are held as secrets rather than variables so that a run against a
 # private instance does not print them in the log.
 name: NCM interoperability
 
@@ -68,53 +74,86 @@ jobs:
     outputs:
       passwordbasedmac: ${{ steps.check.outputs.passwordbasedmac }}
       signature: ${{ steps.check.outputs.signature }}
+      http: ${{ steps.check.outputs.http }}
+      https: ${{ steps.check.outputs.https }}
     steps:
-      - name: Report which protection mechanisms are configured
+      - name: Report which protection mechanisms and transports are configured
         id: check
         env:
-          URL: ${{ secrets.NCM_CMP_URL }}
-          RECIPIENT: ${{ secrets.NCM_CMP_RECIPIENT }}
-          TRUST: ${{ secrets.NCM_CMP_TRUST }}
+          HTTP_URL: ${{ secrets.NCM_CMP_HTTP_URL }}
+          HTTPS_URL: ${{ secrets.NCM_CMP_HTTPS_URL }}
+          RECIPIENT_DN: ${{ secrets.NCM_CMP_RECIPIENT_DN }}
+          RESPONSE_TRUST: ${{ secrets.NCM_CMP_RESPONSE_TRUST }}
+          HTTPS_TRUST: ${{ secrets.NCM_CMP_HTTPS_TRUST }}
           PBM_REFERENCE: ${{ secrets.NCM_CMP_PBM_REFERENCE }}
           PBM_SECRET: ${{ secrets.NCM_CMP_PBM_SECRET }}
-          SIGNER_CERT: ${{ secrets.NCM_CMP_SIGNER_CERT }}
-          SIGNER_KEY: ${{ secrets.NCM_CMP_SIGNER_KEY }}
+          BOOTSTRAP_CERT: ${{ secrets.NCM_CMP_BOOTSTRAP_CERT }}
+          BOOTSTRAP_KEY: ${{ secrets.NCM_CMP_BOOTSTRAP_KEY }}
         run: |
           # Only whether each value is present is reported. No value is printed.
           endpoint=true
-          for name in URL RECIPIENT TRUST; do
+          for name in RECIPIENT_DN RESPONSE_TRUST; do
             if [ -z "${!name}" ]; then
               echo "missing NCM_CMP_${name}"
               endpoint=false
             fi
           done
 
+          # A transport is exercised only when its own URL is configured, so a server that offers just
+          # one of the two is not reported as a failure.
+          http=false
+          if [ "$endpoint" = true ] && [ -n "$HTTP_URL" ]; then
+            http=true
+          fi
+          https=false
+          if [ "$endpoint" = true ] && [ -n "$HTTPS_URL" ]; then
+            https=true
+          fi
+          if [ "$endpoint" = true ] && [ -z "$HTTP_URL" ] && [ -z "$HTTPS_URL" ]; then
+            echo "missing NCM_CMP_HTTP_URL and NCM_CMP_HTTPS_URL, at least one is needed"
+          fi
+
           passwordbasedmac=false
-          if [ "$endpoint" = true ] && [ -n "$PBM_REFERENCE" ] && [ -n "$PBM_SECRET" ]; then
+          if [ -n "$PBM_REFERENCE" ] && [ -n "$PBM_SECRET" ]; then
             passwordbasedmac=true
           fi
           signature=false
-          if [ "$endpoint" = true ] && [ -n "$SIGNER_CERT" ] && [ -n "$SIGNER_KEY" ]; then
+          if [ -n "$BOOTSTRAP_CERT" ] && [ -n "$BOOTSTRAP_KEY" ]; then
             signature=true
           fi
 
           echo "passwordbasedmac=${passwordbasedmac}" >> "$GITHUB_OUTPUT"
           echo "signature=${signature}" >> "$GITHUB_OUTPUT"
+          echo "http=${http}" >> "$GITHUB_OUTPUT"
+          echo "https=${https}" >> "$GITHUB_OUTPUT"
           {
             echo "| Protection | Configured |"
             echo "| --- | --- |"
             echo "| PasswordBasedMac | ${passwordbasedmac} |"
             echo "| Signature | ${signature} |"
+            echo ""
+            echo "| Transport | Configured |"
+            echo "| --- | --- |"
+            echo "| HTTP | ${http} |"
+            echo "| HTTPS | ${https} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+          if [ "$https" = true ] && [ -z "$HTTPS_TRUST" ]; then
+            echo "NCM_CMP_HTTPS_TRUST is not set, so the HTTPS server certificate must chain to a publicly trusted root."
+          fi
           if [ "$passwordbasedmac" = false ] && [ "$signature" = false ]; then
+            echo "No CMP protection credentials are configured for this repository, so the enrollment jobs are skipped."
+          fi
+          if [ "$http" = false ] && [ "$https" = false ]; then
             echo "No NCM endpoint is configured for this repository, so the enrollment jobs are skipped."
           fi
 
   enroll:
-    name: Enroll with ${{ matrix.protection }}
+    name: Enroll with ${{ matrix.protection }} over ${{ matrix.transport }}
     needs: preflight
-    if: needs.preflight.outputs.passwordbasedmac == 'true' || needs.preflight.outputs.signature == 'true'
+    if: >-
+      (needs.preflight.outputs.passwordbasedmac == 'true' || needs.preflight.outputs.signature == 'true')
+      && (needs.preflight.outputs.http == 'true' || needs.preflight.outputs.https == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -123,22 +162,36 @@ jobs:
       fail-fast: false
       matrix:
         protection: [PasswordBasedMac, Signature]
+        transport: [HTTP, HTTPS]
     steps:
-      - name: Decide whether this protection mechanism is configured
+      - name: Decide whether this combination is configured
         id: configured
         env:
           PASSWORDBASEDMAC: ${{ needs.preflight.outputs.passwordbasedmac }}
           SIGNATURE: ${{ needs.preflight.outputs.signature }}
+          HTTP: ${{ needs.preflight.outputs.http }}
+          HTTPS: ${{ needs.preflight.outputs.https }}
           PROTECTION: ${{ matrix.protection }}
+          TRANSPORT: ${{ matrix.transport }}
         run: |
           case "$PROTECTION" in
-            PasswordBasedMac) run="$PASSWORDBASEDMAC" ;;
-            Signature) run="$SIGNATURE" ;;
-            *) run=false ;;
+            PasswordBasedMac) protection="$PASSWORDBASEDMAC" ;;
+            Signature) protection="$SIGNATURE" ;;
+            *) protection=false ;;
           esac
+          case "$TRANSPORT" in
+            HTTP) transport="$HTTP" ;;
+            HTTPS) transport="$HTTPS" ;;
+            *) transport=false ;;
+          esac
+
+          run=false
+          if [ "$protection" = true ] && [ "$transport" = true ]; then
+            run=true
+          fi
           echo "run=${run}" >> "$GITHUB_OUTPUT"
           if [ "$run" != true ]; then
-            echo "${PROTECTION} is not configured for this repository, skipping."
+            echo "${PROTECTION} over ${TRANSPORT} is not configured for this repository, skipping."
           fi
 
       - name: Clone the code
@@ -186,14 +239,15 @@ jobs:
       - name: Store the endpoint credentials
         if: steps.configured.outputs.run == 'true'
         env:
-          TRUST: ${{ secrets.NCM_CMP_TRUST }}
-          TLS_TRUST: ${{ secrets.NCM_CMP_TLS_TRUST }}
+          RESPONSE_TRUST: ${{ secrets.NCM_CMP_RESPONSE_TRUST }}
+          HTTPS_TRUST: ${{ secrets.NCM_CMP_HTTPS_TRUST }}
           PBM_REFERENCE: ${{ secrets.NCM_CMP_PBM_REFERENCE }}
           PBM_SECRET: ${{ secrets.NCM_CMP_PBM_SECRET }}
-          SIGNER_CERT: ${{ secrets.NCM_CMP_SIGNER_CERT }}
-          SIGNER_KEY: ${{ secrets.NCM_CMP_SIGNER_KEY }}
-          SIGNER_CHAIN: ${{ secrets.NCM_CMP_SIGNER_CHAIN }}
+          BOOTSTRAP_CERT: ${{ secrets.NCM_CMP_BOOTSTRAP_CERT }}
+          BOOTSTRAP_KEY: ${{ secrets.NCM_CMP_BOOTSTRAP_KEY }}
+          BOOTSTRAP_CHAIN: ${{ secrets.NCM_CMP_BOOTSTRAP_CHAIN }}
           PROTECTION: ${{ matrix.protection }}
+          TRANSPORT: ${{ matrix.transport }}
         run: |
           # Values are written from the environment into files under the runner temporary directory and
           # read back with --from-file, so no credential ever appears in a command line.
@@ -201,15 +255,16 @@ jobs:
           material="${RUNNER_TEMP}/cmp"
           mkdir -p "$material"
 
-          printf '%s' "$TRUST" > "${material}/ca.crt"
+          printf '%s' "$RESPONSE_TRUST" > "${material}/ca.crt"
           kubectl create secret generic cmp-trust -n "$ISSUER_NAMESPACE" \
             --from-file=ca.crt="${material}/ca.crt" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          if [ -n "$TLS_TRUST" ]; then
-            printf '%s' "$TLS_TRUST" > "${material}/tls-ca.crt"
-            kubectl create secret generic cmp-tls-trust -n "$ISSUER_NAMESPACE" \
-              --from-file=ca.crt="${material}/tls-ca.crt" \
+          # Transport trust is separate from CMP trust and is only meaningful on HTTPS.
+          if [ "$TRANSPORT" = HTTPS ] && [ -n "$HTTPS_TRUST" ]; then
+            printf '%s' "$HTTPS_TRUST" > "${material}/https-ca.crt"
+            kubectl create secret generic cmp-https-trust -n "$ISSUER_NAMESPACE" \
+              --from-file=ca.crt="${material}/https-ca.crt" \
               --dry-run=client -o yaml | kubectl apply -f -
           fi
 
@@ -221,15 +276,15 @@ jobs:
               --from-file=secret="${material}/secret" \
               --dry-run=client -o yaml | kubectl apply -f -
           else
-            printf '%s' "$SIGNER_CERT" > "${material}/tls.crt"
-            printf '%s' "$SIGNER_KEY" > "${material}/tls.key"
+            printf '%s' "$BOOTSTRAP_CERT" > "${material}/tls.crt"
+            printf '%s' "$BOOTSTRAP_KEY" > "${material}/tls.key"
             create=(kubectl create secret generic cmp-credentials -n "$ISSUER_NAMESPACE"
               --from-file=tls.crt="${material}/tls.crt"
               --from-file=tls.key="${material}/tls.key")
-            if [ -n "$SIGNER_CHAIN" ]; then
+            if [ -n "$BOOTSTRAP_CHAIN" ]; then
               # A separate file name so the chain cannot overwrite the CMP trust anchor.
-              printf '%s' "$SIGNER_CHAIN" > "${material}/signer-chain.crt"
-              create+=(--from-file=ca.crt="${material}/signer-chain.crt")
+              printf '%s' "$BOOTSTRAP_CHAIN" > "${material}/bootstrap-chain.crt"
+              create+=(--from-file=ca.crt="${material}/bootstrap-chain.crt")
             fi
             "${create[@]}" --dry-run=client -o yaml | kubectl apply -f -
           fi
@@ -237,13 +292,21 @@ jobs:
       - name: Create the issuer
         if: steps.configured.outputs.run == 'true'
         env:
-          URL: ${{ secrets.NCM_CMP_URL }}
-          RECIPIENT: ${{ secrets.NCM_CMP_RECIPIENT }}
+          HTTP_URL: ${{ secrets.NCM_CMP_HTTP_URL }}
+          HTTPS_URL: ${{ secrets.NCM_CMP_HTTPS_URL }}
+          RECIPIENT_DN: ${{ secrets.NCM_CMP_RECIPIENT_DN }}
           CERT_PROFILE: ${{ vars.NCM_CMP_CERT_PROFILE }}
-          TLS_TRUST: ${{ secrets.NCM_CMP_TLS_TRUST }}
-          SIGNER_CHAIN: ${{ secrets.NCM_CMP_SIGNER_CHAIN }}
+          HTTPS_TRUST: ${{ secrets.NCM_CMP_HTTPS_TRUST }}
+          BOOTSTRAP_CHAIN: ${{ secrets.NCM_CMP_BOOTSTRAP_CHAIN }}
           PROTECTION: ${{ matrix.protection }}
+          TRANSPORT: ${{ matrix.transport }}
         run: |
+          if [ "$TRANSPORT" = HTTPS ]; then
+            URL="$HTTPS_URL"
+          else
+            URL="$HTTP_URL"
+          fi
+
           # The manifest is fed through stdin so the endpoint and the recipient stay out of the log.
           {
             cat <<YAML
@@ -260,7 +323,7 @@ jobs:
             protocol:
               version: 2
               initialEnrollment: P10CR
-              recipient: "${RECIPIENT}"
+              recipient: "${RECIPIENT_DN}"
               confirmation: Explicit
           YAML
             if [ -n "$CERT_PROFILE" ]; then
@@ -291,7 +354,7 @@ jobs:
                 privateKeyKey: tls.key
           YAML
               # The chain is only sent when a key names it, so it is set with the secret that carries it.
-              if [ -n "$SIGNER_CHAIN" ]; then
+              if [ -n "$BOOTSTRAP_CHAIN" ]; then
                 echo "      chainKey: ca.crt"
               fi
             fi
@@ -303,18 +366,35 @@ jobs:
             policy:
               grantedModifications: Reject
           YAML
-            if [ -n "$TLS_TRUST" ]; then
+            if [ "$TRANSPORT" = HTTPS ] && [ -n "$HTTPS_TRUST" ]; then
               cat <<'YAML'
             transport:
               tls:
                 caSecretRef:
-                  name: cmp-tls-trust
+                  name: cmp-https-trust
                   key: ca.crt
           YAML
             fi
           } | kubectl apply -f -
 
           kubectl wait cmpissuer/ncm -n "$ISSUER_NAMESPACE" --for condition=Ready --timeout 2m
+
+      - name: Confirm the endpoint scheme matches the transport under test
+        if: steps.configured.outputs.run == 'true'
+        env:
+          TRANSPORT: ${{ matrix.transport }}
+        run: |
+          # A misconfigured secret would otherwise let the HTTPS row silently repeat the HTTP one.
+          scheme="$(kubectl get cmpissuer/ncm -n "$ISSUER_NAMESPACE" -o jsonpath='{.spec.endpoint.url}' | cut -d: -f1)"
+          case "$TRANSPORT" in
+            HTTP) expected=http ;;
+            HTTPS) expected=https ;;
+          esac
+          if [ "$scheme" != "$expected" ]; then
+            echo "::error::the ${TRANSPORT} row is pointed at a ${scheme} endpoint, check NCM_CMP_${TRANSPORT}_URL"
+            exit 1
+          fi
+          echo "enrolling over ${scheme}"
 
       - name: Enroll a certificate
         if: steps.configured.outputs.run == 'true'
