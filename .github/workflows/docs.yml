@@ -1,8 +1,15 @@
+# Builds the documentation site on every change and publishes it from the default branch.
+#
+# The site is served from the `gh-pages` branch, which the chart repository shares: `publish-chart.yml`
+# keeps `charts/index.yaml` there so that `helm repo add` and the documentation can live on one Pages
+# site. Publishing therefore replaces only the documentation files and leaves `charts/` untouched. Both
+# workflows take the same concurrency group so they never push to the branch at the same time.
 name: Documentation
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions: {}
 
@@ -28,3 +35,79 @@ jobs:
 
       - name: Build the documentation
         run: make docs-build
+
+  publish:
+    name: Publish to GitHub Pages
+    needs: docs
+    # Only the default branch publishes. A pull request and a topic branch stop at the strict build.
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      # Pushing the rendered site to the gh-pages branch.
+      contents: write
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install the documentation dependencies
+        run: make docs-deps
+
+      - name: Build the documentation
+        run: make docs-build
+
+      - name: Fetch the published branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Building the branch in a fresh directory handles the first run, where gh-pages does not
+          # exist yet, through the same code path as an update.
+          git init -q -b gh-pages published
+          git -C published remote add origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git -C published fetch -q --depth 1 origin gh-pages; then
+            git -C published reset -q --hard FETCH_HEAD
+            echo "gh-pages exists, replacing the documentation on it"
+          else
+            echo "gh-pages does not exist yet, publishing the documentation for the first time"
+          fi
+
+      - name: Replace the documentation, keeping the chart repository
+        run: |
+          # `git rm` clears the previous site so a page deleted from `docs/` disappears from the
+          # published site too. The chart index and the Jekyll opt-out belong to publish-chart.yml and
+          # are excluded, so the two publishers do not overwrite each other.
+          if [ -n "$(git -C published ls-files)" ]; then
+            git -C published rm -r -q --ignore-unmatch -- . ':(exclude)charts' ':(exclude).nojekyll'
+          fi
+          cp -R site/. published/
+          # Pages would otherwise run the content through Jekyll, which drops files it does not expect.
+          touch published/.nojekyll
+
+      - name: Publish the site
+        run: |
+          git -C published add -A
+          if git -C published diff --quiet --cached; then
+            echo "site already current, nothing to publish"
+            exit 0
+          fi
+          git -C published \
+            -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Publish the documentation for ${GITHUB_SHA}"
+          git -C published push origin gh-pages
+
+      - name: Report the site URL
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          name="${GITHUB_REPOSITORY##*/}"
+          echo "Published https://${owner}.github.io/${name}/" >> "$GITHUB_STEP_SUMMARY"
