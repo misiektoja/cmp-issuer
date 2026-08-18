@@ -79,6 +79,15 @@ The API is `v1alpha1` and may change before a stable release.
 
 CMP encoding and protection sit behind project-owned interfaces. go-pkicmp types must not appear in CRDs or public packages. See [ADR 0001](../adr/0001-cmp-library.md).
 
+`go.mod` carries a `replace` directive that redirects go-pkicmp to a fork holding verification-path corrections that are pending upstream. Keep it until those corrections are published. Advance the pin by hand, because Dependabot does not propose updates for a replaced module:
+
+```sh
+go mod edit -replace=github.com/tsaarni/go-pkicmp=github.com/misiektoja/go-pkicmp-ng@cmp-hardening
+go mod tidy
+```
+
+Removing the directive later is the reverse, `go mod edit -dropreplace` followed by `go get` of the released version. Either way rerun `make test` and one enrollment against a real CMP server, since the library sits directly in the verification path.
+
 ## License
 
 Original code is Apache-2.0. Dependencies retain their own licenses. See `THIRD_PARTY_NOTICES.md`.
