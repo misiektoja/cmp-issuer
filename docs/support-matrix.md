@@ -41,7 +41,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Capability | Status | Notes |
 | --- | --- | --- |
 | HTTP CMP endpoint | Implemented, Interoperability tested | No transport confidentiality |
-| HTTPS with custom trust anchors | Implemented | TLS trust is separate from CMP trust |
+| HTTPS with custom trust anchors | Implemented, Interoperability tested | TLS trust is separate from CMP trust, and the two anchors are different authorities in the tested setup |
 | HTTPS with system trust | Implemented | Omit `transport.tls.caSecretRef` |
 | mTLS client authentication | Planned | `clientCertificateSecretRef` is reserved |
 | Backup CMP endpoint with failover | Planned | A second endpoint used when the primary is unreachable |
@@ -76,7 +76,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Server | Protection modes tested | Status |
 | --- | --- | --- |
 | Nokia NCM 26.7 / Insta Certifier 7.20 | PasswordBasedMac, Signature | Interoperability tested |
-| EJBCA Community Edition 9.3.7 (client mode alias) | PasswordBasedMac, Signature | Interoperability tested |
+| EJBCA Community Edition 9.3.7 (client mode and RA mode aliases) | PasswordBasedMac, Signature | Interoperability tested in CI |
 | OpenSSL CMP mock (`openssl cmp`) | PasswordBasedMac | Interoperability tested in CI |
 
 See [Tested PKIs](interoperability/tested-pkis.md) for server-specific configuration notes.
