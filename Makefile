@@ -69,7 +69,12 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 # - KUBECTL_KUBERC=true
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
+# CertManager version, empty for the suite default; pin one for a compatibility run with:
+# - CERT_MANAGER_VERSION=v1.19.6
 KIND_CLUSTER ?= cmp-issuer-test-e2e
+# Kubernetes version for the Kind cluster, empty for the Kind default. Pin one with a published node
+# image digest, for example KIND_NODE_IMAGE=kindest/node:v1.34.0, to run against another release.
+KIND_NODE_IMAGE ?=
 # The budget covers building the manager image and installing cert-manager before the specs run.
 E2E_TIMEOUT ?= 20m
 
@@ -79,8 +84,8 @@ setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 		*"$(KIND_CLUSTER)"*) \
 			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
 		*) \
-			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
+			echo "Creating Kind cluster '$(KIND_CLUSTER)'$(if $(KIND_NODE_IMAGE), on $(KIND_NODE_IMAGE),)..."; \
+			$(KIND) create cluster --name $(KIND_CLUSTER) $(if $(KIND_NODE_IMAGE),--image $(KIND_NODE_IMAGE),) ;; \
 	esac
 
 .PHONY: test-e2e
