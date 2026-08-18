@@ -50,3 +50,35 @@ jobs:
         run: |
           go mod tidy
           make test-e2e
+
+  # Enrollment against a real CMP server, which the specs above deliberately leave out so that a
+  # controller regression is reported without waiting for a certification authority to start.
+  test-e2e-ejbca:
+    permissions:
+      contents: read
+      # Pulling the preconfigured CMP server image published by the CMP server test image workflow.
+      packages: read
+    name: Enrollment against EJBCA
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+
+      # The CMP server image is pulled when it has been published and built on the spot otherwise, so
+      # this job passes on a repository whose test image workflow has not run yet.
+      - name: Running enrollment test e2e
+        run: make test-e2e-ejbca
