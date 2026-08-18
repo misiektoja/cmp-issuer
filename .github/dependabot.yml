@@ -2,8 +2,10 @@
 #
 # Go modules and GitHub Actions are grouped so one pull request carries a whole ecosystem's patch and
 # minor updates. Major updates stay separate, because they need their own validation run: an issuer-lib
-# bump is a behavioral change to the signing contract, and a go-pkicmp bump touches the CMP verification
-# path directly.
+# bump is a behavioral change to the signing contract.
+#
+# go-pkicmp is not covered here at all. It is redirected by a `replace` directive in go.mod, which
+# Dependabot does not update, so its pin is advanced by hand. See docs/adr/0001-cmp-library.md.
 version: 2
 
 updates:
