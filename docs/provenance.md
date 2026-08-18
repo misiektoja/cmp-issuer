@@ -14,7 +14,7 @@ cmp-issuer is built from public standards and public project APIs, starting from
 | [3GPP TS 33.310 V18.8.0](https://www.etsi.org/deliver/etsi_ts/133300_133399/133310/18.08.00_60/ts_133310v180800p.pdf) | ETSI terms apply | Telecom certificate-management context only |
 | [cert-manager external issuer guidance](https://cert-manager.io/docs/contributing/external-issuers/) | CC BY 4.0 documentation | External issuer API integration and approval model |
 | [issuer-lib](https://github.com/cert-manager/issuer-lib) | Apache-2.0 | Controller reconciliation contracts and signer integration |
-| [go-pkicmp](https://github.com/tsaarni/go-pkicmp) | Apache-2.0 | CMP parsing and protection behind project-owned interfaces |
+| [go-pkicmp](https://github.com/tsaarni/go-pkicmp) | Apache-2.0 | CMP parsing and protection behind project-owned interfaces, built from the [go-pkicmp-ng](https://github.com/misiektoja/go-pkicmp-ng) fork while verification-path corrections are pending upstream |
 | [Kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) | Apache-2.0 | Generated project scaffolding and Kubernetes API generation |
 | [OpenSSL CMP](https://docs.openssl.org/master/man1/openssl-cmp/) | Apache-2.0 | Independent interoperability oracle for tests |
 | [EJBCA CMP documentation](https://docs.keyfactor.com/ejbca/latest/cmp) | Public vendor documentation | EJBCA CE configuration used for interoperability testing |
@@ -46,3 +46,5 @@ Every check runs on each push and on a weekly schedule so that vulnerabilities p
 ## Dependency policy
 
 Every protocol dependency is pinned. Any verbatim ASN.1 module or RFC code component added later is recorded here with its exact source and required notice.
+
+A protocol dependency is built from a fork only while a correction is pending upstream. The fork keeps the upstream module path and license, the exact version is pinned in `go.mod` and recorded in `THIRD_PARTY_NOTICES.md`, and the bill of materials attached to a release names the fork it was built from. See [ADR 0001](adr/0001-cmp-library.md).
