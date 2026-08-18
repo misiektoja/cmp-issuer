@@ -16,4 +16,4 @@ The project has no released version yet. Security fixes apply to the current def
 
 ## Security posture
 
-CMP message protection is mandatory for HTTP and HTTPS. HTTPS adds transport confidentiality and server authentication. It does not replace CMP PKIProtection. See [docs/security/threat-model.md](docs/security/threat-model.md).
+CMP message protection is mandatory for HTTP and HTTPS. HTTPS adds transport confidentiality and server authentication. It does not replace CMP PKIProtection. See [the threat model](https://misiektoja.github.io/cmp-issuer/security/threat-model/).
