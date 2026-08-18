@@ -36,7 +36,7 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 | Check | Tool | Scope |
 | --- | --- | --- |
 | Vulnerable dependencies | govulncheck | Symbols reachable from the module and its dependencies |
-| Leaked credentials | gitleaks | Working tree and full commit history |
+| Leaked credentials | gitleaks | Working tree and full source history, excluding the generated documentation site |
 | Bill of materials | cyclonedx-gomod | Module graph with resolved licenses |
 | Container vulnerabilities | Trivy | Base image packages and the compiled manager binary, fixed findings only |
 | Static analysis | CodeQL | Go code, built with the toolchain named in `go.mod`, reported under code scanning |
