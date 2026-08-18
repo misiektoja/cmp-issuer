@@ -205,6 +205,66 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+## Multi-architecture image archive that the air-gapped bundle carries
+IMAGE_ARCHIVE ?= dist/cmp-issuer-image.tar
+
+.PHONY: docker-archive
+docker-archive: ## Export the manager image for every release platform as an OCI archive. Specify an image with IMG.
+	mkdir -p dist
+	# The cross Dockerfile builds the Go binary on the native platform and cross-compiles for the
+	# target, which is much faster than emulating the compiler. It lives under dist so no generated
+	# file lands next to the source.
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > dist/Dockerfile.cross
+	- $(CONTAINER_TOOL) buildx create --name cmp-issuer-archiver
+	$(CONTAINER_TOOL) buildx use cmp-issuer-archiver
+	$(CONTAINER_TOOL) buildx build --platform=$(PLATFORMS) --tag ${IMG} --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx rm cmp-issuer-archiver
+	# Recorded here so the bundle describes the archive it actually carries rather than the current
+	# value of PLATFORMS.
+	echo "$(PLATFORMS)" > dist/image-platforms.txt
+
+.PHONY: docker-release
+docker-release: ## Push the manager image and export the same build as an OCI archive in one pass. Specify an image with IMG.
+	mkdir -p dist
+	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > dist/Dockerfile.cross
+	- $(CONTAINER_TOOL) buildx create --name cmp-issuer-releaser
+	$(CONTAINER_TOOL) buildx use cmp-issuer-releaser
+	# Two exporters on one build, so the archive in the air-gapped bundle is bit for bit the image
+	# that was published rather than a second build of the same source.
+	$(CONTAINER_TOOL) buildx build --platform=$(PLATFORMS) --tag ${IMG} --output type=image,push=true --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx rm cmp-issuer-releaser
+	echo "$(PLATFORMS)" > dist/image-platforms.txt
+
+.PHONY: release-bundle
+release-bundle: ## Assemble the air-gapped install bundle from the artifacts already in dist. Specify VERSION.
+	@test -n "$(VERSION)" || { echo "Set VERSION, for example VERSION=v0.1.0" >&2; exit 1; }
+	@test -f "$(IMAGE_ARCHIVE)" || { echo "Run docker-archive first, $(IMAGE_ARCHIVE) is missing" >&2; exit 1; }
+	@test -f dist/install.yaml || { echo "Run build-installer first, dist/install.yaml is missing" >&2; exit 1; }
+	mkdir -p "dist/cmp-issuer-$(VERSION)/images" "dist/cmp-issuer-$(VERSION)/charts"
+	cp "$(IMAGE_ARCHIVE)" "dist/cmp-issuer-$(VERSION)/images/"
+	cp dist/cmp-issuer-*.tgz "dist/cmp-issuer-$(VERSION)/charts/"
+	cp dist/install.yaml README.md RELEASE_NOTES.md LICENSE THIRD_PARTY_NOTICES.md "dist/cmp-issuer-$(VERSION)/"
+	printf '%s\n' \
+		"cmp-issuer $(VERSION) air-gapped bundle" \
+		"" \
+		"Contents:" \
+		"  images/        OCI archive of the manager image, $$(cat dist/image-platforms.txt)" \
+		"  charts/        packaged Helm chart" \
+		"  install.yaml   self-contained manifest install" \
+		"" \
+		"1. Load the image into your own registry:" \
+		"     skopeo copy --all oci-archive:images/$(notdir $(IMAGE_ARCHIVE)) docker://<registry>/cmp-issuer:$(VERSION)" \
+		"   or import it straight into a node runtime:" \
+		"     ctr --namespace k8s.io images import images/$(notdir $(IMAGE_ARCHIVE))" \
+		"" \
+		"2. Install, pointing the chart at that registry:" \
+		"     helm install cmp-issuer charts/cmp-issuer-*.tgz --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer" \
+		"" \
+		"Documentation: https://misiektoja.github.io/cmp-issuer/" \
+		> "dist/cmp-issuer-$(VERSION)/INSTALL.txt"
+	tar czf "dist/cmp-issuer-$(VERSION)-airgap.tar.gz" -C dist "cmp-issuer-$(VERSION)"
+	@echo "Wrote dist/cmp-issuer-$(VERSION)-airgap.tar.gz"
+
 ##@ Deployment
 
 ifndef ignore-not-found
