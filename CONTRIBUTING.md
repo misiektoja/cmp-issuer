@@ -18,7 +18,7 @@ make test
 make docs-build
 ```
 
-`make test` also runs `go fmt` and `go vet`. Run `make test-e2e` when the controller or the end-to-end specs change, and `make helm-lint` when the chart changes.
+`make test` also runs `go fmt` and `go vet`. Run `make test-e2e` when the controller or the end-to-end specs change, `make test-e2e-ejbca` when the change touches enrollment, since that one issues real certificates from a CMP server started in the test cluster, and `make helm-lint` when the chart changes.
 
 Protocol changes need negative tests and an RFC citation. Interoperability claims need sanitized evidence naming the product and version.
 
