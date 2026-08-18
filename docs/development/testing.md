@@ -167,10 +167,13 @@ make lint
 make govulncheck
 make gitleaks
 make sbom
+make go-patch-check
 make scan-image IMG=<image>
 ```
 
 CI runs these on push and on a weekly schedule.
+
+`make go-patch-check` reports whether `go.mod` still names the newest Go patch in the release series it targets, and `make go-patch-update` moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. `go-patch.yml` runs the same check weekly and opens the bump as a pull request. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.
 
 `make lint` runs golangci-lint over the Go code and actionlint over `.github/workflows`. actionlint
 delegates `run:` blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
