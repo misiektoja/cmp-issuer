@@ -55,13 +55,24 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
+# GO_PACKAGES selects the packages the routine targets act on. test/e2e carries a build tag and runs
+# from its own targets. The programs under local/ are one-off probes kept outside version control and
+# run by hand, so they are excluded here to keep a local run identical to a continuous integration run,
+# where that directory does not exist at all. golangci-lint already skips it through .golangci.yml.
+GO_PACKAGES = go list ./... | grep -v '/e2e' | grep -v '/local/'
+
+# COVER_PACKAGES is the code the coverage figure is measured over. Coverage defaults to the package a
+# test binary lives in, so without this a package carrying no test file of its own reports 0% even when
+# every test run executes it. cmd is manager wiring and test/utils is scaffolding, so neither is counted.
+COVER_PACKAGES ?= ./api/...,./internal/...
+
 .PHONY: vet
 vet: ## Run go vet against code.
-	go vet ./...
+	go vet $$($(GO_PACKAGES))
 
 .PHONY: test
 test: manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$($(GO_PACKAGES)) -coverpkg=$(COVER_PACKAGES) -coverprofile cover.out
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
@@ -170,7 +181,7 @@ docs-serve: ## Serve the documentation site locally with live reload.
 
 .PHONY: govulncheck
 govulncheck: govulncheck-tool ## Report known vulnerabilities that reach the module or its dependencies.
-	"$(GOVULNCHECK)" ./...
+	"$(GOVULNCHECK)" $$($(GO_PACKAGES))
 
 .PHONY: gitleaks
 gitleaks: gitleaks-tool ## Scan the working tree and the commit history for leaked credentials.
