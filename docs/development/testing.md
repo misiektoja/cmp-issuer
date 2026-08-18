@@ -16,6 +16,13 @@ Coverage includes:
 * Delayed confirmation and nonce echo rules
 * Transaction identifier pinning across a retry and recovery of an already issued chain
 
+The run writes `cover.out` and reports one figure for `api/` and `internal/` together, set by
+`COVER_PACKAGES`. Go otherwise credits coverage only to the package a test binary lives in, which makes
+a package holding no test file of its own read as 0% even when every run executes it. Inspect the result
+per function with `go tool cover -func=cover.out` or in a browser with `go tool cover -html=cover.out`.
+`cmd/` and `test/utils/` are reported as having no test files, which is accurate: the first is manager
+wiring and the second is scaffolding for the e2e suite.
+
 ## OpenSSL CMP interoperability
 
 CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
