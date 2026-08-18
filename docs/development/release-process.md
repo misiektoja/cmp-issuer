@@ -19,6 +19,11 @@ Each release publishes:
 | Installer manifest | `dist/install.yaml` from Kustomize |
 | Helm chart | Packaged from `charts/chart` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer.cdx.json` |
+| Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz` with the image as an OCI archive, the chart, the installer, the notices and an `INSTALL.txt` |
+
+The image is pushed and exported to the OCI archive by a single `make docker-release` build with two
+exporters, so the bundled archive is the published image rather than a second build of the same source.
+`make release-bundle VERSION=<version>` then assembles the tarball from what is already in `dist`.
 
 ## CI workflows
 
