@@ -23,6 +23,13 @@ per function with `go tool cover -func=cover.out` or in a browser with `go tool 
 `cmd/` and `test/utils/` are reported as having no test files, which is accurate: the first is manager
 wiring and the second is scaffolding for the e2e suite.
 
+`test/workflows` runs in the same command and checks the GitHub Actions workflow definitions rather than
+Go code, so it reports no coverage either. It fails a change that references an action by tag or branch
+instead of a commit SHA, that drops the version comment which makes a pinned SHA reviewable, that
+interpolates a `${{ }}` expression into a `run:` block instead of passing the value through `env`, or
+that adds a workflow with no top-level `permissions` key. These are the conventions every workflow here
+already follows, and nothing else enforces them.
+
 ## OpenSSL CMP interoperability
 
 CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
@@ -164,6 +171,12 @@ make scan-image IMG=<image>
 ```
 
 CI runs these on push and on a weekly schedule.
+
+`make lint` runs golangci-lint over the Go code and actionlint over `.github/workflows`. actionlint
+delegates `run:` blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
+install shellcheck locally to see the same findings CI does. `codeql.yml` additionally runs CodeQL
+static analysis over the Go code on every push to the default branch, on pull requests and weekly, and
+reports under Security, Code scanning.
 
 ## Related pages
 
