@@ -29,6 +29,8 @@ A release publishes a multi-architecture manager image for `linux/amd64` and `li
 
 Each release also carries the installer manifest, the packaged Helm chart and a CycloneDX bill of materials generated from the Go module graph with license information.
 
+An air-gapped bundle is attached too, carrying the same image as an OCI archive next to the chart and the installer. It is exported by the build that pushes the image, not rebuilt afterwards, so the digest inside the archive is the digest the attestation covers. See [installing without registry access](installation.md#install-without-registry-access).
+
 ## Supply chain checks
 
 | Check | Tool | Scope |
