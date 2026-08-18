@@ -92,3 +92,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/tsaarni/go-pkicmp => github.com/misiektoja/go-pkicmp-ng v0.0.0-20260817124344-a18451f3cf35
