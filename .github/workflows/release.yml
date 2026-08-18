@@ -60,7 +60,9 @@ jobs:
       - name: Build and push the multi architecture image
         env:
           IMG: ${{ steps.release.outputs.image }}
-        run: make docker-buildx IMG="$IMG" PLATFORMS=linux/amd64,linux/arm64
+        # One build with two exporters, so the archive that ships in the air-gapped bundle is the
+        # published image rather than a rebuild of the same source.
+        run: make docker-release IMG="$IMG" PLATFORMS=linux/amd64,linux/arm64
 
       - name: Resolve the published image digest
         id: digest
@@ -92,10 +94,15 @@ jobs:
           make helm
           ./bin/helm package charts/chart --destination dist --version "${VERSION#v}" --app-version "${VERSION}"
 
+      - name: Assemble the air-gapped install bundle
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: make release-bundle VERSION="$VERSION"
+
       - name: Publish the release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           gh release create "$VERSION" --draft --generate-notes --title "$VERSION" || true
-          gh release upload "$VERSION" dist/install.yaml dist/cmp-issuer.cdx.json dist/cmp-issuer-*.tgz --clobber
+          gh release upload "$VERSION" dist/install.yaml dist/cmp-issuer.cdx.json dist/cmp-issuer-*.tgz "dist/cmp-issuer-${VERSION}-airgap.tar.gz" --clobber
