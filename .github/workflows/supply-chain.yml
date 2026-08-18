@@ -3,6 +3,7 @@ name: Supply chain
 on:
   push:
   pull_request:
+  workflow_dispatch:
   schedule:
     # A weekly run catches vulnerabilities that are published after a change merged.
     - cron: "17 5 * * 1"
