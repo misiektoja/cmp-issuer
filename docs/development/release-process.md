@@ -17,7 +17,7 @@ Each release publishes:
 | Container image | Multi-arch `linux/amd64` and `linux/arm64` on GitHub Container Registry |
 | Provenance attestation | SLSA-style build attestation for the image digest |
 | Installer manifest | `dist/install.yaml` from Kustomize |
-| Helm chart | Packaged from `charts/chart` and indexed into the chart repository |
+| Helm chart | Packaged from `charts/cmp-issuer` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer.cdx.json` |
 | Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz` with the image as an OCI archive, the chart, the installer, the notices and an `INSTALL.txt` |
 
