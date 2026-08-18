@@ -148,9 +148,13 @@ test-e2e-ejbca: setup-test-e2e ejbca-test-image-present manifests generate fmt v
 		go test -tags=e2e ./test/e2e/ -v -ginkgo.v -ginkgo.label-filter='ejbca' -timeout $(E2E_EJBCA_TIMEOUT)
 	$(MAKE) cleanup-test-e2e
 
+# The workflows are linted here rather than in their own target so that one command covers everything
+# a change can break, and so a mistyped trigger, an undefined secret or a bad expression is reported
+# before a push rather than by a workflow run that has already started.
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter
+lint: golangci-lint actionlint ## Run the Go and GitHub Actions linters.
 	"$(GOLANGCI_LINT)" run
+	"$(ACTIONLINT)"
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
@@ -386,6 +390,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 GOVULNCHECK ?= $(LOCALBIN)/govulncheck
 GITLEAKS ?= $(LOCALBIN)/gitleaks
+ACTIONLINT ?= $(LOCALBIN)/actionlint
 CYCLONEDX_GOMOD ?= $(LOCALBIN)/cyclonedx-gomod
 HELM ?= $(LOCALBIN)/helm
 
@@ -395,6 +400,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.21.0
 KIND_VERSION ?= v0.32.0
 GOVULNCHECK_VERSION ?= v1.7.0
 GITLEAKS_VERSION ?= v8.30.1
+ACTIONLINT_VERSION ?= v1.7.12
 CYCLONEDX_GOMOD_VERSION ?= v1.11.0
 HELM_VERSION ?= v3.20.1
 
@@ -438,6 +444,11 @@ $(GOVULNCHECK): $(LOCALBIN)
 gitleaks-tool: $(GITLEAKS) ## Download gitleaks locally if necessary.
 $(GITLEAKS): $(LOCALBIN)
 	$(call go-install-tool,$(GITLEAKS),github.com/zricethezav/gitleaks/v8,$(GITLEAKS_VERSION))
+
+.PHONY: actionlint
+actionlint: $(ACTIONLINT) ## Download actionlint locally if necessary.
+$(ACTIONLINT): $(LOCALBIN)
+	$(call go-install-tool,$(ACTIONLINT),github.com/rhysd/actionlint/cmd/actionlint,$(ACTIONLINT_VERSION))
 
 .PHONY: cyclonedx-gomod
 cyclonedx-gomod: $(CYCLONEDX_GOMOD) ## Download cyclonedx-gomod locally if necessary.
