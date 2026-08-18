@@ -1,6 +1,6 @@
 # Third-party notices
 
-cmp-issuer original code is GPL-3.0-only. The project links to separately licensed Go modules and uses separately licensed build tools.
+cmp-issuer original code is Apache-2.0. The project links to separately licensed Go modules and uses separately licensed build tools.
 
 ## Direct runtime dependencies under review
 
