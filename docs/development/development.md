@@ -4,7 +4,7 @@ Guide for building and running cmp-issuer from source.
 
 ## Prerequisites
 
-* Go 1.26 or later
+* Go 1.26.6 or later, the minimum `go.mod` declares so every build carries the standard library security fixes from that patch
 * Docker or Podman for image builds
 * Kubebuilder v4.15 for API scaffolding (optional for day-to-day work)
 * Python with MkDocs dependencies for documentation (`make docs-deps`)
