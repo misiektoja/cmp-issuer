@@ -6,6 +6,21 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 
+## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
+## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
+## prerelease and distribution versions such as `v1.34.1-gke.100` inside the range.
+kubeVersion: ">= 1.31.0-0"
+
+home: https://misiektoja.github.io/cmp-issuer/
+icon: https://raw.githubusercontent.com/misiektoja/cmp-issuer/main/docs/assets/logo.svg
+
+sources:
+  - https://github.com/misiektoja/cmp-issuer
+
+maintainers:
+  - name: misiektoja
+    url: https://github.com/misiektoja
+
 keywords:
   - kubernetes
   - operator
