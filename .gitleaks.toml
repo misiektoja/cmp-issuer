@@ -12,4 +12,6 @@ paths = [
   # Downloaded tool binaries and generated distribution artifacts.
   '''^bin/''',
   '''^dist/''',
+  # The documentation site mkdocs renders from docs/, which this scan covers in full.
+  '''^site/''',
 ]
