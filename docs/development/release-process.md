@@ -33,7 +33,8 @@ exporters, so the bundled archive is the published image rather than a second bu
 | `lint.yml` | golangci-lint |
 | `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
 | `test-chart.yml` | Helm lint |
-| `test-e2e.yml` | Kind e2e suite, once per supported Kubernetes and cert-manager version |
+| `test-e2e.yml` | Kind e2e suite, once per supported Kubernetes and cert-manager version, plus enrollment from a CMP server started in the cluster |
+| `ejbca-test-image.yml` | Publishes the preconfigured CMP server image, rebuilding it only when the upstream release moves |
 | `interop-ncm.yml` | Enrollment against a hosted Nokia NCM instance, started by hand |
 | `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
 | `release.yml` | Build and publish on tag (not yet run) |
@@ -67,7 +68,7 @@ racing.
 ## Pre-release checklist
 
 1. `make test`, `make lint`, `make docs-build`, `make helm-lint`
-2. `make test-e2e` when controller or e2e specs changed
+2. `make test-e2e` when controller or e2e specs changed, and `make test-e2e-ejbca` when enrollment changed
 3. Update `RELEASE_NOTES.md` with user-facing entries
 4. Tag and push only when authorized to publish
 
