@@ -2,9 +2,13 @@
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a suspected vulnerability. Until a private GitHub security contact exists, send the maintainer a minimal private report through a previously established private channel. Do not include private keys, shared secrets, full CSRs, protected CMP messages or production endpoint details.
+Do not open a public issue for a suspected vulnerability.
 
-Include the affected revision, impact, reproduction preconditions and a sanitized proof when possible. The maintainer will acknowledge the report and coordinate disclosure after a fix is available.
+Report it privately through [GitHub security advisories](https://github.com/misiektoja/cmp-issuer/security/advisories/new), which keeps the report visible only to the maintainer until an advisory is published. If you cannot use that, email <misiektoja-github@rm-rf.ninja>.
+
+Do not include private keys, shared secrets, full CSRs, protected CMP messages or production endpoint details in a report. Include the affected revision, the impact, the preconditions to reproduce it and a sanitized proof when you have one.
+
+The maintainer will acknowledge the report and coordinate disclosure once a fix is available.
 
 ## Supported versions
 
