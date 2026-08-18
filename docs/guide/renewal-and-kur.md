@@ -10,11 +10,26 @@ Whether that succeeds depends entirely on the CMP server profile:
 
 | Server behavior | Outcome |
 | --- | --- |
-| Allows repeat P10CR for the same identity | Renewal may succeed |
+| Allows repeat P10CR for the same identity | Renewal succeeds |
 | One-time enrollment code (EJBCA client mode) | Fails until the end entity is reset |
 | Requires KUR with proof of possession | **Unsupported** today |
 
-cmp-issuer does **not** implement KUR. Repeat P10CR is not KUR even when it happens to work.
+cmp-issuer does **not** implement KUR. Repeat P10CR is not KUR even when it works.
+
+### Both private key rotation policies work where the server allows re-enrollment
+
+Renewal was exercised against Nokia NCM 26.7 through cert-manager, with `cmctl renew`, for both values of `privateKey.rotationPolicy`:
+
+| `rotationPolicy` | What the renewal sends | Result |
+| --- | --- | --- |
+| `Always` | A new key, so a new public key in the CSR | New certificate, new serial |
+| `Never` | The existing key, so the same public key in the CSR | New certificate, new serial |
+
+Each renewal is a **new CMP transaction with a fresh identifier**, not a repeat of the earlier one, which is why it does not draw the `transactionIdInUse` refusal that an actual retransmission gets. See [transaction recovery](transaction-recovery.md) for that distinction.
+
+The controller reads no private key in either case. Under `Never` cert-manager reuses the key it already holds and signs the new CSR itself, exactly as it does for the first enrollment.
+
+A server whose profile authorizes enrollment once per identity refuses the second request. That is a property of the profile, not of cmp-issuer, and the failure is reported as a CMP rejection with the server's own `failInfo`.
 
 ## Nokia NCM REST renewal
 
@@ -33,7 +48,7 @@ Initial Registration with CRMF (`IR`) is also planned and shares the private-key
 | Operation | Status |
 | --- | --- |
 | P10CR initial enrollment | Implemented |
-| P10CR repeat enrollment | Server dependent, not KUR |
+| P10CR repeat enrollment | Server dependent, not KUR. Verified against NCM 26.7 for both rotation policies |
 | KUR | Planned |
 | IR (CRMF) | Planned |
 | Nokia NCM REST renewal | Unsupported |
