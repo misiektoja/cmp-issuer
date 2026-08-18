@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/misiektoja/cmp-issuer/security/advisories/new
+    about: Report privately through GitHub. Never open a public issue for a suspected vulnerability.
+  - name: Documentation
+    url: https://misiektoja.github.io/cmp-issuer/
+    about: Installation, configuration, troubleshooting and the support matrix.
+  - name: Question or idea
+    url: https://github.com/misiektoja/cmp-issuer/discussions
+    about: Ask about usage or discuss an approach before opening an issue.
