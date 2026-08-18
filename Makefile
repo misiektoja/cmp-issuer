@@ -424,6 +424,7 @@ HELM_KUBE_VERSION ?= v1.34.0
 
 .PHONY: helm-lint
 helm-lint: helm ## Validate that the chart renders and passes the Helm linter.
+	@test ! -d charts/chart || { echo "charts/chart exists, so a kubebuilder Helm plugin run scaffolded a second chart beside $(HELM_CHART_DIR). Move any regenerated templates into $(HELM_CHART_DIR) and delete charts/chart." >&2; exit 1; }
 	$(HELM) lint $(HELM_CHART_DIR) --kube-version $(HELM_KUBE_VERSION)
 	$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) > /dev/null
 
