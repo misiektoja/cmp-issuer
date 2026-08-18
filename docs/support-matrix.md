@@ -19,7 +19,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | CMPv2 P10CR initial enrollment | Implemented, Interoperability tested | PKCS #10 in P10CR, CP response |
 | CMPv2 IR (CRMF) | Planned | Requires workload private-key access |
 | CMPv2 KUR (true key update) | Planned | Distinct from cert-manager renewal or P10CR re-enrollment |
-| cert-manager Certificate renewal | Unsupported as KUR | May succeed only when the server treats repeat P10CR as allowed |
+| cert-manager Certificate renewal | Implemented as repeat P10CR, not KUR | Succeeds only where the server allows re-enrollment of an identity. Verified against NCM 26.7 with `rotationPolicy` `Always` and `Never` |
 | Explicit `certConf` confirmation | Implemented, Interoperability tested | Default |
 | Server-granted implicit confirmation | Implemented | Set `protocol.confirmation: Implicit` |
 | Asynchronous `waiting` / `pollReq` / `pollRep` | Implemented, Interoperability tested | Bounded by `spec.transaction` |
