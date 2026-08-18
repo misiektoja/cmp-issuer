@@ -9,6 +9,7 @@
 - [ ] `make test`
 - [ ] `make lint`
 - [ ] `make test-e2e`, for a controller or e2e change
+- [ ] `make test-e2e-ejbca`, for an enrollment change
 - [ ] `make docs-build`, for a documentation change
 - [ ] `make helm-lint`, for a chart change
 - [ ] Exercised against a real CMP server, for a protocol or controller change
