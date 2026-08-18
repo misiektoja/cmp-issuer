@@ -39,6 +39,9 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 | Leaked credentials | gitleaks | Working tree and full commit history |
 | Bill of materials | cyclonedx-gomod | Module graph with resolved licenses |
 | Container vulnerabilities | Trivy | Base image packages and the compiled manager binary, fixed findings only |
+| Static analysis | CodeQL | Go code, built with the toolchain named in `go.mod`, reported under code scanning |
+| Workflow definitions | actionlint | Trigger, expression and shell errors in the GitHub Actions workflows |
+| Workflow supply chain | `test/workflows` | Commit-SHA action pinning, least-privilege token scopes and no interpolated shell |
 | Documentation | MkDocs strict mode | Broken links, unresolved anchors and omitted files |
 
 Every check runs on each push and on a weekly schedule so that vulnerabilities published after a change merged are still reported. Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.
