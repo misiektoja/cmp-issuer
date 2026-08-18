@@ -24,17 +24,20 @@ Key directories:
 | `charts/cmp-issuer/` | Helm chart |
 | `docs/` | MkDocs site |
 | `test/e2e/` | Kind-based controller tests |
+| `test/e2e/ejbca/` | Preconfigured CMP server image that the enrollment tests start |
 
 ## Common commands
 
 ```bash
-make test          # Unit and envtest suites
-make lint          # golangci-lint v2.12.2
-make run           # Run controller locally against current kubeconfig
-make manifests     # Regenerate CRDs and RBAC from markers
-make generate      # Regenerate DeepCopy code
-make docs-build    # Strict MkDocs build
-make helm-lint     # Helm chart lint
+make test            # Unit and envtest suites
+make test-e2e        # Kind-based controller tests
+make test-e2e-ejbca  # Enrollment from a CMP server started in the test cluster
+make lint            # golangci-lint v2.12.2
+make run             # Run controller locally against current kubeconfig
+make manifests       # Regenerate CRDs and RBAC from markers
+make generate        # Regenerate DeepCopy code
+make docs-build      # Strict MkDocs build
+make helm-lint       # Helm chart lint
 ```
 
 After editing `*_types.go` run `make manifests generate`. After editing Go sources run `make lint-fix test`.
