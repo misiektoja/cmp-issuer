@@ -57,6 +57,13 @@ const (
 	recipientDN = "CN=Unreachable CMP CA,O=cmp-issuer e2e"
 	// readyIssuer is the fully configured issuer that the request specs submit to.
 	readyIssuer = "cmp-issuer-e2e-ready"
+	// unapprovedIssuer is configured the same way, but cert-manager holds no approval permission for it,
+	// so the denial spec decides its requests itself instead of racing the built-in approver.
+	unapprovedIssuer = "cmp-issuer-e2e-unapproved"
+	// apiGroup is the API group that the issuer kinds are served in.
+	apiGroup = "certmanager.misiektoja.github.io"
+	// approverClusterRole is the shipped ClusterRole that grants cert-manager approval for this issuer type.
+	approverClusterRole = "cmp-issuer-cert-manager-approver-role"
 	// readinessTimeout bounds a single issuer reconciliation.
 	readinessTimeout = 90 * time.Second
 	// requestTimeout bounds the signing attempt of an approved CertificateRequest.
@@ -145,9 +152,14 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 	})
 
 	It("sends no CMP message for a denied CertificateRequest", func() {
+		By("creating an issuer that cert-manager holds no approval permission for")
+		issuer := passwordIssuerManifest(unapprovedIssuer, credentialSecretName, trustSecretName, "")
+		Expect(kubectlApply(cmpNamespace, issuer)).To(Succeed())
+		expectIssuerCondition(unapprovedIssuer, "True", "")
+
 		By("requesting a certificate that an approver will reject")
 		certificate := "cmp-issuer-e2e-denied"
-		manifest := fmt.Sprintf(certificateTemplate, certificate, certificate+"-tls", certificate, readyIssuer)
+		manifest := fmt.Sprintf(certificateTemplate, certificate, certificate+"-tls", certificate, unapprovedIssuer)
 		Expect(kubectlApply(cmpNamespace, manifest)).To(Succeed())
 		request := waitForCertificateRequest(certificate)
 
