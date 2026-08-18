@@ -56,7 +56,15 @@ Two variables select the versions, so one suite covers the whole supported range
 make test-e2e KIND_NODE_IMAGE=kindest/node:v1.34.0 CERT_MANAGER_VERSION=v1.19.6
 ```
 
-CI runs the suite once per supported combination, so a change that only works on the newest Kubernetes or the newest cert-manager fails before release. The node image tags follow the Kind release pinned as `KIND_VERSION` in the `Makefile` and have to be updated with it.
+CI runs the suite once per supported combination, so a change that only works on the newest Kubernetes or the newest cert-manager fails before release:
+
+| Kubernetes | cert-manager |
+| --- | --- |
+| 1.36, the default of the pinned Kind release | v1.21.1 |
+| 1.35 | v1.20.3 |
+| 1.34 | v1.19.6 |
+
+The two older rows pin a digest, taken from the node images published for the Kind release pinned as `KIND_VERSION` in the `Makefile`, so they have to be updated with it. The newest row pins no image and follows the Kind default.
 
 ## Interoperability against real CMP servers
 
