@@ -1,0 +1,52 @@
+# Keeps dependencies current without letting updates arrive faster than they can be reviewed.
+#
+# Go modules and GitHub Actions are grouped so one pull request carries a whole ecosystem's patch and
+# minor updates. Major updates stay separate, because they need their own validation run: an issuer-lib
+# bump is a behavioral change to the signing contract, and a go-pkicmp bump touches the CMP verification
+# path directly.
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      go-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build
+      include: scope
