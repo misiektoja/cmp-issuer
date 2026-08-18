@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="cmp-issuer">
+  <title>cmp-issuer</title>
+  <rect width="256" height="256" rx="56" fill="#3949AB"/>
+  <rect x="60" y="36" width="136" height="152" rx="14" fill="#FFFFFF"/>
+  <rect x="84" y="70" width="88" height="12" rx="6" fill="#C5CAE9"/>
+  <rect x="84" y="98" width="60" height="12" rx="6" fill="#C5CAE9"/>
+  <path d="M100 180 L100 234 L128 216 L156 234 L156 180 Z" fill="#FF7043"/>
+  <circle cx="128" cy="176" r="38" fill="#FF7043"/>
+  <circle cx="128" cy="176" r="26" fill="#FFFFFF"/>
+  <path d="M116 176 l8 9 16 -18" fill="none" stroke="#FF7043" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
