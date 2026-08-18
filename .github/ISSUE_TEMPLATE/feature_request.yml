@@ -1,0 +1,41 @@
+name: Feature request
+description: Ask for a capability that cmp-issuer does not have yet
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The [support matrix](https://github.com/misiektoja/cmp-issuer/blob/main/docs/support-matrix.md) lists what is implemented and what is already planned, including IR and CRMF, true KUR, PBMAC1 and revocation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The operational problem, not the implementation you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would solve it
+      description: The behavior, field or workflow you would like. Mention the CMP operation or RFC section when the request is protocol level.
+    validations:
+      required: true
+
+  - type: input
+    id: server
+    attributes:
+      label: CMP server this concerns
+      placeholder: Nokia NCM 26.7, EJBCA CE 9.3.7, other
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+      description: What you do today instead, if anything.
+    validations:
+      required: false
