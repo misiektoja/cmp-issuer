@@ -42,6 +42,7 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 | Static analysis | CodeQL | Go code, built with the toolchain named in `go.mod`, reported under code scanning |
 | Workflow definitions | actionlint | Trigger, expression and shell errors in the GitHub Actions workflows |
 | Workflow supply chain | `test/workflows` | Commit-SHA action pinning, least-privilege token scopes and no interpolated shell |
+| Toolchain currency | `go-patch.yml` | Newest Go patch in the release series `go.mod` targets |
 | Documentation | MkDocs strict mode | Broken links, unresolved anchors and omitted files |
 
 Every check runs on each push and on a weekly schedule so that vulnerabilities published after a change merged are still reported. Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.
