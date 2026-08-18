@@ -84,13 +84,13 @@ the licence and notices, and an `INSTALL.txt` repeating the two commands below.
 Copy the image into a registry your cluster can reach:
 
 ```bash
-skopeo copy --all oci-archive:images/cmp-issuer-image.tar docker://<registry>/cmp-issuer:<version>
+skopeo copy --all oci-archive:images/cmp-issuer-*-image.tar docker://<registry>/cmp-issuer:<version>
 ```
 
 Import it straight into each node's container runtime instead when you have no registry at all:
 
 ```bash
-ctr --namespace k8s.io images import images/cmp-issuer-image.tar
+ctr --namespace k8s.io images import images/cmp-issuer-*-image.tar
 ```
 
 Then install from the bundled chart, pointing it at wherever the image now lives:
