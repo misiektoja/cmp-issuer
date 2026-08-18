@@ -90,12 +90,52 @@ setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 
 .PHONY: test-e2e
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v -timeout $(E2E_TIMEOUT)
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v \
+		-ginkgo.label-filter='!ejbca' -timeout $(E2E_TIMEOUT)
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
+
+# The e2e suite can enroll from a real CMP server instead of only proving the controller contract. The
+# server is EJBCA Community Edition in an image that already carries its certification authority, its
+# CMP aliases and a TLS certificate issued for the Service name below, so a run costs a container start
+# rather than a full server setup. See test/e2e/ejbca/README.md.
+## EJBCA_VERSION is the upstream release the CMP server image is built from.
+EJBCA_VERSION ?= 9.3.7
+## EJBCA_IMAGE_REVISION advances when the baked configuration changes without an upstream release.
+EJBCA_IMAGE_REVISION ?= 1
+## EJBCA_TEST_IMAGE is the preconfigured CMP server image that the enrollment specs start.
+EJBCA_TEST_IMAGE ?= ghcr.io/misiektoja/cmp-issuer-ejbca-test:$(EJBCA_VERSION)-$(EJBCA_IMAGE_REVISION)
+## EJBCA_HOSTNAME is baked into the TLS server certificate and has to stay the Service name that
+## test/e2e/ejbca_test.go reaches the server through, otherwise the HTTPS specs cannot verify it.
+EJBCA_HOSTNAME ?= ejbca.cmp-issuer-e2e-ejbca.svc.cluster.local
+## The budget covers building the manager image, installing cert-manager and starting the CMP server.
+E2E_EJBCA_TIMEOUT ?= 30m
+
+.PHONY: ejbca-test-image
+ejbca-test-image: ## Build the preconfigured CMP server image that the enrollment e2e tests use.
+	EJBCA_VERSION=$(EJBCA_VERSION) EJBCA_TEST_IMAGE=$(EJBCA_TEST_IMAGE) EJBCA_HOSTNAME=$(EJBCA_HOSTNAME) \
+		CONTAINER_TOOL=$(CONTAINER_TOOL) test/e2e/ejbca/build-image.sh
+
+.PHONY: ejbca-test-image-settings
+ejbca-test-image-settings: ## Print the CMP server image settings as key=value pairs.
+	@echo "image=$(EJBCA_TEST_IMAGE)"
+	@echo "version=$(EJBCA_VERSION)"
+	@echo "hostname=$(EJBCA_HOSTNAME)"
+
+.PHONY: ejbca-test-image-present
+ejbca-test-image-present: ## Make the CMP server image available locally, pulling it or building it.
+	@$(CONTAINER_TOOL) image inspect $(EJBCA_TEST_IMAGE) >/dev/null 2>&1 \
+		|| $(CONTAINER_TOOL) pull $(EJBCA_TEST_IMAGE) \
+		|| $(MAKE) ejbca-test-image
+
+.PHONY: test-e2e-ejbca
+test-e2e-ejbca: setup-test-e2e ejbca-test-image-present manifests generate fmt vet ## Run the e2e enrollment tests against a CMP server in the cluster.
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) EJBCA_TEST_IMAGE=$(EJBCA_TEST_IMAGE) \
+		go test -tags=e2e ./test/e2e/ -v -ginkgo.v -ginkgo.label-filter='ejbca' -timeout $(E2E_EJBCA_TIMEOUT)
+	$(MAKE) cleanup-test-e2e
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
