@@ -1,0 +1,163 @@
+# Publishes the preconfigured CMP server image that the enrollment end-to-end tests start.
+#
+# EJBCA Community Edition generates its certification authority, its administrator identity and its TLS
+# keystore on first start, and every CMP alias then has to be created over its command line interface.
+# Doing that once here and publishing the result is what keeps a test run down to a container start.
+#
+# The image is rebuilt when the upstream release it is built from is republished under a new digest,
+# and otherwise left alone. Each run therefore usually does nothing, which is the intended behaviour.
+#
+# The settings come from the Makefile so that a local build and a published image cannot drift apart.
+# Advance EJBCA_VERSION there to move to a new upstream release, and EJBCA_IMAGE_REVISION to republish
+# after a change to the configuration under test/e2e/ejbca.
+name: CMP server test image
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even when the published image is already current"
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - "test/e2e/ejbca/**"
+      - ".github/workflows/ejbca-test-image.yml"
+  schedule:
+    # A weekly run picks up a republished upstream image without anyone watching for it.
+    - cron: "23 4 * * 1"
+
+permissions: {}
+
+jobs:
+  plan:
+    name: Decide whether a rebuild is needed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.settings.outputs.image }}
+      version: ${{ steps.settings.outputs.version }}
+      hostname: ${{ steps.settings.outputs.hostname }}
+      digestTag: ${{ steps.base.outputs.digestTag }}
+      needed: ${{ steps.decide.outputs.needed }}
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Read the image settings from the Makefile
+        id: settings
+        run: make -s ejbca-test-image-settings >> "$GITHUB_OUTPUT"
+
+      - name: Resolve the upstream image digest
+        id: base
+        env:
+          VERSION: ${{ steps.settings.outputs.version }}
+          IMAGE: ${{ steps.settings.outputs.image }}
+        run: |
+          digest="$(docker buildx imagetools inspect "keyfactor/ejbca-ce:${VERSION}" --format '{{ .Manifest.Digest }}')"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          # The published image carries a second tag naming the upstream digest it was built from, so
+          # asking whether that tag exists answers whether the configuration is still current without
+          # having to read a label out of a multiple platform manifest.
+          echo "digestTag=${IMAGE}-${digest#sha256:}" >> "$GITHUB_OUTPUT"
+          echo "Upstream digest ${digest}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Decide whether the published image is current
+        id: decide
+        env:
+          DIGEST_TAG: ${{ steps.base.outputs.digestTag }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$FORCE" = "true" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "Rebuilding because the run asked for it." >> "$GITHUB_STEP_SUMMARY"
+          elif docker buildx imagetools inspect "$DIGEST_TAG" > /dev/null 2>&1; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "The published image is current, nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "No published image for this upstream digest, rebuilding." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Report a newer upstream release
+        env:
+          VERSION: ${{ steps.settings.outputs.version }}
+        # Moving to a new release is a decision rather than something to do automatically, because the
+        # configuration this image applies has to be checked against it first. The run only says so.
+        run: |
+          latest="$(curl -fsSL 'https://hub.docker.com/v2/repositories/keyfactor/ejbca-ce/tags?page_size=100&ordering=last_updated' \
+            | jq -r '[.results[].name | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last')" || latest=""
+          if [ -n "$latest" ] && [ "$latest" != "$VERSION" ] && [ "$latest" != "null" ]; then
+            echo "Upstream publishes ${latest}, this image is built from ${VERSION}. Advance EJBCA_VERSION in the Makefile to move." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  build:
+    name: Build for ${{ matrix.platform }}
+    needs: plan
+    if: needs.plan.outputs.needed == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            architecture: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            architecture: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+
+      # Each architecture is built on its own machine rather than under emulation, because the
+      # configuration step runs the server itself and an emulated application server start is slow
+      # enough to dominate the job.
+      - name: Build and push the architecture image
+        env:
+          EJBCA_VERSION: ${{ needs.plan.outputs.version }}
+          EJBCA_HOSTNAME: ${{ needs.plan.outputs.hostname }}
+          EJBCA_TEST_IMAGE: ${{ needs.plan.outputs.image }}-${{ matrix.architecture }}
+          EJBCA_TEST_PUSH: "true"
+        run: test/e2e/ejbca/build-image.sh
+
+  publish:
+    name: Publish the image
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to the container registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+
+      - name: Join the architecture images under one reference
+        env:
+          IMAGE: ${{ needs.plan.outputs.image }}
+          DIGEST_TAG: ${{ needs.plan.outputs.digestTag }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE" --tag "$DIGEST_TAG" \
+            "${IMAGE}-amd64" "${IMAGE}-arm64"
+          docker buildx imagetools inspect "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
