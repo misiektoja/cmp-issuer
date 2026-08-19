@@ -119,9 +119,12 @@ rbac:
   ## Helper roles for CRD management (admin/editor/viewer)
   ##
   helpers:
-    ## Install convenience admin/editor/viewer roles for CRDs
+    ## Install convenience admin/editor/viewer roles for the CRDs. They grant access to CMPIssuer and
+    ## CMPClusterIssuer resources and bind to nobody until you create a binding, so they are inert
+    ## until used. On by default so that a chart install and the installer manifest grant the same set
+    ## of roles. Set to false to leave the delegation roles out entirely.
     ##
-    enabled: false
+    enabled: true
 
 ## ServiceAccount configuration
 ##
