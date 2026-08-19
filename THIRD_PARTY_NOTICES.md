@@ -8,6 +8,8 @@ cmp-issuer original code is Apache-2.0. The project links to separately licensed
 | --- | --- | --- | --- |
 | github.com/tsaarni/go-pkicmp | `v0.0.0-20260817124344-a18451f3cf35`, supplied by [github.com/misiektoja/go-pkicmp-ng](https://github.com/misiektoja/go-pkicmp-ng) at branch `cmp-hardening` | Apache-2.0 | CMP ASN.1 types, protection and parsing behind project-owned interfaces |
 | github.com/cert-manager/issuer-lib | v0.12.0 | Apache-2.0 | External issuer reconciliation, approval gates, status and retry contracts |
+| github.com/cert-manager/cert-manager | v1.21.1 | Apache-2.0 | cert-manager API types and annotation keys, used to read the certificate revision that separates a renewal from a first enrollment |
+| github.com/prometheus/client_golang | v1.23.2 | Apache-2.0 | Counter and histogram types for the enrollment metrics, registered on the controller-runtime metrics registry |
 
 go-pkicmp is built from a fork while corrections to its message verification path are pending upstream, so a `replace` directive in `go.mod` redirects the upstream module path to that fork. The fork keeps the upstream module path, copyright notices and Apache-2.0 license text unchanged and introduces no additional third-party code. It carries the same dependency set as the upstream release it is based on. The directive is removed once the corrections are published upstream. See [ADR 0001](https://misiektoja.github.io/cmp-issuer/adr/0001-cmp-library/).
 
