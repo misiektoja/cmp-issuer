@@ -40,7 +40,7 @@ Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support, verified on
   v1.19-1.21
 * [Helm](https://helm.sh/docs/intro/install/) v3
-* Kubernetes container runtime like Docker, containerd or CRI-O,
+* Kubernetes container runtime like Docker, containerd or CRI-O
 * A CMP server, plus its endpoint URL, recipient DN, a credential and the CA certificate that signs its
   CMP responses
 
@@ -77,22 +77,16 @@ kubectl create secret generic cmp-credentials --namespace demo \
 kubectl create secret generic cmp-trust --namespace demo \
   --from-file=ca.crt=/path/to/cmp-ca.crt
 
-kubectl apply -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cmp-issuer-credential-reader
-  namespace: demo
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cmp-issuer-credential-reader
-subjects:
-- kind: ServiceAccount
-  name: cmp-issuer-controller-manager
-  namespace: cmp-issuer-system
-EOF
+helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system \
+  --reuse-values \
+  --set 'credentialNamespaces={demo}'
 ```
+
+The controller has no cluster-wide Secret access, so every namespace holding `CMPIssuer` credentials is
+authorized on its own. Naming the namespace in `credentialNamespaces` has the chart create that
+RoleBinding for you, and the namespace has to exist first. Applying the binding by hand instead, and
+what a `CMPClusterIssuer` needs, are in [Installation](https://misiektoja.github.io/cmp-issuer/installation/#namespace-access-for-cmpissuer).
 
 Create the issuer:
 
@@ -181,6 +175,12 @@ as `recipient`.
 received value in `certConf` and rejects anything else. Pin one value with
 `spec.protocol.p10crResponseCertReqId` when a server's behavior is known.
 
+**Observability.** Each completed enrollment writes one `Issued certificate` log line carrying the
+subject, serial, validity and issuing CA. The controller also publishes its own Prometheus metrics next
+to the controller-runtime and Go defaults, counting enrollments, durations and classified failures per
+issuer, with renewals separated from first enrollments. See
+[Metrics](https://misiektoja.github.io/cmp-issuer/operations/metrics/).
+
 **Verification.** Every push runs unit, protocol, controller and envtest suites, a Kind-based controller
 suite, OpenSSL CMP mock interoperability, Helm chart validation, vulnerability scanning and a credential
 scan. Results against real CMP servers are in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
@@ -197,6 +197,7 @@ Full documentation is at
 * [Message protection](https://misiektoja.github.io/cmp-issuer/guide/message-protection/)
 * [CMPIssuer reference](https://misiektoja.github.io/cmp-issuer/reference/cmpissuer/)
 * [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/)
+* [Metrics](https://misiektoja.github.io/cmp-issuer/operations/metrics/)
 * [Troubleshooting](https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/)
 * [Known limitations](https://misiektoja.github.io/cmp-issuer/known-limitations/)
 * [Threat model](https://misiektoja.github.io/cmp-issuer/security/threat-model/)
