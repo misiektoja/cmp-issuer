@@ -206,6 +206,17 @@ kubectl -n cmp-issuer-system get deploy,pods
 kubectl get crd | grep certmanager.misiektoja.github.io
 ```
 
+The manager names its own build on its first log line, so this is also how you confirm which release,
+commit and image are actually running:
+
+```bash
+kubectl -n cmp-issuer-system logs deploy/cmp-issuer-controller-manager | head -1
+```
+
+A Helm install adds the chart and release name to that line. The same output is available from
+`/manager --version` inside the container. See
+[Which build is running](operations/troubleshooting.md#which-build-is-running).
+
 ## Next
 
 Create Secrets and an issuer, then request a certificate. [Getting started](getting-started.md) shows
