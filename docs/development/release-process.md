@@ -1,10 +1,10 @@
 # Release process
 
-This page describes the intended release workflow. No release has been published yet.
+This page describes how a release is built, published and indexed.
 
 ## Versioning
 
-`RELEASE_NOTES.md` tracks `0.1.0` as the initial development release. Future versions follow semantic versioning for user-visible behavior.
+`RELEASE_NOTES.md` records every released version. Versions follow semantic versioning for user-visible behavior.
 
 Check the latest published GitHub Release on the default branch before choosing the next version.
 
@@ -75,8 +75,8 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | `interop-ncm.yml` | Enrollment against a hosted Nokia NCM instance, started by hand |
 | `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
 | `go-patch.yml` | Weekly check for a newer Go patch in the targeted release series, opening the bump as a pull request |
-| `release.yml` | Build and publish on tag (not yet run) |
-| `publish-chart.yml` | Add the released chart to the Helm repository index (not yet run) |
+| `release.yml` | Build and publish the release artifacts on a version tag |
+| `publish-chart.yml` | Add the released chart to the Helm repository index when the release is published |
 
 ## Chart repository
 
