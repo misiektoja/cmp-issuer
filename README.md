@@ -36,10 +36,11 @@ Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
 ## Prerequisites
 
-* A Kubernetes cluster, verified on v1.34-1.36
+* A [Kubernetes](https://kubernetes.io) cluster, verified on v1.34-1.36
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support, verified on
   v1.19-1.21
 * [Helm](https://helm.sh/docs/intro/install/) v3
+* Kubernetes container runtime like Docker, containerd or CRI-O,
 * A CMP server, plus its endpoint URL, recipient DN, a credential and the CA certificate that signs its
   CMP responses
 
