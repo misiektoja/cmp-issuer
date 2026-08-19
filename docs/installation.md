@@ -75,8 +75,10 @@ kubectl apply -f cmp-issuer-<version>-install.yaml
 ```
 
 It installs the same CRDs, RBAC, cert-manager approval permission and controller Deployment in
-`cmp-issuer-system`, plus a ClusterRoleBinding that lets the controller read Secrets **only** in
-`cmp-issuer-system`. Neither installation path grants Secret access in workload namespaces.
+`cmp-issuer-system`, plus a RoleBinding that lets the controller read Secrets **only** in
+`cmp-issuer-system`. Neither installation path grants Secret access in workload namespaces on its own,
+and the manifest has no values to set, so a `CMPIssuer` namespace is authorized by applying the
+RoleBinding yourself.
 
 The metrics endpoint serves HTTPS and authorizes every scrape, the same as the chart. It is the one
 place where the two paths differ in what they offer: the chart can have cert-manager issue the metrics
@@ -188,11 +190,13 @@ binding. Both installation paths name it the same way.
 ## Namespace access for CMPIssuer
 
 The controller has no cluster-wide Secret access. Every namespace hosting a `CMPIssuer` needs a
-RoleBinding granting it the credential reader role there, described in
-[Credential Secret access](operations/secret-access.md). Without it the issuer stays Not Ready and names
-the missing authorization.
+RoleBinding granting it the credential reader role there. Without it the issuer stays Not Ready and
+names the missing authorization. Both routes below create the same grant, described in
+[Credential Secret access](operations/secret-access.md).
 
-The chart can create those bindings for namespaces you already know about:
+### Let the chart create the binding
+
+List the namespaces in `credentialNamespaces`, at install time or in a later upgrade:
 
 ```bash
 helm install cmp-issuer cmp-issuer/cmp-issuer \
@@ -200,11 +204,28 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
   --set 'credentialNamespaces={team-a,team-b}'
 ```
 
+```bash
+helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system \
+  --reuse-values \
+  --set 'credentialNamespaces={team-a,team-b}'
+```
+
 Each listed namespace must exist before the release is installed or upgraded, and each entry widens the
-boundary this project is built around, so name only the namespaces you have decided on. Namespaces
-added later still need the RoleBinding, either by listing them and upgrading or by applying it directly.
-This setting requires `rbac.namespaced=false`, because a RoleBinding in one namespace cannot reference a
-Role that lives in another.
+boundary this project is built around, so name only the namespaces you have decided on. An upgrade has
+to carry the whole list, since `--set` replaces the value rather than appending to it. This setting
+requires `rbac.namespaced=false`, because a RoleBinding in one namespace cannot reference a Role that
+lives in another.
+
+### Apply the binding yourself
+
+Applying the RoleBinding directly suits a namespace you do not want recorded in the release values, one
+created long after the install, and the manifest installation, which has no values to set. The manifest
+is in [Credential Secret access](operations/secret-access.md#apply-the-rolebinding-yourself).
+
+The chart names its binding `cmp-issuer-credential-reader-rolebinding`, so a hand-applied binding under
+a different name is not adopted or replaced by a later upgrade. Delete yours if you move the same
+namespace into `credentialNamespaces`, or the namespace ends up with two identical grants.
 
 A `CMPClusterIssuer` reads its credentials only from the controller's cluster resource namespace and
 needs no per-namespace binding.
