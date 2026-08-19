@@ -431,10 +431,12 @@ release-bundle: require-version ## Assemble the air-gapped install bundle from t
 			"   or import it straight into a node runtime:" \
 			"     ctr --namespace k8s.io images import images/$(notdir $(IMAGE_ARCHIVE))" \
 			"" \
-			"2. Install, pointing the chart at that registry:" \
-			"     helm install cmp-issuer charts/$(notdir $(CHART_ARCHIVE)) --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer" \
+			"2. Create the namespaces your issuers will live in, then install, pointing the chart at that" \
+			"   registry and naming those namespaces so the controller may read their credentials:" \
+			"     helm install cmp-issuer charts/$(notdir $(CHART_ARCHIVE)) --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer --set 'credentialNamespaces={<namespace>}'" \
 			"" \
-			"   or apply the manifest instead, after editing the manager image it names:" \
+			"   or apply the manifest instead, after editing the manager image it names. It grants no" \
+			"   access in workload namespaces, so add the RoleBinding the documentation shows:" \
 			"     kubectl apply -f $(notdir $(INSTALLER_MANIFEST))" \
 			"" \
 			"Documentation: https://misiektoja.github.io/cmp-issuer/"; \
