@@ -63,7 +63,7 @@ const (
 	// apiGroup is the API group that the issuer kinds are served in.
 	apiGroup = "certmanager.misiektoja.github.io"
 	// approverClusterRole is the shipped ClusterRole that grants cert-manager approval for this issuer type.
-	approverClusterRole = "cmp-issuer-cert-manager-approver-role"
+	approverClusterRole = "cmp-issuer-cert-manager-approver"
 	// readinessTimeout bounds a single issuer reconciliation.
 	readinessTimeout = 90 * time.Second
 	// requestTimeout bounds the signing attempt of an approved CertificateRequest.
