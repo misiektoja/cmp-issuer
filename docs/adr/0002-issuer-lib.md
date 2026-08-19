@@ -1,6 +1,6 @@
 # ADR 0002: build on issuer-lib and pin it
 
-* Status: accepted for initial development
+* Status: accepted
 
 ## Context
 
