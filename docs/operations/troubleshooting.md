@@ -170,7 +170,7 @@ Return the level to `info` afterwards, since debug is noisy on a busy cluster.
 
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
-| Ready=False, message names a Secret | Credential or trust Secret missing or unreadable | Create the Secret; for `CMPIssuer` add the RoleBinding from [Credential Secret access](secret-access.md) |
+| Ready=False, message names a Secret | Credential or trust Secret missing or unreadable | Create the Secret; for `CMPIssuer` authorize the namespace with `credentialNamespaces` or the RoleBinding from [Credential Secret access](secret-access.md) |
 | Ready=False after install | Controller not running | `kubectl -n cmp-issuer-system get pods` |
 
 ## CertificateRequest stuck or failed
