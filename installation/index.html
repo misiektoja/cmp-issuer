@@ -1873,6 +1873,14 @@ leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
 <p>It installs the same CRDs, RBAC, cert-manager approval permission and controller Deployment in
 <code>cmp-issuer-system</code>, plus a ClusterRoleBinding that lets the controller read Secrets <strong>only</strong> in
 <code>cmp-issuer-system</code>. Neither installation path grants Secret access in workload namespaces.</p>
+<p>The metrics endpoint serves HTTPS and authorizes every scrape, the same as the chart. It is the one
+place where the two paths differ in what they offer: the chart can have cert-manager issue the metrics
+serving certificate through <code>metrics.tls.certManager.enabled</code>, and the released manifest is built
+without it, so the endpoint presents a certificate the controller generates for <code>localhost</code> and a
+scraper has to skip verification. To get the issued certificate on this path, build the manifest from a
+checkout and uncomment the sections marked <code>CERTMANAGER</code>, <code>METRICS-WITH-CERTS</code> and
+<code>PROMETHEUS-WITH-CERTS</code> in <code>config/default/kustomization.yaml</code> and
+<code>config/prometheus/kustomization.yaml</code>, following the notes there, then run <code>make build-installer</code>.</p>
 <h2 id="install-without-registry-access">Install without registry access<a class="headerlink" href="#install-without-registry-access" title="Permanent link">&para;</a></h2>
 <p>Every release attaches <code>cmp-issuer-&lt;version&gt;-airgap.tar.gz</code>, which carries everything an air-gapped
 cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, the installer
