@@ -84,10 +84,13 @@ jobs:
       - name: Build the installer manifest
         env:
           IMG: ${{ steps.release.outputs.image }}
-        run: make build-installer IMG="$IMG"
+          VERSION: ${{ steps.release.outputs.version }}
+        run: make build-installer IMG="$IMG" VERSION="$VERSION"
 
       - name: Generate the software bill of materials
-        run: make sbom
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: make sbom VERSION="$VERSION"
 
       - name: Package the Helm chart
         env:
@@ -107,4 +110,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           gh release create "$VERSION" --draft --generate-notes --title "$VERSION" || true
-          gh release upload "$VERSION" dist/install.yaml dist/cmp-issuer.cdx.json dist/cmp-issuer-*.tgz "dist/cmp-issuer-${VERSION}-airgap.tar.gz" --clobber
+          # Every asset is named after the release rather than matched by a glob, so a stale file left
+          # in dist by an earlier run of this workflow cannot be attached to this one. The chart is the
+          # exception to the v prefix, because a Helm chart version has to be bare SemVer.
+          gh release upload "$VERSION" "dist/cmp-issuer-${VERSION}-install.yaml" "dist/cmp-issuer-${VERSION}-sbom.cdx.json" "dist/cmp-issuer-${VERSION#v}.tgz" "dist/cmp-issuer-${VERSION}-airgap.tar.gz" --clobber
