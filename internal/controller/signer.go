@@ -119,8 +119,12 @@ func (s *Signer) Check(ctx context.Context, issuer issuerapi.Issuer) error {
 func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer) (bundle issuersigner.PEMBundle, err error) {
 	enrollmentStarted := time.Now()
 	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("issuer", issuerLogValue(issuer)))
+	ctx = withEnrollmentLabels(ctx, enrollmentMetricLabels(issuer, request))
 	// Every way out of an enrollment is reported once, from whatever the transaction is known by then.
-	defer func() { logEnrollmentFailure(ctx, err) }()
+	defer func() {
+		logEnrollmentFailure(ctx, err)
+		recordFailedEnrollment(ctx, err, enrollmentStarted)
+	}()
 	runtimeConfiguration, configurationErr := s.loadRuntimeConfiguration(ctx, issuer)
 	if configurationErr != nil {
 		return issuersigner.PEMBundle{}, issuersigner.IssuerError{Err: configurationErr}
@@ -193,6 +197,7 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 		return issuersigner.PEMBundle{}, err
 	}
 	logIssuedCertificate(ctx, transaction, result.Chain, confirmationImplicit, enrollmentStarted)
+	recordIssuedEnrollment(ctx, confirmationImplicit, enrollmentStarted)
 	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(result.Chain)}, nil
 }
 
@@ -239,6 +244,7 @@ func (s *Signer) confirm(ctx context.Context, transaction *cmpv1alpha1.CMPTransa
 		return issuersigner.PEMBundle{}, err
 	}
 	logIssuedCertificate(ctx, transaction, chain, confirmationExplicit, enrollmentStarted)
+	recordIssuedEnrollment(ctx, confirmationExplicit, enrollmentStarted)
 	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(chain)}, nil
 }
 
@@ -253,6 +259,7 @@ func (s *Signer) continueConfirming(ctx context.Context, transaction *cmpv1alpha
 		delay = deadlineDelay
 	}
 	log.FromContext(ctx).Info("Waiting for the CMP server to confirm the issued certificate", enrollmentDeadlineValues(transaction, limits, delay)...)
+	recordEnrollmentPoll(ctx)
 	return issuersigner.PendingError{Err: fmt.Errorf("CMP server has not confirmed the issued certificate yet, polling again in %s", delay), RequeueAfter: delay}
 }
 
@@ -356,6 +363,7 @@ func (s *Signer) continuePolling(ctx context.Context, transaction *cmpv1alpha1.C
 		delay = deadlineDelay
 	}
 	log.FromContext(ctx).Info("Waiting for the CMP server to issue the certificate", enrollmentDeadlineValues(transaction, limits, delay)...)
+	recordEnrollmentPoll(ctx)
 	return issuersigner.PendingError{Err: fmt.Errorf("CMP server has not issued the certificate yet, polling again in %s", delay), RequeueAfter: delay}
 }
 
