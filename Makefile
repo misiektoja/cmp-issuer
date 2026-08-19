@@ -179,6 +179,45 @@ docs-build: ## Build the documentation site and fail on any warning.
 docs-serve: ## Serve the documentation site locally with live reload.
 	$(PYTHON) -m mkdocs serve
 
+# Release artifact names
+#
+# VERSION labels every release artifact written under dist, for example VERSION=v0.1.0. The targets
+# that write one require it, so an artifact names the release it carries, a second build cannot
+# overwrite the first, and a file that has been copied out of dist still says where it came from.
+# Set it to the tag carried by IMG, the two are not derived from each other.
+VERSION ?=
+
+.PHONY: require-version
+require-version:
+	@test -n "$(VERSION)" || { echo "Set VERSION, for example VERSION=v0.1.0" >&2; exit 1; }
+
+## CHART_VERSION is VERSION without the leading v, because a Helm chart version has to be bare SemVer.
+## The packaged chart is therefore the one artifact whose name does not carry the tag verbatim.
+CHART_VERSION = $(VERSION:v%=%)
+
+## Multi-architecture image archive that the air-gapped bundle carries
+IMAGE_ARCHIVE ?= dist/cmp-issuer-$(VERSION)-image.tar
+## Platform list of that archive, written by the build and read back when the bundle is assembled
+IMAGE_PLATFORMS ?= dist/cmp-issuer-$(VERSION)-image-platforms.txt
+## Self-contained install manifest built from config/default
+INSTALLER_MANIFEST ?= dist/cmp-issuer-$(VERSION)-install.yaml
+## Packaged Helm chart, written by helm package rather than by a target here
+CHART_ARCHIVE ?= dist/cmp-issuer-$(CHART_VERSION).tgz
+## Air-gapped bundle, and the directory it unpacks to, which carries the same name as the archive
+BUNDLE_DIR = cmp-issuer-$(VERSION)-airgap
+BUNDLE_ARCHIVE = dist/$(BUNDLE_DIR).tar.gz
+
+## SBOM_VERSION names the bill of materials. The routine supply chain run publishes one for a commit
+## rather than for a release, so it falls back to the commit description instead of to a name that
+## could belong to any build.
+SBOM_VERSION = $(if $(VERSION),$(VERSION),$(shell git describe --tags --always --dirty 2>/dev/null || echo unknown))
+SBOM_FILE ?= dist/cmp-issuer-$(SBOM_VERSION)-sbom.cdx.json
+
+## Flags that keep the bundle free of platform metadata. bsdtar on macOS copies extended attributes
+## such as com.apple.provenance into pax headers, which makes GNU tar on Linux warn once per entry
+## while extracting. Each flag is probed because GNU tar accepts only the first one.
+TAR_PORTABLE_FLAGS := $(shell for flag in --no-xattrs --no-mac-metadata --no-acls --no-fflags; do tar $$flag --version >/dev/null 2>&1 && printf '%s ' $$flag; done)
+
 ##@ Supply chain
 
 .PHONY: govulncheck
@@ -214,9 +253,10 @@ go-patch-update: ## Move go.mod and the documented prerequisite to the newest Go
 	hack/go-patch-version.sh update
 
 .PHONY: sbom
-sbom: cyclonedx-gomod ## Generate a CycloneDX software bill of materials for the module.
+sbom: cyclonedx-gomod ## Generate a CycloneDX software bill of materials for the module. Specify VERSION for a release.
 	mkdir -p dist
-	"$(CYCLONEDX_GOMOD)" mod -licenses -json -output dist/cmp-issuer.cdx.json .
+	"$(CYCLONEDX_GOMOD)" mod -licenses -json -output "$(SBOM_FILE)" .
+	@echo "Wrote $(SBOM_FILE)"
 
 # TRIVY_IMAGE runs the scanner as a container so no scanner binary has to be installed.
 TRIVY_IMAGE ?= aquasec/trivy:0.74.0
@@ -297,27 +337,11 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	rm Dockerfile.cross
 
 .PHONY: build-installer
-build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
+build-installer: require-version manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment. Specify IMG and VERSION.
 	mkdir -p dist
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
-	"$(KUSTOMIZE)" build config/default > dist/install.yaml
-
-# VERSION labels every release artifact written under dist, for example VERSION=v0.1.0. The targets
-# that write one require it, so an archive always names the release it carries and a second build
-# cannot overwrite the first. Set it to the tag carried by IMG.
-VERSION ?=
-
-.PHONY: require-version
-require-version:
-	@test -n "$(VERSION)" || { echo "Set VERSION, for example VERSION=v0.1.0" >&2; exit 1; }
-
-## Multi-architecture image archive that the air-gapped bundle carries
-IMAGE_ARCHIVE ?= dist/cmp-issuer-$(VERSION)-image.tar
-
-## Flags that keep the bundle free of platform metadata. bsdtar on macOS copies extended attributes
-## such as com.apple.provenance into pax headers, which makes GNU tar on Linux warn once per entry
-## while extracting. Each flag is probed because GNU tar accepts only the first one.
-TAR_PORTABLE_FLAGS := $(shell for flag in --no-xattrs --no-mac-metadata --no-acls --no-fflags; do tar $$flag --version >/dev/null 2>&1 && printf '%s ' $$flag; done)
+	"$(KUSTOMIZE)" build config/default > "$(INSTALLER_MANIFEST)"
+	@echo "Wrote $(INSTALLER_MANIFEST)"
 
 .PHONY: docker-archive
 docker-archive: require-version ## Export the manager image for every release platform as an OCI archive. Specify IMG and VERSION.
@@ -332,7 +356,7 @@ docker-archive: require-version ## Export the manager image for every release pl
 	- $(CONTAINER_TOOL) buildx rm cmp-issuer-archiver
 	# Recorded here so the bundle describes the archive it actually carries rather than the current
 	# value of PLATFORMS.
-	echo "$(PLATFORMS)" > dist/image-platforms.txt
+	echo "$(PLATFORMS)" > "$(IMAGE_PLATFORMS)"
 
 .PHONY: docker-release
 docker-release: require-version ## Push the manager image and export the same build as an OCI archive in one pass. Specify IMG and VERSION.
@@ -344,36 +368,52 @@ docker-release: require-version ## Push the manager image and export the same bu
 	# that was published rather than a second build of the same source.
 	$(CONTAINER_TOOL) buildx build --platform=$(PLATFORMS) --tag ${IMG} --output type=image,push=true --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm cmp-issuer-releaser
-	echo "$(PLATFORMS)" > dist/image-platforms.txt
+	echo "$(PLATFORMS)" > "$(IMAGE_PLATFORMS)"
 
 .PHONY: release-bundle
 release-bundle: require-version ## Assemble the air-gapped install bundle from the artifacts already in dist. Specify VERSION.
 	@test -f "$(IMAGE_ARCHIVE)" || { echo "Run docker-archive first, $(IMAGE_ARCHIVE) is missing" >&2; exit 1; }
-	@test -f dist/install.yaml || { echo "Run build-installer first, dist/install.yaml is missing" >&2; exit 1; }
-	mkdir -p "dist/cmp-issuer-$(VERSION)/images" "dist/cmp-issuer-$(VERSION)/charts"
-	cp "$(IMAGE_ARCHIVE)" "dist/cmp-issuer-$(VERSION)/images/"
-	cp dist/cmp-issuer-*.tgz "dist/cmp-issuer-$(VERSION)/charts/"
-	cp dist/install.yaml README.md RELEASE_NOTES.md LICENSE THIRD_PARTY_NOTICES.md "dist/cmp-issuer-$(VERSION)/"
-	printf '%s\n' \
-		"cmp-issuer $(VERSION) air-gapped bundle" \
-		"" \
-		"Contents:" \
-		"  images/        OCI archive of the manager image, $$(cat dist/image-platforms.txt)" \
-		"  charts/        packaged Helm chart" \
-		"  install.yaml   self-contained manifest install" \
-		"" \
-		"1. Load the image into your own registry:" \
-		"     skopeo copy --all oci-archive:images/$(notdir $(IMAGE_ARCHIVE)) docker://<registry>/cmp-issuer:$(VERSION)" \
-		"   or import it straight into a node runtime:" \
-		"     ctr --namespace k8s.io images import images/$(notdir $(IMAGE_ARCHIVE))" \
-		"" \
-		"2. Install, pointing the chart at that registry:" \
-		"     helm install cmp-issuer charts/cmp-issuer-*.tgz --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer" \
-		"" \
-		"Documentation: https://misiektoja.github.io/cmp-issuer/" \
-		> "dist/cmp-issuer-$(VERSION)/INSTALL.txt"
-	tar $(TAR_PORTABLE_FLAGS) -czf "dist/cmp-issuer-$(VERSION)-airgap.tar.gz" -C dist "cmp-issuer-$(VERSION)"
-	@echo "Wrote dist/cmp-issuer-$(VERSION)-airgap.tar.gz"
+	@test -f "$(IMAGE_PLATFORMS)" || { echo "Run docker-archive first, $(IMAGE_PLATFORMS) is missing" >&2; exit 1; }
+	@test -f "$(INSTALLER_MANIFEST)" || { echo "Run build-installer first, $(INSTALLER_MANIFEST) is missing" >&2; exit 1; }
+	@test -f "$(CHART_ARCHIVE)" || { echo "Package the chart first, $(CHART_ARCHIVE) is missing" >&2; exit 1; }
+	# Every input is named after $(VERSION), so a rebuild replaces the staged copy of each one. The
+	# directory is still cleared first, because an earlier release staged here would otherwise leave
+	# its own image archive and chart behind and ship two versions of both.
+	rm -rf "dist/$(BUNDLE_DIR)"
+	mkdir -p "dist/$(BUNDLE_DIR)/images" "dist/$(BUNDLE_DIR)/charts"
+	cp "$(IMAGE_ARCHIVE)" "dist/$(BUNDLE_DIR)/images/"
+	cp "$(CHART_ARCHIVE)" "dist/$(BUNDLE_DIR)/charts/"
+	cp "$(INSTALLER_MANIFEST)" README.md RELEASE_NOTES.md LICENSE THIRD_PARTY_NOTICES.md "dist/$(BUNDLE_DIR)/"
+	# The contents block is aligned by a second printf, which reuses its format for each name and
+	# description pair, so the file names stay readable however long they are.
+	{ \
+		printf '%s\n' \
+			"cmp-issuer $(VERSION) air-gapped bundle" \
+			"" \
+			"Every file here carries $(VERSION), so one copied out of the bundle still names the release it came from." \
+			"" \
+			"Contents:"; \
+		printf '  %-36s %s\n' \
+			"images/$(notdir $(IMAGE_ARCHIVE))" "OCI archive of the manager image, $$(cat $(IMAGE_PLATFORMS))" \
+			"charts/$(notdir $(CHART_ARCHIVE))" "packaged Helm chart" \
+			"$(notdir $(INSTALLER_MANIFEST))" "self-contained manifest install"; \
+		printf '%s\n' \
+			"" \
+			"1. Load the image into your own registry:" \
+			"     skopeo copy --all oci-archive:images/$(notdir $(IMAGE_ARCHIVE)) docker://<registry>/cmp-issuer:$(VERSION)" \
+			"   or import it straight into a node runtime:" \
+			"     ctr --namespace k8s.io images import images/$(notdir $(IMAGE_ARCHIVE))" \
+			"" \
+			"2. Install, pointing the chart at that registry:" \
+			"     helm install cmp-issuer charts/$(notdir $(CHART_ARCHIVE)) --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer" \
+			"" \
+			"   or apply the manifest instead, after editing the manager image it names:" \
+			"     kubectl apply -f $(notdir $(INSTALLER_MANIFEST))" \
+			"" \
+			"Documentation: https://misiektoja.github.io/cmp-issuer/"; \
+	} > "dist/$(BUNDLE_DIR)/INSTALL.txt"
+	tar $(TAR_PORTABLE_FLAGS) -czf "$(BUNDLE_ARCHIVE)" -C dist "$(BUNDLE_DIR)"
+	@echo "Wrote $(BUNDLE_ARCHIVE)"
 
 ##@ Deployment
 
