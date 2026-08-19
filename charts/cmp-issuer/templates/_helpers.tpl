@@ -83,3 +83,46 @@ so the controller flag and the RBAC the chart creates cannot disagree.
 {{- define "cmp-issuer.clusterResourceNamespace" -}}
 {{- .Values.manager.clusterResourceNamespace | default .Release.Namespace }}
 {{- end }}
+
+{{/*
+Name of the Service that exposes the metrics endpoint.
+Named once here because the Certificate subject, the ServiceMonitor serverName and the Service itself
+all have to agree for a verified scrape to succeed.
+*/}}
+{{- define "cmp-issuer.metricsServiceName" -}}
+{{- include "cmp-issuer.resourceName" (dict "suffix" "controller-manager-metrics-service" "context" .) }}
+{{- end }}
+
+{{/*
+Whether cert-manager issues the metrics serving certificate.
+Empty when it does not, so callers can branch on the result of include.
+Plain HTTP metrics need no serving certificate, so secure has to be set for this to mean anything.
+*/}}
+{{- define "cmp-issuer.metricsCertEnabled" -}}
+{{- if and .Values.metrics.enabled .Values.metrics.secure .Values.metrics.tls.certManager.enabled }}
+{{- true }}
+{{- end }}
+{{- end }}
+
+{{/*
+Secret cert-manager writes the metrics serving certificate to.
+The manager mounts it and the ServiceMonitor reads ca.crt from it.
+*/}}
+{{- define "cmp-issuer.metricsCertSecretName" -}}
+{{- include "cmp-issuer.resourceName" (dict "suffix" "metrics-server-cert" "context" .) }}
+{{- end }}
+
+{{/*
+Issuer the chart creates when metrics.tls.certManager.issuerRef names none.
+*/}}
+{{- define "cmp-issuer.metricsCertIssuerName" -}}
+{{- include "cmp-issuer.resourceName" (dict "suffix" "metrics-selfsigned-issuer" "context" .) }}
+{{- end }}
+
+{{/*
+Directory the manager reads the metrics serving certificate from.
+Matches the mount path in the manager template and the Kustomize metrics certificate patch.
+*/}}
+{{- define "cmp-issuer.metricsCertPath" -}}
+{{- "/tmp/k8s-metrics-server/metrics-certs" }}
+{{- end }}
