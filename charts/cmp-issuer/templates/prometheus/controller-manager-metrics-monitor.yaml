@@ -13,6 +13,8 @@ metadata:
 spec:
   endpoints:
   - {{- if .Values.metrics.secure }}
+    # The endpoint authorizes this token with a SubjectAccessReview, so the scraping ServiceAccount
+    # needs the metrics-reader ClusterRole.
     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     {{- end }}
     path: /metrics
@@ -20,20 +22,19 @@ spec:
     scheme: {{ if .Values.metrics.secure }}https{{ else }}http{{ end }}
     {{- if .Values.metrics.secure }}
     tlsConfig:
-      serverName: {{ include "cmp-issuer.resourceName" (dict "suffix" "controller-manager-metrics-service" "context" $) }}.{{ .Release.Namespace }}.svc
-      {{- if .Values.certManager.enabled }}
+      serverName: {{ include "cmp-issuer.metricsServiceName" . }}.{{ .Release.Namespace }}.svc
+      {{- if include "cmp-issuer.metricsCertEnabled" . }}
+      # Prometheus resolves this Secret in the ServiceMonitor's own namespace, which is where the
+      # Certificate writes it. Only the authority is read, because the endpoint authenticates the
+      # scrape by token and never asks for a client certificate.
+      insecureSkipVerify: false
       ca:
         secret:
-          name: metrics-server-cert
+          name: {{ include "cmp-issuer.metricsCertSecretName" . }}
           key: ca.crt
-      cert:
-        secret:
-          name: metrics-server-cert
-          key: tls.crt
-      keySecret:
-        name: metrics-server-cert
-        key: tls.key
       {{- else }}
+      # The controller generates its own serving certificate and nothing signs it, so there is no
+      # authority to verify against. Set metrics.tls.certManager.enabled to verify the endpoint.
       insecureSkipVerify: true
       {{- end }}
     {{- end }}
