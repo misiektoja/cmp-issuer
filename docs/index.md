@@ -11,19 +11,15 @@ servers. Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate
 and stored in the usual TLS Secret, so workloads that already consume cert-manager Secrets need no
 change.
 
-It implements CMPv2 initial enrollment with a PKCS #10 request in P10CR and a CP response. CMP message
-protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and certificate-signature
-P10CR have completed protected cert-manager `Certificate` enrollments against Nokia NCM 26.7 and EJBCA
-Community Edition 9.3.7. Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
-
-!!! warning "Under active initial development"
-
-    The protocol adapter and controller foundation are not production ready. The API group
-    `certmanager.misiektoja.github.io` is served at `v1alpha1` and may change.
+It implements CMPv2 enrollment with a PKCS #10 request in P10CR and a CP response, and renews the same
+way. CMP message protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and
+certificate-signature P10CR have completed protected cert-manager `Certificate` enrollments against
+Nokia NCM 26.7 and EJBCA Community Edition 9.3.7. Enrollment against EJBCA, over HTTP and over HTTPS,
+runs on every change in CI.
 
 ## Start here
 
-**[Getting started](getting-started.md)** walks from an empty cluster to an issued certificate in six
+**[Getting started](getting-started.md)** walks from an empty cluster to an issued certificate in five
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.
 
 ## Then
