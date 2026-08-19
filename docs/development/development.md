@@ -64,7 +64,10 @@ make docker-build IMG=$IMG
 make deploy IMG=$IMG
 ```
 
-`make build-installer` rewrites `config/manager/kustomization.yaml` image tags. Restore with `git checkout -- config/manager/kustomization.yaml` when finished if a clean worktree is required.
+`make build-installer` needs both `IMG` and `VERSION`, since it writes the release-named
+`dist/cmp-issuer-<version>-install.yaml`. It also rewrites `config/manager/kustomization.yaml` image
+tags. Restore with `git checkout -- config/manager/kustomization.yaml` when finished if a clean worktree
+is required.
 
 ## Chart regeneration
 
@@ -76,7 +79,13 @@ directory, so regenerated CRD and RBAC templates would be silently left out of t
 
 If you regenerate, move the refreshed templates into `charts/cmp-issuer` and delete `charts/chart`.
 `make helm-lint` fails while `charts/chart` exists, so CI catches a regeneration that was left in place.
-`Chart.yaml` is never overwritten by the plugin, so the metadata in the real chart is safe either way.
+`Chart.yaml` is never overwritten by the plugin, so the metadata in the real chart is safe either way,
+including the `appVersion` that has to keep matching the published image tag.
+
+The plugin reads the manifest path recorded in `PROJECT`, which is `dist/install.yaml`, while
+`make build-installer` writes the release-named `dist/cmp-issuer-<version>-install.yaml`. Copy the
+manifest to `dist/install.yaml` before regenerating. `PROJECT` is tool-generated and records one fixed
+path, so it is left alone rather than pointed at a name that changes every release.
 
 ## API changes
 
