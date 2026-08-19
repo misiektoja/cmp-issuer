@@ -96,7 +96,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `crd.enabled` | `true` | Install the CRDs with the chart |
 | `crd.keep` | `true` | Keep the CRDs on `helm uninstall`, so removing the release cannot delete your issuers and transactions |
 | `rbac.namespaced` | `false` | Use Role and RoleBinding in the release namespace instead of cluster-scoped |
-| `rbac.helpers.enabled` | `false` | Install convenience admin, editor and viewer roles for the CRDs |
+| `rbac.helpers.enabled` | `true` | Install convenience admin, editor and viewer roles for the CRDs, the same ones the installer manifest creates |
 | `serviceAccount.enabled` | `true` | Create the controller ServiceAccount |
 | `serviceAccount.name` | unset | Existing ServiceAccount to use when `enabled` is `false` |
 | `logging.level` | `info` | `debug`, `info`, `error` or an integer. `info` logs one line per enrollment outcome |
