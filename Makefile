@@ -314,6 +314,11 @@ require-version:
 ## Multi-architecture image archive that the air-gapped bundle carries
 IMAGE_ARCHIVE ?= dist/cmp-issuer-$(VERSION)-image.tar
 
+## Flags that keep the bundle free of platform metadata. bsdtar on macOS copies extended attributes
+## such as com.apple.provenance into pax headers, which makes GNU tar on Linux warn once per entry
+## while extracting. Each flag is probed because GNU tar accepts only the first one.
+TAR_PORTABLE_FLAGS := $(shell for flag in --no-xattrs --no-mac-metadata --no-acls --no-fflags; do tar $$flag --version >/dev/null 2>&1 && printf '%s ' $$flag; done)
+
 .PHONY: docker-archive
 docker-archive: require-version ## Export the manager image for every release platform as an OCI archive. Specify IMG and VERSION.
 	mkdir -p dist
@@ -367,7 +372,7 @@ release-bundle: require-version ## Assemble the air-gapped install bundle from t
 		"" \
 		"Documentation: https://misiektoja.github.io/cmp-issuer/" \
 		> "dist/cmp-issuer-$(VERSION)/INSTALL.txt"
-	tar czf "dist/cmp-issuer-$(VERSION)-airgap.tar.gz" -C dist "cmp-issuer-$(VERSION)"
+	tar $(TAR_PORTABLE_FLAGS) -czf "dist/cmp-issuer-$(VERSION)-airgap.tar.gz" -C dist "cmp-issuer-$(VERSION)"
 	@echo "Wrote dist/cmp-issuer-$(VERSION)-airgap.tar.gz"
 
 ##@ Deployment
