@@ -10,16 +10,24 @@ Every namespace that uses a `CMPIssuer` needs a RoleBinding of its own. The bind
 
 ## Let the chart create it
 
-Name the namespaces in `credentialNamespaces`, at install or in an upgrade:
+Name the namespaces in `credentialNamespaces` when you install:
+
+```bash
+helm install cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system --create-namespace \
+  --set 'credentialNamespaces={team-a,team-b}'
+```
+
+The chart creates one `cmp-issuer-credential-reader-rolebinding` per listed namespace. Each namespace must exist before the release is installed or upgraded, and the setting requires `rbac.namespaced=false`, because a RoleBinding in one namespace cannot reference a Role that lives in another.
+
+Authorize a namespace you add later by upgrading with the full list, since `--set` replaces the value rather than appending to it:
 
 ```bash
 helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
   --namespace cmp-issuer-system \
   --reuse-values \
-  --set 'credentialNamespaces={team-a,team-b}'
+  --set 'credentialNamespaces={team-a,team-b,team-c}'
 ```
-
-The chart creates one `cmp-issuer-credential-reader-rolebinding` per listed namespace. Each namespace must exist before the release is installed or upgraded, and the setting requires `rbac.namespaced=false`, because a RoleBinding in one namespace cannot reference a Role that lives in another.
 
 ## Apply the RoleBinding yourself
 
