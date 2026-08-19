@@ -1,6 +1,6 @@
 # ADR 0001: isolate go-pkicmp behind project interfaces
 
-* Status: accepted for initial development
+* Status: accepted
 
 ## Context
 
