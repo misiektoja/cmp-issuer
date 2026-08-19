@@ -3,8 +3,13 @@ name: cmp-issuer
 description: A vendor-neutral cert-manager external issuer for Certificate Management Protocol servers
 type: application
 
+## version is the chart version and has to be bare SemVer, so it is the release tag without the leading
+## v. appVersion is the image tag, which does carry the v, and the two are kept in step by the release
+## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
+## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
+## tag the registry does not have.
 version: 0.1.0
-appVersion: "0.1.0"
+appVersion: "v0.1.0"
 
 ## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
 ## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
