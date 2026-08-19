@@ -78,6 +78,15 @@ It installs the same CRDs, RBAC, cert-manager approval permission and controller
 `cmp-issuer-system`, plus a ClusterRoleBinding that lets the controller read Secrets **only** in
 `cmp-issuer-system`. Neither installation path grants Secret access in workload namespaces.
 
+The metrics endpoint serves HTTPS and authorizes every scrape, the same as the chart. It is the one
+place where the two paths differ in what they offer: the chart can have cert-manager issue the metrics
+serving certificate through `metrics.tls.certManager.enabled`, and the released manifest is built
+without it, so the endpoint presents a certificate the controller generates for `localhost` and a
+scraper has to skip verification. To get the issued certificate on this path, build the manifest from a
+checkout and uncomment the sections marked `CERTMANAGER`, `METRICS-WITH-CERTS` and
+`PROMETHEUS-WITH-CERTS` in `config/default/kustomization.yaml` and
+`config/prometheus/kustomization.yaml`, following the notes there, then run `make build-installer`.
+
 ## Install without registry access
 
 Every release attaches `cmp-issuer-<version>-airgap.tar.gz`, which carries everything an air-gapped
