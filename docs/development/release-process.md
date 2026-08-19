@@ -45,6 +45,22 @@ them do not carry the release tag verbatim:
 * `make sbom` run without `VERSION`, as `make supply-chain` and the supply chain workflow do, names the
   bill of materials after the commit it describes instead, since there is no release to name.
 
+## Build identity
+
+The same `VERSION` is stamped into the binary, so a running manager names the release it came from
+rather than reporting `development`. `make build` and every image target pass `VERSION`, the commit,
+the commit date and `IMG` to the linker, and the Dockerfile forwards them as build arguments. Any
+build that does not set `VERSION` falls back to `git describe`, so a development image still names the
+tree it was built from.
+
+The manager reports all of it on its first log line and from `/manager --version`, together with the
+image, chart and release the install supplied. See
+[Troubleshooting](../operations/troubleshooting.md#which-build-is-running).
+
+`buildDate` is the commit date rather than the time of the build, so rebuilding a tag does not change
+the binary. The variables the linker stamps live in `internal/version`; renaming one silently disables
+the stamp, because the linker ignores an `-X` flag it cannot resolve.
+
 ## CI workflows
 
 | Workflow | Purpose |
