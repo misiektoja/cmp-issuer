@@ -80,7 +80,9 @@ It installs the same CRDs, RBAC, cert-manager approval permission and controller
 
 Every release attaches `cmp-issuer-<version>-airgap.tar.gz`, which carries everything an air-gapped
 cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, the installer
-manifest, the licence and notices, and an `INSTALL.txt` repeating the two commands below.
+manifest, the bill of materials, the licence and notices, and an `INSTALL.txt` repeating the two
+commands below. The bill of materials travels with the bundle so a cluster with no route to the release
+page can still answer what the image was built from.
 
 It unpacks into `cmp-issuer-<version>-airgap/`, and every file inside carries the version too, so two
 releases can be unpacked side by side and a file copied out of either one still names the release it
@@ -91,6 +93,7 @@ cmp-issuer-<version>-airgap/
   images/cmp-issuer-<version>-image.tar    manager image as an OCI archive
   charts/cmp-issuer-<chart version>.tgz    packaged Helm chart
   cmp-issuer-<version>-install.yaml        self-contained manifest install
+  cmp-issuer-<version>-sbom.cdx.json       CycloneDX bill of materials
   INSTALL.txt  README.md  RELEASE_NOTES.md  LICENSE  THIRD_PARTY_NOTICES.md
 ```
 
