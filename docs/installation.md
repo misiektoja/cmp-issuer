@@ -30,10 +30,11 @@ List the available chart versions with `helm search repo cmp-issuer -l`.
 
 ### From a packaged chart
 
-Every release attaches a packaged chart, which is useful offline or behind a mirror:
+Every release attaches a packaged chart, which is useful offline or behind a mirror. Its version has no
+leading `v`, because a Helm chart version has to be bare SemVer:
 
 ```bash
-helm install cmp-issuer ./cmp-issuer-<version>.tgz \
+helm install cmp-issuer ./cmp-issuer-<chart version>.tgz \
   --namespace cmp-issuer-system \
   --create-namespace
 ```
@@ -65,10 +66,10 @@ helm install cmp-issuer ./charts/cmp-issuer \
 
 ## Install with the manifest
 
-Every release also attaches a self-contained `install.yaml`:
+Every release also attaches a self-contained `cmp-issuer-<version>-install.yaml`:
 
 ```bash
-kubectl apply -f install.yaml
+kubectl apply -f cmp-issuer-<version>-install.yaml
 ```
 
 It installs the same CRDs, RBAC, cert-manager approval permission and controller Deployment in
@@ -78,25 +79,40 @@ It installs the same CRDs, RBAC, cert-manager approval permission and controller
 ## Install without registry access
 
 Every release attaches `cmp-issuer-<version>-airgap.tar.gz`, which carries everything an air-gapped
-cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, `install.yaml`,
-the licence and notices, and an `INSTALL.txt` repeating the two commands below.
+cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, the installer
+manifest, the licence and notices, and an `INSTALL.txt` repeating the two commands below.
+
+It unpacks into `cmp-issuer-<version>-airgap/`, and every file inside carries the version too, so two
+releases can be unpacked side by side and a file copied out of either one still names the release it
+came from:
+
+```text
+cmp-issuer-<version>-airgap/
+  images/cmp-issuer-<version>-image.tar    manager image as an OCI archive
+  charts/cmp-issuer-<chart version>.tgz    packaged Helm chart
+  cmp-issuer-<version>-install.yaml        self-contained manifest install
+  INSTALL.txt  README.md  RELEASE_NOTES.md  LICENSE  THIRD_PARTY_NOTICES.md
+```
+
+The chart is the one file named without the leading `v`, because a Helm chart version has to be bare
+SemVer. It is otherwise the same version as everything else in the bundle.
 
 Copy the image into a registry your cluster can reach:
 
 ```bash
-skopeo copy --all oci-archive:images/cmp-issuer-*-image.tar docker://<registry>/cmp-issuer:<version>
+skopeo copy --all oci-archive:images/cmp-issuer-<version>-image.tar docker://<registry>/cmp-issuer:<version>
 ```
 
 Import it straight into each node's container runtime instead when you have no registry at all:
 
 ```bash
-ctr --namespace k8s.io images import images/cmp-issuer-*-image.tar
+ctr --namespace k8s.io images import images/cmp-issuer-<version>-image.tar
 ```
 
 Then install from the bundled chart, pointing it at wherever the image now lives:
 
 ```bash
-helm install cmp-issuer charts/cmp-issuer-*.tgz --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer
+helm install cmp-issuer charts/cmp-issuer-<chart version>.tgz --namespace cmp-issuer-system --create-namespace --set manager.image.repository=<registry>/cmp-issuer
 ```
 
 The archive holds the image that was published, exported from the same build rather than rebuilt, so its
