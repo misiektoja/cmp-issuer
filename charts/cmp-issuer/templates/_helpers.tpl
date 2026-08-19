@@ -61,3 +61,16 @@ Otherwise, use the standard resourceName helper with "controller-manager" suffix
 {{- include "cmp-issuer.resourceName" (dict "suffix" "controller-manager" "context" .) }}
 {{- end }}
 {{- end }}
+
+{{/*
+Manager image reference.
+A repository carrying a digest is used as given, because a tag cannot be appended to one.
+Otherwise the tag is manager.image.tag, falling back to the chart appVersion.
+*/}}
+{{- define "cmp-issuer.image" -}}
+{{- if contains "@" .Values.manager.image.repository -}}
+{{- .Values.manager.image.repository }}
+{{- else -}}
+{{- printf "%s:%s" .Values.manager.image.repository (.Values.manager.image.tag | default .Chart.AppVersion) }}
+{{- end -}}
+{{- end }}
