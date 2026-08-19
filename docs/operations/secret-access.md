@@ -6,7 +6,24 @@ The installation creates the `cmp-issuer-credential-reader` ClusterRole with onl
 
 The chart binds the role in the release namespace and points `--cluster-resource-namespace` at the same namespace, so the permission and the lookup always agree. Moving the lookup with `manager.clusterResourceNamespace` moves the binding with it.
 
-An administrator must create a RoleBinding in each namespace that uses a `CMPIssuer`. The binding grants access only inside that namespace:
+Every namespace that uses a `CMPIssuer` needs a RoleBinding of its own. The binding grants access only inside that namespace, and there are two ways to create it.
+
+## Let the chart create it
+
+Name the namespaces in `credentialNamespaces`, at install or in an upgrade:
+
+```bash
+helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system \
+  --reuse-values \
+  --set 'credentialNamespaces={team-a,team-b}'
+```
+
+The chart creates one `cmp-issuer-credential-reader-rolebinding` per listed namespace. Each namespace must exist before the release is installed or upgraded, and the setting requires `rbac.namespaced=false`, because a RoleBinding in one namespace cannot reference a Role that lives in another.
+
+## Apply the RoleBinding yourself
+
+This is the route for a namespace you would rather not carry in the release values, for one created long after the install, or for the manifest installation, which has no values to set:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -24,9 +41,9 @@ subjects:
   namespace: cmp-issuer-system
 ```
 
-The chart can create these bindings for namespaces you already know about, with
-`--set 'credentialNamespaces={team-a,team-b}'`. It is the same RoleBinding, so the boundary is
-unchanged: only the listed namespaces are readable, and a namespace added later still needs one.
+Both routes create the same grant, so the boundary is unchanged either way: only the namespaces you named are readable, and a namespace added later still needs its own binding. The two bindings carry different names, so listing a namespace that already has a hand-applied binding leaves two identical grants in it. Delete the one you applied when you move a namespace into `credentialNamespaces`.
+
+Under `rbac.namespaced=true` the credential reader is a Role in the release namespace rather than a ClusterRole, so it cannot be bound anywhere else. A workload namespace then needs its own Role granting `get` on Secrets, plus a RoleBinding to the controller ServiceAccount.
 
 The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.
 
