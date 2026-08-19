@@ -70,11 +70,13 @@ jobs:
       - name: Generate the SBOM
         run: make sbom
 
+      # The routine run has no release version, so the file is named after the commit it describes and
+      # is matched by pattern here rather than by a fixed path.
       - name: Publish the SBOM
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cmp-issuer-sbom
-          path: dist/cmp-issuer.cdx.json
+          path: dist/cmp-issuer-*-sbom.cdx.json
           if-no-files-found: error
 
   image-scan:
