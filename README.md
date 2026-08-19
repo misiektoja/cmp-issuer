@@ -22,9 +22,6 @@ PasswordBasedMac and certificate-signature P10CR have both completed protected c
 enrollments against two independent CMP servers: [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org).
 Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
-> This repository is under active initial development. The API group is served at `v1alpha1` and may
-> change.
-
 ## Contents
 
 * [Prerequisites](#prerequisites)
@@ -46,47 +43,43 @@ Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
 ## Install
 
+`demo` is the namespace your certificates are issued into. Substitute your own.
+
 ```bash
+kubectl create namespace demo
+
 helm repo add cmp-issuer https://misiektoja.github.io/cmp-issuer/charts
 helm repo update
 helm install cmp-issuer cmp-issuer/cmp-issuer \
   --namespace cmp-issuer-system \
-  --create-namespace
+  --create-namespace \
+  --set 'credentialNamespaces={demo}'
 ```
 
-This installs the CRDs, the controller and the permission cert-manager needs before it will approve
-requests for this issuer type. A packaged chart and a self-contained installer manifest are attached to
-every release. Other install paths, pointing the approval permission at a non-default cert-manager, and
-what happens to the CRDs on uninstall, are all in [Installation](https://misiektoja.github.io/cmp-issuer/installation/).
+That installs the CRDs, the controller and the permission cert-manager needs before it will approve
+requests for this issuer type. `credentialNamespaces` lets the controller read the issuer credentials in
+`demo` and nowhere else, so name every namespace your issuers live in.
+
+A packaged chart, a self-contained installer manifest and an air-gapped bundle are attached to every
+release. Those paths, and the settings this quick start leaves at their defaults, are in
+[Installation](https://misiektoja.github.io/cmp-issuer/installation/).
 
 ## Issue your first certificate
 
 The short version is below. [Getting started](https://misiektoja.github.io/cmp-issuer/getting-started/) explains each step, shows the
 expected output and lists what to check when something does not work.
 
-Store the credential and the CMP trust anchor, then authorize the controller to read them in that
-namespace only:
+Store the credential your CMP administrator gave you and the CA certificate that signs the server's CMP
+responses:
 
 ```bash
-kubectl create namespace demo
-
 kubectl create secret generic cmp-credentials --namespace demo \
   --from-literal=reference='<reference>' \
   --from-literal=secret='<shared-secret>'
 
 kubectl create secret generic cmp-trust --namespace demo \
   --from-file=ca.crt=/path/to/cmp-ca.crt
-
-helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
-  --namespace cmp-issuer-system \
-  --reuse-values \
-  --set 'credentialNamespaces={demo}'
 ```
-
-The controller has no cluster-wide Secret access, so every namespace holding `CMPIssuer` credentials is
-authorized on its own. Naming the namespace in `credentialNamespaces` has the chart create that
-RoleBinding for you, and the namespace has to exist first. Applying the binding by hand instead, and
-what a `CMPClusterIssuer` needs, are in [Installation](https://misiektoja.github.io/cmp-issuer/installation/#namespace-access-for-cmpissuer).
 
 Create the issuer:
 
