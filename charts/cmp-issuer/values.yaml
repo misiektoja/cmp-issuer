@@ -35,6 +35,14 @@ manager:
   # imagePullSecrets:
   #   - name: myregistrykey
 
+  ## Extra environment variables for the manager container. The chart already sets CMP_ISSUER_IMAGE,
+  ## CMP_ISSUER_CHART and CMP_ISSUER_RELEASE, which the manager reports in its startup log line, and
+  ## setting one of those names here overrides what the chart reports.
+  ##
+  # extraEnv:
+  #   - name: HTTPS_PROXY
+  #     value: http://proxy.example.com:3128
+
   ## Pod-level security settings
   ##
   podSecurityContext:
