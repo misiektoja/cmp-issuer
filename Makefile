@@ -191,6 +191,31 @@ VERSION ?=
 require-version:
 	@test -n "$(VERSION)" || { echo "Set VERSION, for example VERSION=v0.1.0" >&2; exit 1; }
 
+# Build identity
+#
+# The manager reports these in its startup log line and from its --version flag, so a support log
+# says which release, which commit and which image reference produced the running binary. A release
+# sets VERSION and every other build falls back to the commit description, so a development image
+# still names the tree it came from. GIT_DESCRIBE, GIT_COMMIT and BUILD_DATE fall back again for a
+# build from a source archive, where there is no repository to ask.
+GIT_DESCRIBE = $(shell git describe --tags --always --dirty 2>/dev/null || echo unknown)
+## GIT_DIRTY marks a build from a modified tree, using the same definition git describe --dirty uses,
+## so a stamped commit cannot claim to be a build of that commit as it was committed.
+GIT_DIRTY = $(shell git diff-index --quiet HEAD -- 2>/dev/null || echo -dirty)
+GIT_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)$(GIT_DIRTY)
+## BUILD_DATE is the commit date rather than the wall clock, so rebuilding the same commit produces
+## the same binary. A tree with no repository falls back to the time of the build.
+BUILD_DATE ?= $(shell TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_VERSION = $(if $(VERSION),$(VERSION),$(GIT_DESCRIBE))
+
+## VERSION_PACKAGE holds the variables the linker stamps. Renaming the package or any of the four
+## variables breaks the stamp silently, because the linker ignores an -X flag it cannot resolve.
+VERSION_PACKAGE = github.com/misiektoja/cmp-issuer/internal/version
+LDFLAGS = -X $(VERSION_PACKAGE).version=$(BUILD_VERSION) -X $(VERSION_PACKAGE).gitCommit=$(GIT_COMMIT) -X $(VERSION_PACKAGE).buildDate=$(BUILD_DATE)
+## IMAGE_BUILD_ARGS forwards the same identity to the Dockerfile, which applies it with the same
+## flags. IMG is stamped as well, so the binary names the image reference it was published under.
+IMAGE_BUILD_ARGS = --build-arg VERSION=$(BUILD_VERSION) --build-arg GIT_COMMIT=$(GIT_COMMIT) --build-arg BUILD_DATE=$(BUILD_DATE) --build-arg IMAGE=$(IMG)
+
 ## CHART_VERSION is VERSION without the leading v, because a Helm chart version has to be bare SemVer.
 ## The packaged chart is therefore the one artifact whose name does not carry the tag verbatim.
 CHART_VERSION = $(VERSION:v%=%)
@@ -210,7 +235,7 @@ BUNDLE_ARCHIVE = dist/$(BUNDLE_DIR).tar.gz
 ## SBOM_VERSION names the bill of materials. The routine supply chain run publishes one for a commit
 ## rather than for a release, so it falls back to the commit description instead of to a name that
 ## could belong to any build.
-SBOM_VERSION = $(if $(VERSION),$(VERSION),$(shell git describe --tags --always --dirty 2>/dev/null || echo unknown))
+SBOM_VERSION = $(BUILD_VERSION)
 SBOM_FILE ?= dist/cmp-issuer-$(SBOM_VERSION)-sbom.cdx.json
 
 ## Flags that keep the bundle free of platform metadata. bsdtar on macOS copies extended attributes
@@ -283,7 +308,7 @@ supply-chain: govulncheck gitleaks sbom ## Run every supply chain check that nee
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -ldflags "$(LDFLAGS)" -o bin/manager cmd/main.go
 
 # The downloaded tools under bin are deliberately kept, so a clean build does not re-download the
 # whole toolchain. Remove those with clean-tools. Removing bin/manager does change the mtime of bin
@@ -313,7 +338,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build $(IMAGE_BUILD_ARGS) -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -332,7 +357,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name cmp-issuer-builder
 	$(CONTAINER_TOOL) buildx use cmp-issuer-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx build $(IMAGE_BUILD_ARGS) --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm cmp-issuer-builder
 	rm Dockerfile.cross
 
@@ -352,7 +377,7 @@ docker-archive: require-version ## Export the manager image for every release pl
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > dist/Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name cmp-issuer-archiver
 	$(CONTAINER_TOOL) buildx use cmp-issuer-archiver
-	$(CONTAINER_TOOL) buildx build --platform=$(PLATFORMS) --tag ${IMG} --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
+	$(CONTAINER_TOOL) buildx build $(IMAGE_BUILD_ARGS) --platform=$(PLATFORMS) --tag ${IMG} --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm cmp-issuer-archiver
 	# Recorded here so the bundle describes the archive it actually carries rather than the current
 	# value of PLATFORMS.
@@ -366,7 +391,7 @@ docker-release: require-version ## Push the manager image and export the same bu
 	$(CONTAINER_TOOL) buildx use cmp-issuer-releaser
 	# Two exporters on one build, so the archive in the air-gapped bundle is bit for bit the image
 	# that was published rather than a second build of the same source.
-	$(CONTAINER_TOOL) buildx build --platform=$(PLATFORMS) --tag ${IMG} --output type=image,push=true --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
+	$(CONTAINER_TOOL) buildx build $(IMAGE_BUILD_ARGS) --platform=$(PLATFORMS) --tag ${IMG} --output type=image,push=true --output type=oci,dest=$(IMAGE_ARCHIVE) -f dist/Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm cmp-issuer-releaser
 	echo "$(PLATFORMS)" > "$(IMAGE_PLATFORMS)"
 
