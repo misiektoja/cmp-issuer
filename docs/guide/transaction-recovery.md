@@ -8,7 +8,7 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | --- | --- |
 | Immediate CP with certificate | Chain recorded, then returned to cert-manager |
 | `waiting` on enrollment | Poll loop; state persisted across restarts |
-| `waiting` on delayed `certConf` | Inline poll up to one minute; **not** persisted in `CMPTransaction` |
+| `waiting` on delayed `certConf` | Chain recorded first, then polled from `CMPTransaction` in phase `Confirming` |
 
 ## CMPTransaction fields
 
