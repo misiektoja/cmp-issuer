@@ -1,6 +1,6 @@
 # Getting started
 
-This page takes you from an empty cluster to a certificate issued by your CMP server in six steps.
+This page takes you from an empty cluster to a certificate issued by your CMP server in five steps.
 Every command is meant to be run in order, and each step shows what success looks like so you can tell
 where you are.
 
@@ -23,46 +23,48 @@ Throughout this page, `demo` is the namespace your application lives in. Substit
 
 ## Step 1: install cmp-issuer
 
+Create the namespace your certificates will live in, then install the controller and name that
+namespace as one it may read issuer credentials from:
+
 ```bash
+kubectl create namespace demo
+
 helm repo add cmp-issuer https://misiektoja.github.io/cmp-issuer/charts
 helm repo update
 helm install cmp-issuer cmp-issuer/cmp-issuer \
   --namespace cmp-issuer-system \
-  --create-namespace
+  --create-namespace \
+  --set 'credentialNamespaces={demo}'
 ```
 
 This installs the CRDs, the RBAC and the controller. It also grants cert-manager permission to approve
-requests for this issuer type, which cert-manager needs before it will act on them at all. Check the
-controller is running:
+requests for this issuer type, which cert-manager needs before it will act on them at all.
+
+The controller has no cluster-wide Secret access, so each namespace holding issuer credentials is
+authorized on its own. `credentialNamespaces` creates that authorization, as a RoleBinding granting
+`get` on Secrets in `demo` and nowhere else. Name every namespace your issuers live in, and create them
+before you install.
+
+Check the controller is running and the namespace is authorized:
 
 ```bash
 kubectl -n cmp-issuer-system get pods
+kubectl get rolebinding -n demo
 ```
 
 ```text
 NAME                                         READY   STATUS    RESTARTS   AGE
 cmp-issuer-controller-manager-7d9f8c5b4-x2ktp 1/1     Running   0          30s
+
+NAME                                       ROLE                                      AGE
+cmp-issuer-credential-reader-rolebinding   ClusterRole/cmp-issuer-credential-reader   30s
 ```
 
-If cert-manager does not run as the `cert-manager` ServiceAccount in the `cert-manager` namespace,
-point the approval permission at it:
+Namespaces you add later, other ways to grant that same access, cert-manager running under a different
+ServiceAccount, what happens to the CRDs when you uninstall and how to hand approval to approver-policy
+are all in [Installation](installation.md).
 
-```bash
-helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
-  --namespace cmp-issuer-system \
-  --reuse-values \
-  --set certManagerApproval.serviceAccountName=<name> \
-  --set certManagerApproval.namespace=<namespace>
-```
-
-Other installation options, what happens to the CRDs when you uninstall, and how to hand approval to
-approver-policy instead are in [Installation](installation.md).
-
-## Step 2: create the namespace and its credentials
-
-```bash
-kubectl create namespace demo
-```
+## Step 2: store the credentials
 
 Store the PasswordBasedMac credential your CMP administrator gave you:
 
@@ -82,39 +84,7 @@ kubectl create secret generic cmp-trust \
   --from-file=ca.crt=/path/to/cmp-ca.crt
 ```
 
-## Step 3: let the controller read those Secrets
-
-The controller has no cluster-wide Secret access. Authorize it for this namespace only, by naming the
-namespace in `credentialNamespaces`:
-
-```bash
-helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
-  --namespace cmp-issuer-system \
-  --reuse-values \
-  --set 'credentialNamespaces={demo}'
-```
-
-The chart creates a RoleBinding in `demo` granting the controller `get` on Secrets there and nowhere
-else. The namespace has to exist first, which step 2 took care of, and `--reuse-values` keeps the
-settings the release already carries.
-
-Confirm the binding exists:
-
-```bash
-kubectl get rolebinding -n demo
-```
-
-```text
-NAME                                       ROLE                                      AGE
-cmp-issuer-credential-reader-rolebinding   ClusterRole/cmp-issuer-credential-reader   5s
-```
-
-Applying that RoleBinding by hand works just as well and is the route for a namespace you do not want
-to list in the release, for example one created long after the install. Both routes and the exact
-manifest are in [Credential Secret access](operations/secret-access.md), which also explains why this
-boundary exists.
-
-## Step 4: create the issuer
+## Step 3: create the issuer
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -160,9 +130,9 @@ If it reports `False`, the message names what is missing:
 kubectl describe cmpissuer demo-issuer -n demo
 ```
 
-A message naming a Secret usually means step 2 or step 3 was skipped or used a different name.
+A message naming a Secret usually means step 2 was skipped or used a different name.
 
-## Step 5: request a certificate
+## Step 4: request a certificate
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -210,7 +180,7 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
  "notAfter":"2026-08-02T09:12:31Z","keyType":"RSA","keySize":2048,"duration":"412ms", ...}
 ```
 
-## Step 6: look at what you got
+## Step 5: look at what you got
 
 ```bash
 kubectl get secret demo-tls -n demo -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -subject -issuer -dates
@@ -230,8 +200,8 @@ consumes a cert-manager Secret can consume this one unchanged.
 
 | What you see | What it means |
 | --- | --- |
-| `CertificateRequest` stays pending with no conditions | cert-manager is not permitted to approve these requests, usually because it runs under a different ServiceAccount than step 1 assumed |
-| Issuer `Ready False` naming a Secret | Step 2 or 3 was skipped, or a name does not match |
+| `CertificateRequest` stays pending with no conditions | cert-manager is not permitted to approve these requests, usually because it runs under a different ServiceAccount than the chart default |
+| Issuer `Ready False` naming a Secret | Step 2 was skipped, a name does not match, or `demo` was not named in `credentialNamespaces` |
 | `Ready False` naming response protection or trust | `cmpTrust` does not hold the CA that signs your server's CMP responses |
 | `Ready False` naming the response sender | `recipient` does not name the authority your server answers as |
 | Connection refused or timeout | Wrong endpoint URL, or a NetworkPolicy blocks the controller |
