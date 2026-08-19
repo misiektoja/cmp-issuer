@@ -110,7 +110,7 @@ Ready condition follows issuer-lib conventions. When credential or trust Secrets
 
 ## RBAC
 
-Create the RoleBinding from [Credential Secret access](../operations/secret-access.md) in the issuer namespace before expecting Ready=True.
+The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
 
 ## Related pages
 
