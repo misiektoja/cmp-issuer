@@ -98,7 +98,20 @@ spec:
         {{- end }}
         command:
         - /manager
-        image: "{{ .Values.manager.image.repository }}{{- if not (contains "@" .Values.manager.image.repository) }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}{{- end }}"
+        env:
+        # Reported in the manager's startup log line and by its --version flag, so a support log says
+        # which image and which chart release produced the running controller. The build identity is
+        # stamped into the binary, and these are what only the install knows.
+        - name: CMP_ISSUER_IMAGE
+          value: "{{ include "cmp-issuer.image" . }}"
+        - name: CMP_ISSUER_CHART
+          value: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        - name: CMP_ISSUER_RELEASE
+          value: "{{ .Release.Name }}"
+        {{- with .Values.manager.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        image: "{{ include "cmp-issuer.image" . }}"
         {{- with .Values.manager.image.pullPolicy }}
         imagePullPolicy: {{ . }}
         {{- end }}
