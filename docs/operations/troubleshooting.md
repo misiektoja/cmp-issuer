@@ -29,6 +29,39 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 The container is named `manager`. Adjust the namespace and Deployment name if you installed under a
 different release name or namespace.
 
+### Which build is running
+
+The first line the manager writes names the build and the install it came from, which is the first
+thing to establish before reporting a problem:
+
+```text
+{"level":"info","logger":"setup","msg":"Starting manager",
+ "version":"v0.1.0","gitCommit":"1081fb2ff26a","buildDate":"2026-08-19T01:15:49Z",
+ "goVersion":"go1.26.5","platform":"linux/amd64",
+ "image":"ghcr.io/misiektoja/cmp-issuer:v0.1.0",
+ "chart":"cmp-issuer-0.1.0","release":"cmp-issuer"}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `version` | The release the binary was built from. A build that is not a release carries the commit description instead, and one built with no version information at all reports `development` |
+| `gitCommit` | The commit the binary was built from, shortened to 12 characters, with `-dirty` when the tree was modified |
+| `buildDate` | The commit date, so rebuilding the same commit produces the same value |
+| `goVersion`, `platform` | The Go toolchain and the operating system and architecture the binary runs on |
+| `image` | The image reference the manager was deployed from. Set by the Helm chart, so it names your mirror when you mirror the image. A manifest install reports the reference the image was published under instead |
+| `chart` | The Helm chart and chart version that installed the manager. Absent on an install from the manifest, which uses no chart |
+| `release` | The Helm release name. Absent on an install from the manifest |
+
+The same information is available without reading the log, which is useful when the manager will not
+start:
+
+```bash
+kubectl exec -n cmp-issuer-system deploy/cmp-issuer-controller-manager -- /manager --version
+```
+
+An image that reports `development` was not built by a release. If you did not build it yourself,
+check that the Deployment pulls the tag you intended.
+
 ### What the log contains
 
 Every enrollment produces one line for its outcome at the default verbosity. A completed enrollment
