@@ -1826,11 +1826,15 @@ leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
 </tr>
 <tr>
 <td><code>manager.args</code></td>
-<td>Extra controller flags, for example <code>--cluster-resource-namespace=&lt;ns&gt;</code></td>
+<td>Extra controller flags</td>
+</tr>
+<tr>
+<td><code>manager.clusterResourceNamespace</code></td>
+<td>Namespace <code>CMPClusterIssuer</code> credential Secrets are read from. Defaults to the release namespace, and a different value also gets a credential reader RoleBinding</td>
 </tr>
 <tr>
 <td><code>rbac.namespaced</code></td>
-<td>Scope RBAC to the release namespace instead of cluster-wide</td>
+<td>Scope RBAC to the release namespace instead of cluster-wide. Changing it on an existing release needs the existing bindings deleted first, since Kubernetes does not allow a <code>roleRef</code> to change</td>
 </tr>
 <tr>
 <td><code>rbac.helpers.enabled</code></td>

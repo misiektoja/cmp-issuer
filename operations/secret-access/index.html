@@ -1440,7 +1440,8 @@
 
 <h1 id="credential-secret-access">Credential Secret access<a class="headerlink" href="#credential-secret-access" title="Permanent link">&para;</a></h1>
 <p>cmp-issuer resolves Secrets through an uncached Kubernetes API reader. Its manager ClusterRole cannot read Secrets.</p>
-<p>The installation creates the <code>cmp-issuer-credential-reader</code> ClusterRole with only <code>get</code> permission for Secrets. A RoleBinding grants that role to the controller ServiceAccount in <code>cmp-issuer-system</code>. This is the only namespace from which <code>CMPClusterIssuer</code> credentials can be read by default.</p>
+<p>The installation creates the <code>cmp-issuer-credential-reader</code> ClusterRole with only <code>get</code> permission for Secrets. A RoleBinding grants that role to the controller ServiceAccount in the controller's own namespace, <code>cmp-issuer-system</code> by default. This is the only namespace from which <code>CMPClusterIssuer</code> credentials can be read by default.</p>
+<p>The chart binds the role in the release namespace and points <code>--cluster-resource-namespace</code> at the same namespace, so the permission and the lookup always agree. Moving the lookup with <code>manager.clusterResourceNamespace</code> moves the binding with it.</p>
 <p>An administrator must create a RoleBinding in each namespace that uses a <code>CMPIssuer</code>. The binding grants access only inside that namespace:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io/v1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RoleBinding</span>

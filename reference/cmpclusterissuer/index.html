@@ -1671,7 +1671,14 @@
 </tbody>
 </table>
 <h2 id="cluster-resource-namespace">Cluster resource namespace<a class="headerlink" href="#cluster-resource-namespace" title="Permanent link">&para;</a></h2>
-<p>The controller flag <code>--cluster-resource-namespace</code> selects where credential Secrets live. The default installation uses <code>cmp-issuer-system</code>. With the Helm chart, override it by adding the flag to <code>manager.args</code>.</p>
+<p>The controller flag <code>--cluster-resource-namespace</code> selects where credential Secrets live.</p>
+<p>The Helm chart sets it to the release namespace, which is the namespace the chart binds the credential
+reader in, so a release installed anywhere reads its <code>CMPClusterIssuer</code> Secrets from its own namespace
+with no extra configuration. Set <code>manager.clusterResourceNamespace</code> to read them from somewhere else,
+and the chart adds a credential reader RoleBinding there as well. That case needs <code>rbac.namespaced</code> to
+be <code>false</code>, since a Role cannot be bound outside its own namespace.</p>
+<p>The installer manifest installs into <code>cmp-issuer-system</code> and relies on the compiled-in default of the
+same name. Change both together if you retarget the manifest.</p>
 <p>Store PBM credentials, signature bootstrap material and CMP trust anchors in that namespace. Reference them by name only in the issuer spec.</p>
 <h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">certmanager.misiektoja.github.io/v1alpha1</span>
