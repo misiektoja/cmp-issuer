@@ -1,0 +1,42 @@
+{{- if include "cmp-issuer.metricsCertEnabled" . }}
+{{- if not .Values.metrics.tls.certManager.issuerRef }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ include "cmp-issuer.name" . }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ include "cmp-issuer.metricsCertIssuerName" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: {}
+---
+{{- end }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ include "cmp-issuer.name" . }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ include "cmp-issuer.metricsCertSecretName" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  # The ServiceMonitor verifies the endpoint against the first of these, so the two are rendered from
+  # the same helper rather than written out twice.
+  dnsNames:
+  - {{ include "cmp-issuer.metricsServiceName" . }}.{{ .Release.Namespace }}.svc
+  - {{ include "cmp-issuer.metricsServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    {{- if .Values.metrics.tls.certManager.issuerRef }}
+    {{- toYaml .Values.metrics.tls.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    group: cert-manager.io
+    kind: Issuer
+    name: {{ include "cmp-issuer.metricsCertIssuerName" . }}
+    {{- end }}
+  secretName: {{ include "cmp-issuer.metricsCertSecretName" . }}
+{{- end }}
