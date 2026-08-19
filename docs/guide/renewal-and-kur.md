@@ -1,6 +1,6 @@
 # P10CR renewal and KUR roadmap
 
-cmp-issuer today implements **initial enrollment only** through P10CR. cert-manager renewal and CMP Key Update Request (KUR) are distinct concepts.
+cmp-issuer implements enrollment through P10CR and renews the same way, by sending a fresh P10CR. It implements **no CMP Key Update Request**, so cert-manager renewal and KUR stay distinct concepts here.
 
 ## cert-manager renewal
 
