@@ -25,6 +25,13 @@ manager:
     # tag: ""
     pullPolicy: IfNotPresent
 
+  ## Namespace the controller reads CMPClusterIssuer credential and trust Secrets from. Defaults to
+  ## the release namespace, which is where the chart binds the credential reader, so leave it unset
+  ## unless those Secrets live somewhere else. A namespace outside the release namespace also gets a
+  ## credential reader RoleBinding, and requires rbac.namespaced to be false.
+  ##
+  # clusterResourceNamespace: ""
+
   ## Arguments
   ##
   args:
