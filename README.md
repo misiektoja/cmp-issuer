@@ -22,6 +22,9 @@ PasswordBasedMac and certificate-signature P10CR have both completed protected c
 enrollments against two independent CMP servers: [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org).
 Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
+> This repository is under active initial development. The API group is served at `v1alpha1` and may
+> change.
+
 ## Contents
 
 * [Prerequisites](#prerequisites)
