@@ -14,7 +14,16 @@
 
 ## Cluster resource namespace
 
-The controller flag `--cluster-resource-namespace` selects where credential Secrets live. The default installation uses `cmp-issuer-system`. With the Helm chart, override it by adding the flag to `manager.args`.
+The controller flag `--cluster-resource-namespace` selects where credential Secrets live.
+
+The Helm chart sets it to the release namespace, which is the namespace the chart binds the credential
+reader in, so a release installed anywhere reads its `CMPClusterIssuer` Secrets from its own namespace
+with no extra configuration. Set `manager.clusterResourceNamespace` to read them from somewhere else,
+and the chart adds a credential reader RoleBinding there as well. That case needs `rbac.namespaced` to
+be `false`, since a Role cannot be bound outside its own namespace.
+
+The installer manifest installs into `cmp-issuer-system` and relies on the compiled-in default of the
+same name. Change both together if you retarget the manifest.
 
 Store PBM credentials, signature bootstrap material and CMP trust anchors in that namespace. Reference them by name only in the issuer spec.
 
