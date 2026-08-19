@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -51,6 +52,7 @@ type runConfiguration struct {
 	ClusterResourceNamespace string
 	EnableLeaderElection     bool
 	MetricsAddress           string
+	MetricsSecure            bool
 	ProbeAddress             string
 }
 
@@ -66,6 +68,7 @@ func main() {
 	var clusterResourceNamespace string
 	var enableLeaderElection bool
 	var metricsAddress string
+	var metricsSecure bool
 	var probeAddress string
 	var printVersion bool
 	flag.StringVar(
@@ -76,6 +79,12 @@ func main() {
 	)
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Enable controller leader election")
 	flag.StringVar(&metricsAddress, "metrics-bind-address", "0", "Metrics listener address or 0 to disable")
+	flag.BoolVar(
+		&metricsSecure,
+		"metrics-secure",
+		true,
+		"Serve metrics over HTTPS, authenticated with TokenReview and authorized with SubjectAccessReview",
+	)
 	flag.StringVar(&probeAddress, "health-probe-bind-address", ":8081", "Health probe listener address")
 	flag.BoolVar(&printVersion, "version", false, "Print the build identity of this binary and exit")
 	logOptions := zap.Options{Development: false}
@@ -90,6 +99,7 @@ func main() {
 		ClusterResourceNamespace: clusterResourceNamespace,
 		EnableLeaderElection:     enableLeaderElection,
 		MetricsAddress:           metricsAddress,
+		MetricsSecure:            metricsSecure,
 		ProbeAddress:             probeAddress,
 	}
 	if err := run(ctrl.SetupSignalHandler(), configuration); err != nil {
@@ -101,13 +111,20 @@ func main() {
 // run builds the controller-runtime manager and registers issuer-lib controllers.
 func run(ctx context.Context, configuration runConfiguration) error {
 	disableHTTP2 := func(configuration *tls.Config) { configuration.NextProtos = []string{"http/1.1"} }
+	metricsOptions := metricsserver.Options{
+		BindAddress:   configuration.MetricsAddress,
+		SecureServing: configuration.MetricsSecure,
+		TLSOpts:       []func(*tls.Config){disableHTTP2},
+	}
+	if configuration.MetricsSecure {
+		// Without a filter the endpoint would serve HTTPS to any caller that reaches the port. The
+		// filter delegates to the API server, so a scrape needs a token whose subject is allowed to
+		// get the /metrics non-resource URL, which is what the metrics-reader ClusterRole grants.
+		metricsOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
+	}
 	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme: scheme,
-		Metrics: metricsserver.Options{
-			BindAddress:   configuration.MetricsAddress,
-			SecureServing: true,
-			TLSOpts:       []func(*tls.Config){disableHTTP2},
-		},
+		Scheme:                 scheme,
+		Metrics:                metricsOptions,
 		WebhookServer:          webhook.NewServer(webhook.Options{TLSOpts: []func(*tls.Config){disableHTTP2}}),
 		HealthProbeBindAddress: configuration.ProbeAddress,
 		LeaderElection:         configuration.EnableLeaderElection,
