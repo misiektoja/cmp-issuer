@@ -6,7 +6,7 @@ cmp-issuer has completed protected P10CR enrollments through real cert-manager `
 
 | Item | Value |
 | --- | --- |
-| Product | Nokia NCM 26.7 |
+| Product | [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) |
 | CMP implementation | Insta Certifier 7.20 |
 | Protection tested | PasswordBasedMac, certificate signature |
 | Confirmation | Explicit `certConf` and protected `pkiConf` |
@@ -49,7 +49,7 @@ The NCM CMP listener applies a per-host request limit that is independent of CMP
 
 | Item | Value |
 | --- | --- |
-| Product | EJBCA CE 9.3.7 |
+| Product | [EJBCA Community Edition 9.3.7](https://www.ejbca.org) |
 | Mode | CMP alias in **client mode** and in **RA mode** |
 | Protection tested | PasswordBasedMac, certificate signature |
 | Transports tested | HTTP and HTTPS |
@@ -89,7 +89,5 @@ The mock keeps one transaction per TCP connection. The test reaches it through a
 
 * Compatibility with arbitrary CMP servers or profiles
 * IR, KUR, revocation or CMPv3
-* mTLS to a CMP endpoint. HTTPS is verified against EJBCA above, and the endpoints of the other servers listed here serve CMP over plain HTTP only
-* NCM REST renewal
 
 See [Support matrix](../support-matrix.md).

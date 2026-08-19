@@ -10,13 +10,16 @@
 [![Supply chain](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml)
 
 cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
-servers. Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2
+servers.
+
+Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2
 and written to the usual TLS Secret, so workloads that already consume cert-manager Secrets need no
 change.
 
-CMP message protection is mandatory. HTTP and HTTPS are both supported, and HTTP provides no transport
-confidentiality. PasswordBasedMac and certificate-signature P10CR have both completed protected
-cert-manager `Certificate` enrollments against two independent CMP servers: Nokia NCM 26.7 and EJBCA Community Edition 9.3.7.
+CMP message protection is mandatory. HTTP and HTTPS are both supported.
+
+PasswordBasedMac and certificate-signature P10CR have both completed protected cert-manager `Certificate`
+enrollments against two independent CMP servers: [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org).
 Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
@@ -33,9 +36,9 @@ Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
 
 ## Prerequisites
 
-* A Kubernetes cluster, verified on v1.34, v1.35 and v1.36
+* A Kubernetes cluster, verified on v1.34-1.36
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support, verified on
-  v1.19, v1.20 and v1.21
+  v1.19-1.21
 * [Helm](https://helm.sh/docs/intro/install/) v3
 * A CMP server, plus its endpoint URL, recipient DN, a credential and the CA certificate that signs its
   CMP responses
