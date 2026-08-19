@@ -107,7 +107,8 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `metrics.enabled` | `true` | Expose the `/metrics` endpoint |
 | `metrics.port` | `8443` | Metrics port |
 | `metrics.secure` | `true` | Serve metrics over HTTPS, authenticated with a `TokenReview` and authorized with a `SubjectAccessReview`, and create the RBAC both need. `false` serves plain HTTP to anything that reaches the port |
-| `certManager.enabled` | `false` | Use cert-manager for the metrics endpoint certificate |
+| `metrics.tls.certManager.enabled` | `false` | Issue the metrics serving certificate with cert-manager, so a scraper verifies the endpoint instead of skipping verification. Left off, the controller generates a certificate nothing signs |
+| `metrics.tls.certManager.issuerRef` | unset | Existing `Issuer` or `ClusterIssuer` to sign it. Left unset, the chart creates a self-signed `Issuer` in the release namespace |
 | `prometheus.enabled` | `false` | Create a Prometheus `ServiceMonitor`. Needs prometheus-operator |
 | `networkPolicy.enabled` | `false` | Restrict ingress to the controller |
 | `nameOverride`, `fullnameOverride` | unset | Override the generated resource names |
