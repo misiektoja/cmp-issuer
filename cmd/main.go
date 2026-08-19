@@ -37,14 +37,13 @@ import (
 
 	cmpv1alpha1 "github.com/misiektoja/cmp-issuer/api/v1alpha1"
 	cmpcontroller "github.com/misiektoja/cmp-issuer/internal/controller"
+	"github.com/misiektoja/cmp-issuer/internal/version"
 	// +kubebuilder:scaffold:imports
 )
 
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
-	// Version is replaced by release builds.
-	Version = "development"
 )
 
 // runConfiguration contains the manager settings populated by command-line flags.
@@ -68,6 +67,7 @@ func main() {
 	var enableLeaderElection bool
 	var metricsAddress string
 	var probeAddress string
+	var printVersion bool
 	flag.StringVar(
 		&clusterResourceNamespace,
 		"cluster-resource-namespace",
@@ -77,9 +77,14 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Enable controller leader election")
 	flag.StringVar(&metricsAddress, "metrics-bind-address", "0", "Metrics listener address or 0 to disable")
 	flag.StringVar(&probeAddress, "health-probe-bind-address", ":8081", "Health probe listener address")
+	flag.BoolVar(&printVersion, "version", false, "Print the build identity of this binary and exit")
 	logOptions := zap.Options{Development: false}
 	logOptions.BindFlags(flag.CommandLine)
 	flag.Parse()
+	if printVersion {
+		fmt.Println(version.Get())
+		return
+	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOptions)))
 	configuration := runConfiguration{
 		ClusterResourceNamespace: clusterResourceNamespace,
@@ -122,7 +127,7 @@ func run(ctx context.Context, configuration runConfiguration) error {
 	if err := manager.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		return fmt.Errorf("add readiness check: %w", err)
 	}
-	setupLog.Info("Starting manager", "version", Version)
+	setupLog.Info("Starting manager", version.Get().KeysAndValues()...)
 	if err := manager.Start(ctx); err != nil {
 		return fmt.Errorf("run manager: %w", err)
 	}
