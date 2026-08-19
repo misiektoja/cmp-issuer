@@ -74,3 +74,12 @@ Otherwise the tag is manager.image.tag, falling back to the chart appVersion.
 {{- printf "%s:%s" .Values.manager.image.repository (.Values.manager.image.tag | default .Chart.AppVersion) }}
 {{- end -}}
 {{- end }}
+
+{{/*
+Namespace the controller reads CMPClusterIssuer credential and trust Secrets from.
+Defaults to the release namespace, which is the namespace the chart binds the credential reader in,
+so the controller flag and the RBAC the chart creates cannot disagree.
+*/}}
+{{- define "cmp-issuer.clusterResourceNamespace" -}}
+{{- .Values.manager.clusterResourceNamespace | default .Release.Namespace }}
+{{- end }}
