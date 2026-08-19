@@ -23,7 +23,7 @@ Community Edition 9.3.7. Enrollment against EJBCA, over HTTP and over HTTPS, run
 
 ## Start here
 
-**[Getting started](getting-started.md)** walks from an empty cluster to an issued certificate in seven
+**[Getting started](getting-started.md)** walks from an empty cluster to an issued certificate in six
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.
 
 ## Then
@@ -38,6 +38,7 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 | Move off plain HTTP | [HTTP and HTTPS transport](guide/transport.md) |
 | Look up every field | [CMPIssuer](reference/cmpissuer.md), [CMPClusterIssuer](reference/cmpclusterissuer.md) |
 | Find notes for my CMP server | [Tested PKIs](interoperability/tested-pkis.md) |
+| Watch enrollments on a dashboard | [Metrics](operations/metrics.md) |
 | Fix something that is stuck | [Troubleshooting](operations/troubleshooting.md) |
 | Understand what is not done yet | [Known limitations](known-limitations.md) |
 
@@ -48,7 +49,7 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 * [Transaction recovery](guide/transaction-recovery.md) - what survives a controller restart
 * [Security model](security/security-model.md) and [Threat model](security/threat-model.md)
 * [Provenance and supply chain](provenance.md)
-* [CMP library selection](adr/0001-cmp-library.md)
+* [CMP library selection](adr/0001-cmp-library.md) and [issuer reconciliation library](adr/0002-issuer-lib.md)
 
 ## Contributing
 
