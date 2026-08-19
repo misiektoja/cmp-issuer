@@ -208,7 +208,7 @@ func TestSignLogsRecoveredCertificate(t *testing.T) {
 // TestSignLogsTypedFailure verifies a rejected enrollment names the typed CMP failure behind it.
 func TestSignLogsTypedFailure(t *testing.T) {
 	recorder := newLogRecorder()
-	rejection := &protocol.Error{Kind: protocol.ErrorKindPermanent, Operation: "process PKIStatus", Failure: "badRequest", Err: errors.New("the server rejected the request")}
+	rejection := &protocol.Error{Kind: protocol.ErrorKindPermanent, Operation: testCMPOperation, Failure: testCMPFailure, Err: errors.New("the server rejected the request")}
 	fixture := newAsyncFixture(t, []fakeExchange{{err: rejection}})
 	if _, err := fixture.signer.Sign(recorder.ctx, fixture.request, fixture.issuer); err == nil {
 		t.Fatal("expected the enrollment to fail")
