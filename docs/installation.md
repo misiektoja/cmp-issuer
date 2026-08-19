@@ -55,8 +55,9 @@ helm install cmp-issuer ./charts/cmp-issuer \
 | --- | --- |
 | `manager.image.repository` and `manager.image.tag` | Controller image and tag. Defaults to `ghcr.io/misiektoja/cmp-issuer` at the chart's `appVersion`. Set the repository to a `name@sha256:...` reference to pin a digest, in which case the tag is ignored |
 | `manager.replicas` | Controller replica count |
-| `manager.args` | Extra controller flags, for example `--cluster-resource-namespace=<ns>` |
-| `rbac.namespaced` | Scope RBAC to the release namespace instead of cluster-wide |
+| `manager.args` | Extra controller flags |
+| `manager.clusterResourceNamespace` | Namespace `CMPClusterIssuer` credential Secrets are read from. Defaults to the release namespace, and a different value also gets a credential reader RoleBinding |
+| `rbac.namespaced` | Scope RBAC to the release namespace instead of cluster-wide. Changing it on an existing release needs the existing bindings deleted first, since Kubernetes does not allow a `roleRef` to change |
 | `rbac.helpers.enabled` | Install the admin, editor and viewer roles for the issuer kinds, default `true`. They bind to nobody until you create a binding, and the manifest path always installs them |
 | `crd.enabled` | Install the CRDs with the chart, default `true` |
 | `crd.keep` | Keep the CRDs when the release is uninstalled, default `true` |
