@@ -84,6 +84,11 @@ spec:
         - --metrics-bind-address=0
         {{- end }}
         - --health-probe-bind-address=:8081
+        # A CMPClusterIssuer is cluster scoped, so its credential and trust Secrets come from one
+        # namespace. The binary defaults that to cmp-issuer-system, which is wrong for a release
+        # installed anywhere else, because the credential reader is bound in the release namespace.
+        # manager.args is rendered after this, so a flag repeated there still wins.
+        - --cluster-resource-namespace={{ include "cmp-issuer.clusterResourceNamespace" . }}
         {{- with .Values.logging.level }}
         - --zap-log-level={{ . }}
         {{- end }}
