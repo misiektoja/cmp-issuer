@@ -53,6 +53,9 @@ type runConfiguration struct {
 	EnableLeaderElection     bool
 	MetricsAddress           string
 	MetricsSecure            bool
+	MetricsCertificateDir    string
+	MetricsCertificateName   string
+	MetricsCertificateKey    string
 	ProbeAddress             string
 }
 
@@ -69,6 +72,9 @@ func main() {
 	var enableLeaderElection bool
 	var metricsAddress string
 	var metricsSecure bool
+	var metricsCertificateDir string
+	var metricsCertificateName string
+	var metricsCertificateKey string
 	var probeAddress string
 	var printVersion bool
 	flag.StringVar(
@@ -85,6 +91,14 @@ func main() {
 		true,
 		"Serve metrics over HTTPS, authenticated with TokenReview and authorized with SubjectAccessReview",
 	)
+	flag.StringVar(
+		&metricsCertificateDir,
+		"metrics-cert-path",
+		"",
+		"Directory holding the metrics serving certificate, or empty to generate a self-signed one",
+	)
+	flag.StringVar(&metricsCertificateName, "metrics-cert-name", "tls.crt", "Metrics serving certificate file name")
+	flag.StringVar(&metricsCertificateKey, "metrics-cert-key", "tls.key", "Metrics serving key file name")
 	flag.StringVar(&probeAddress, "health-probe-bind-address", ":8081", "Health probe listener address")
 	flag.BoolVar(&printVersion, "version", false, "Print the build identity of this binary and exit")
 	logOptions := zap.Options{Development: false}
@@ -100,6 +114,9 @@ func main() {
 		EnableLeaderElection:     enableLeaderElection,
 		MetricsAddress:           metricsAddress,
 		MetricsSecure:            metricsSecure,
+		MetricsCertificateDir:    metricsCertificateDir,
+		MetricsCertificateName:   metricsCertificateName,
+		MetricsCertificateKey:    metricsCertificateKey,
 		ProbeAddress:             probeAddress,
 	}
 	if err := run(ctrl.SetupSignalHandler(), configuration); err != nil {
@@ -121,6 +138,20 @@ func run(ctx context.Context, configuration runConfiguration) error {
 		// filter delegates to the API server, so a scrape needs a token whose subject is allowed to
 		// get the /metrics non-resource URL, which is what the metrics-reader ClusterRole grants.
 		metricsOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
+	}
+	if configuration.MetricsCertificateDir != "" {
+		// Left unset, the metrics server generates a certificate no authority signs, which a scrape
+		// can only accept by skipping verification. Pointed at a directory, it watches these files and
+		// picks up a rotated certificate without a restart.
+		metricsOptions.CertDir = configuration.MetricsCertificateDir
+		metricsOptions.CertName = configuration.MetricsCertificateName
+		metricsOptions.KeyName = configuration.MetricsCertificateKey
+		setupLog.Info(
+			"Serving metrics with the supplied certificate",
+			"path", configuration.MetricsCertificateDir,
+			"certificate", configuration.MetricsCertificateName,
+			"key", configuration.MetricsCertificateKey,
+		)
 	}
 	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
