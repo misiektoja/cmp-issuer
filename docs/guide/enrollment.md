@@ -24,7 +24,7 @@ When the server grants implicit confirmation the `certConf` / `pkiConf` exchange
 1. cert-manager installed and approving requests
 2. cmp-issuer controller Ready
 3. Issuer credential and CMP trust Secrets readable
-4. For `CMPIssuer`: RoleBinding in the issuer namespace
+4. For `CMPIssuer`: the issuer namespace authorized for credential reads, see [Credential Secret access](../operations/secret-access.md)
 5. CMP server profile allowing P10CR with the chosen protection mode
 
 ## Configure the issuer
