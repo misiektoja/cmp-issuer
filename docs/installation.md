@@ -1,7 +1,7 @@
 # Installation
 
 cmp-issuer runs as a controller alongside cert-manager. Install cert-manager first, then the controller,
-then grant the two permissions described below.
+naming the namespaces your issuers will live in.
 
 If you are installing for the first time, follow [Getting started](getting-started.md) instead. It
 covers these steps in order and ends with an issued certificate.
@@ -25,6 +25,11 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
   --namespace cmp-issuer-system \
   --create-namespace
 ```
+
+Add `--set 'credentialNamespaces={team-a,team-b}'` to that command, naming the namespaces your
+`CMPIssuer` resources live in. The controller has no cluster-wide Secret access, so without it their
+credential Secrets are unreadable and the issuers stay Not Ready. See
+[Namespace access for CMPIssuer](#namespace-access-for-cmpissuer).
 
 List the available chart versions with `helm search repo cmp-issuer -l`.
 
