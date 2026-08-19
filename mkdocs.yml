@@ -57,6 +57,7 @@ nav:
       - Tested PKIs: interoperability/tested-pkis.md
   - Operations:
       - Credential Secret access: operations/secret-access.md
+      - Metrics: operations/metrics.md
       - Troubleshooting: operations/troubleshooting.md
   - Security:
       - Security model: security/security-model.md
