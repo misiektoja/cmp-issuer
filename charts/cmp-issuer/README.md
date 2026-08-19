@@ -83,6 +83,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `manager.image.tag` | `Chart.appVersion` | Image tag |
 | `manager.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `manager.args` | `["--leader-elect"]` | Extra controller arguments |
+| `manager.clusterResourceNamespace` | release namespace | Namespace `CMPClusterIssuer` credential Secrets are read from |
 | `manager.imagePullSecrets` | unset | Pull secrets for a private registry |
 | `manager.extraEnv` | unset | Extra environment variables for the controller container |
 | `manager.resources` | 500m / 128Mi limits, 10m / 64Mi requests | Controller resources |
@@ -118,6 +119,10 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 CRDs ship inside the chart, so `helm upgrade` updates them. They are annotated to survive
 `helm uninstall`, so removing the release cannot delete your `CMPIssuer`, `CMPClusterIssuer` and
 `CMPTransaction` resources. Delete them by hand when you mean to.
+
+Changing `rbac.namespaced` on an existing release fails, because Kubernetes does not allow the
+`roleRef` of a binding to change. Delete the affected RoleBinding and ClusterRoleBinding first, or
+reinstall the release.
 
 ## Troubleshooting
 
