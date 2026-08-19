@@ -1006,6 +1006,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#which-build-is-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which build is running
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-the-log-contains" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1614,6 +1625,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#which-build-is-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which build is running
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-the-log-contains" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1780,6 +1802,59 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 </code></pre></div>
 <p>The container is named <code>manager</code>. Adjust the namespace and Deployment name if you installed under a
 different release name or namespace.</p>
+<h3 id="which-build-is-running">Which build is running<a class="headerlink" href="#which-build-is-running" title="Permanent link">&para;</a></h3>
+<p>The first line the manager writes names the build and the install it came from, which is the first
+thing to establish before reporting a problem:</p>
+<div class="highlight"><pre><span></span><code>{"level":"info","logger":"setup","msg":"Starting manager",
+ "version":"v0.1.0","gitCommit":"1081fb2ff26a","buildDate":"2026-08-19T01:15:49Z",
+ "goVersion":"go1.26.5","platform":"linux/amd64",
+ "image":"ghcr.io/misiektoja/cmp-issuer:v0.1.0",
+ "chart":"cmp-issuer-0.1.0","release":"cmp-issuer"}
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>version</code></td>
+<td>The release the binary was built from. A build that is not a release carries the commit description instead, and one built with no version information at all reports <code>development</code></td>
+</tr>
+<tr>
+<td><code>gitCommit</code></td>
+<td>The commit the binary was built from, shortened to 12 characters, with <code>-dirty</code> when the tree was modified</td>
+</tr>
+<tr>
+<td><code>buildDate</code></td>
+<td>The commit date, so rebuilding the same commit produces the same value</td>
+</tr>
+<tr>
+<td><code>goVersion</code>, <code>platform</code></td>
+<td>The Go toolchain and the operating system and architecture the binary runs on</td>
+</tr>
+<tr>
+<td><code>image</code></td>
+<td>The image reference the manager was deployed from. Set by the Helm chart, so it names your mirror when you mirror the image. A manifest install reports the reference the image was published under instead</td>
+</tr>
+<tr>
+<td><code>chart</code></td>
+<td>The Helm chart and chart version that installed the manager. Absent on an install from the manifest, which uses no chart</td>
+</tr>
+<tr>
+<td><code>release</code></td>
+<td>The Helm release name. Absent on an install from the manifest</td>
+</tr>
+</tbody>
+</table>
+<p>The same information is available without reading the log, which is useful when the manager will not
+start:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-n<span class="w"> </span>cmp-issuer-system<span class="w"> </span>deploy/cmp-issuer-controller-manager<span class="w"> </span>--<span class="w"> </span>/manager<span class="w"> </span>--version
+</code></pre></div>
+<p>An image that reports <code>development</code> was not built by a release. If you did not build it yourself,
+check that the Deployment pulls the tag you intended.</p>
 <h3 id="what-the-log-contains">What the log contains<a class="headerlink" href="#what-the-log-contains" title="Permanent link">&para;</a></h3>
 <p>Every enrollment produces one line for its outcome at the default verbosity. A completed enrollment
 identifies the request, the issuer, the endpoint, the CMP transaction and the certificate itself:</p>

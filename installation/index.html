@@ -1956,6 +1956,13 @@ needs no per-namespace binding.</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>-n<span class="w"> </span>cmp-issuer-system<span class="w"> </span>get<span class="w"> </span>deploy,pods
 kubectl<span class="w"> </span>get<span class="w"> </span>crd<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>certmanager.misiektoja.github.io
 </code></pre></div>
+<p>The manager names its own build on its first log line, so this is also how you confirm which release,
+commit and image are actually running:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>-n<span class="w"> </span>cmp-issuer-system<span class="w"> </span>logs<span class="w"> </span>deploy/cmp-issuer-controller-manager<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1
+</code></pre></div>
+<p>A Helm install adds the chart and release name to that line. The same output is available from
+<code>/manager --version</code> inside the container. See
+<a href="../operations/troubleshooting/#which-build-is-running">Which build is running</a>.</p>
 <h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <p>Create Secrets and an issuer, then request a certificate. <a href="../getting-started/">Getting started</a> shows
 the whole sequence, and the <a href="../reference/cmpissuer/">CMPIssuer reference</a> documents every field. Samples

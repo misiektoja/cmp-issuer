@@ -1302,6 +1302,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#build-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ci-workflows" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1574,6 +1585,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#build-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ci-workflows" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1720,6 +1742,18 @@ them do not carry the release tag verbatim:</p>
 <li><code>make sbom</code> run without <code>VERSION</code>, as <code>make supply-chain</code> and the supply chain workflow do, names the
   bill of materials after the commit it describes instead, since there is no release to name.</li>
 </ul>
+<h2 id="build-identity">Build identity<a class="headerlink" href="#build-identity" title="Permanent link">&para;</a></h2>
+<p>The same <code>VERSION</code> is stamped into the binary, so a running manager names the release it came from
+rather than reporting <code>development</code>. <code>make build</code> and every image target pass <code>VERSION</code>, the commit,
+the commit date and <code>IMG</code> to the linker, and the Dockerfile forwards them as build arguments. Any
+build that does not set <code>VERSION</code> falls back to <code>git describe</code>, so a development image still names the
+tree it was built from.</p>
+<p>The manager reports all of it on its first log line and from <code>/manager --version</code>, together with the
+image, chart and release the install supplied. See
+<a href="../../operations/troubleshooting/#which-build-is-running">Troubleshooting</a>.</p>
+<p><code>buildDate</code> is the commit date rather than the time of the build, so rebuilding a tag does not change
+the binary. The variables the linker stamps live in <code>internal/version</code>; renaming one silently disables
+the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.</p>
 <h2 id="ci-workflows">CI workflows<a class="headerlink" href="#ci-workflows" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
