@@ -76,9 +76,10 @@ spec:
       - args:
         {{- if .Values.metrics.enabled }}
         - --metrics-bind-address=:{{ .Values.metrics.port }}
-        {{- if not .Values.metrics.secure }}
-        - --metrics-secure=false
-        {{- end }}
+        # Rendered unconditionally so the served scheme follows metrics.secure rather than the
+        # binary default, which is what the metrics Service port name and the ServiceMonitor
+        # scheme are both derived from.
+        - --metrics-secure={{ .Values.metrics.secure }}
         {{- else }}
         # Bind to :0 to disable the controller-runtime managed metrics server
         - --metrics-bind-address=0
