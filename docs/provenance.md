@@ -27,7 +27,7 @@ Kubebuilder v4.15.0 generated the initial Go project layout. Kubernetes API deep
 
 A release publishes a multi-architecture manager image for `linux/amd64` and `linux/arm64` to the GitHub Container Registry. A build provenance attestation is generated for the published image digest and pushed alongside it, so a consumer can verify which workflow, commit and repository produced the image.
 
-Each release also carries the installer manifest, the packaged Helm chart and a CycloneDX bill of materials generated from the Go module graph with license information.
+Each release also carries the installer manifest, the packaged Helm chart and a CycloneDX bill of materials generated from the Go module graph with license information. The air-gapped bundle carries the same bill of materials, so a cluster with no route to the release page can still audit what the image was built from.
 
 An air-gapped bundle is attached too, carrying the same image as an OCI archive next to the chart and the installer. It is exported by the build that pushes the image, not rebuilt afterwards, so the digest inside the archive is the digest the attestation covers. See [installing without registry access](installation.md#install-without-registry-access).
 
