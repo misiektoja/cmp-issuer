@@ -50,6 +50,7 @@ point the approval permission at it:
 ```bash
 helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
   --namespace cmp-issuer-system \
+  --reuse-values \
   --set certManagerApproval.serviceAccountName=<name> \
   --set certManagerApproval.namespace=<namespace>
 ```
@@ -83,27 +84,35 @@ kubectl create secret generic cmp-trust \
 
 ## Step 3: let the controller read those Secrets
 
-The controller has no cluster-wide Secret access. Authorize it for this namespace only:
+The controller has no cluster-wide Secret access. Authorize it for this namespace only, by naming the
+namespace in `credentialNamespaces`:
 
 ```bash
-kubectl apply -f - <<'EOF'
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cmp-issuer-credential-reader
-  namespace: demo
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cmp-issuer-credential-reader
-subjects:
-- kind: ServiceAccount
-  name: cmp-issuer-controller-manager
-  namespace: cmp-issuer-system
-EOF
+helm upgrade cmp-issuer cmp-issuer/cmp-issuer \
+  --namespace cmp-issuer-system \
+  --reuse-values \
+  --set 'credentialNamespaces={demo}'
 ```
 
-Why this boundary exists is explained in [Credential Secret access](operations/secret-access.md).
+The chart creates a RoleBinding in `demo` granting the controller `get` on Secrets there and nowhere
+else. The namespace has to exist first, which step 2 took care of, and `--reuse-values` keeps the
+settings the release already carries.
+
+Confirm the binding exists:
+
+```bash
+kubectl get rolebinding -n demo
+```
+
+```text
+NAME                                       ROLE                                      AGE
+cmp-issuer-credential-reader-rolebinding   ClusterRole/cmp-issuer-credential-reader   5s
+```
+
+Applying that RoleBinding by hand works just as well and is the route for a namespace you do not want
+to list in the release, for example one created long after the install. Both routes and the exact
+manifest are in [Credential Secret access](operations/secret-access.md), which also explains why this
+boundary exists.
 
 ## Step 4: create the issuer
 
