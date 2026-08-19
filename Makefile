@@ -376,6 +376,7 @@ release-bundle: require-version ## Assemble the air-gapped install bundle from t
 	@test -f "$(IMAGE_PLATFORMS)" || { echo "Run docker-archive first, $(IMAGE_PLATFORMS) is missing" >&2; exit 1; }
 	@test -f "$(INSTALLER_MANIFEST)" || { echo "Run build-installer first, $(INSTALLER_MANIFEST) is missing" >&2; exit 1; }
 	@test -f "$(CHART_ARCHIVE)" || { echo "Package the chart first, $(CHART_ARCHIVE) is missing" >&2; exit 1; }
+	@test -f "$(SBOM_FILE)" || { echo "Run sbom with the same VERSION first, $(SBOM_FILE) is missing" >&2; exit 1; }
 	# Every input is named after $(VERSION), so a rebuild replaces the staged copy of each one. The
 	# directory is still cleared first, because an earlier release staged here would otherwise leave
 	# its own image archive and chart behind and ship two versions of both.
@@ -383,7 +384,7 @@ release-bundle: require-version ## Assemble the air-gapped install bundle from t
 	mkdir -p "dist/$(BUNDLE_DIR)/images" "dist/$(BUNDLE_DIR)/charts"
 	cp "$(IMAGE_ARCHIVE)" "dist/$(BUNDLE_DIR)/images/"
 	cp "$(CHART_ARCHIVE)" "dist/$(BUNDLE_DIR)/charts/"
-	cp "$(INSTALLER_MANIFEST)" README.md RELEASE_NOTES.md LICENSE THIRD_PARTY_NOTICES.md "dist/$(BUNDLE_DIR)/"
+	cp "$(INSTALLER_MANIFEST)" "$(SBOM_FILE)" README.md RELEASE_NOTES.md LICENSE THIRD_PARTY_NOTICES.md "dist/$(BUNDLE_DIR)/"
 	# The contents block is aligned by a second printf, which reuses its format for each name and
 	# description pair, so the file names stay readable however long they are.
 	{ \
@@ -396,7 +397,8 @@ release-bundle: require-version ## Assemble the air-gapped install bundle from t
 		printf '  %-36s %s\n' \
 			"images/$(notdir $(IMAGE_ARCHIVE))" "OCI archive of the manager image, $$(cat $(IMAGE_PLATFORMS))" \
 			"charts/$(notdir $(CHART_ARCHIVE))" "packaged Helm chart" \
-			"$(notdir $(INSTALLER_MANIFEST))" "self-contained manifest install"; \
+			"$(notdir $(INSTALLER_MANIFEST))" "self-contained manifest install" \
+			"$(notdir $(SBOM_FILE))" "CycloneDX bill of materials"; \
 		printf '%s\n' \
 			"" \
 			"1. Load the image into your own registry:" \
