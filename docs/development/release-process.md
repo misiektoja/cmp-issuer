@@ -16,22 +16,32 @@ Each release publishes:
 | --- | --- |
 | Container image | Multi-arch `linux/amd64` and `linux/arm64` on GitHub Container Registry |
 | Provenance attestation | SLSA-style build attestation for the image digest |
-| Installer manifest | `dist/install.yaml` from Kustomize |
-| Helm chart | Packaged from `charts/cmp-issuer` and indexed into the chart repository |
-| SBOM | CycloneDX at `dist/cmp-issuer.cdx.json` |
-| Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz` with the image as an OCI archive, the chart, the installer, the notices and an `INSTALL.txt` |
+| Installer manifest | `dist/cmp-issuer-<version>-install.yaml` from Kustomize |
+| Helm chart | `dist/cmp-issuer-<chart version>.tgz`, packaged from `charts/cmp-issuer` and indexed into the chart repository |
+| SBOM | CycloneDX at `dist/cmp-issuer-<version>-sbom.cdx.json` |
+| Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz`, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the notices and an `INSTALL.txt` |
 
 The image is pushed and exported to the OCI archive by a single `make docker-release` build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
 `make release-bundle VERSION=<version>` then assembles the tarball from what is already in `dist`.
 
-Every target that writes a release artifact requires `VERSION` and names its output after it, so the
-exported image archive is `dist/cmp-issuer-<version>-image.tar` alongside the packaged chart and the
-bundle. Set it to the tag carried by `IMG`, for example:
+Every target that writes a release artifact requires `VERSION` and names its output after it, so no two
+releases can share a file name and a file copied out of `dist` still says which release produced it. Set
+`VERSION` to the tag carried by `IMG`, for example:
 
 ```bash
 make docker-archive IMG=ghcr.io/misiektoja/cmp-issuer:v0.1.0 VERSION=v0.1.0
 ```
+
+The names come from one block at the top of the supply chain section of the `Makefile`, so a new
+artifact is named alongside the existing ones rather than inline in the target that writes it. Two of
+them do not carry the release tag verbatim:
+
+* The packaged chart is `cmp-issuer-<chart version>.tgz`, without the leading `v`, because a Helm chart
+  version has to be bare SemVer. `helm package` also names the directory inside the archive after the
+  chart rather than the version, which Helm requires and which no build step here can change.
+* `make sbom` run without `VERSION`, as `make supply-chain` and the supply chain workflow do, names the
+  bill of materials after the commit it describes instead, since there is no release to name.
 
 ## CI workflows
 
