@@ -51,7 +51,7 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
 ```
 
 This installs the CRDs, the controller and the permission cert-manager needs before it will approve
-requests for this issuer type. A packaged chart and a self-contained `install.yaml` are attached to
+requests for this issuer type. A packaged chart and a self-contained installer manifest are attached to
 every release. Other install paths, pointing the approval permission at a non-default cert-manager, and
 what happens to the CRDs on uninstall, are all in [Installation](https://misiektoja.github.io/cmp-issuer/installation/).
 
