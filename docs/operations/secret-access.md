@@ -2,7 +2,9 @@
 
 cmp-issuer resolves Secrets through an uncached Kubernetes API reader. Its manager ClusterRole cannot read Secrets.
 
-The installation creates the `cmp-issuer-credential-reader` ClusterRole with only `get` permission for Secrets. A RoleBinding grants that role to the controller ServiceAccount in `cmp-issuer-system`. This is the only namespace from which `CMPClusterIssuer` credentials can be read by default.
+The installation creates the `cmp-issuer-credential-reader` ClusterRole with only `get` permission for Secrets. A RoleBinding grants that role to the controller ServiceAccount in the controller's own namespace, `cmp-issuer-system` by default. This is the only namespace from which `CMPClusterIssuer` credentials can be read by default.
+
+The chart binds the role in the release namespace and points `--cluster-resource-namespace` at the same namespace, so the permission and the lookup always agree. Moving the lookup with `manager.clusterResourceNamespace` moves the binding with it.
 
 An administrator must create a RoleBinding in each namespace that uses a `CMPIssuer`. The binding grants access only inside that namespace:
 
