@@ -57,6 +57,7 @@ helm install cmp-issuer ./charts/cmp-issuer \
 | `manager.replicas` | Controller replica count |
 | `manager.args` | Extra controller flags, for example `--cluster-resource-namespace=<ns>` |
 | `rbac.namespaced` | Scope RBAC to the release namespace instead of cluster-wide |
+| `rbac.helpers.enabled` | Install the admin, editor and viewer roles for the issuer kinds, default `true`. They bind to nobody until you create a binding, and the manifest path always installs them |
 | `crd.enabled` | Install the CRDs with the chart, default `true` |
 | `crd.keep` | Keep the CRDs when the release is uninstalled, default `true` |
 | `certManagerApproval.create` | Let cert-manager approve requests for this issuer type, default `true` |
@@ -171,7 +172,8 @@ helm install cmp-issuer cmp-issuer/cmp-issuer \
   --set certManagerApproval.create=false
 ```
 
-For the manifest path, edit or remove the `cert-manager-approver-role` ClusterRole and its binding.
+For the manifest path, edit or remove the `cmp-issuer-cert-manager-approver` ClusterRole and its
+binding. Both installation paths name it the same way.
 
 ## Namespace access for CMPIssuer
 
