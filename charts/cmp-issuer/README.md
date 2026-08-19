@@ -106,7 +106,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `logging.encoder` | `json` | `json` for log collectors, `console` to read by eye |
 | `metrics.enabled` | `true` | Expose the `/metrics` endpoint |
 | `metrics.port` | `8443` | Metrics port |
-| `metrics.secure` | `true` | Serve metrics over HTTPS with authentication and authorization |
+| `metrics.secure` | `true` | Serve metrics over HTTPS, authenticated with a `TokenReview` and authorized with a `SubjectAccessReview`, and create the RBAC both need. `false` serves plain HTTP to anything that reaches the port |
 | `certManager.enabled` | `false` | Use cert-manager for the metrics endpoint certificate |
 | `prometheus.enabled` | `false` | Create a Prometheus `ServiceMonitor`. Needs prometheus-operator |
 | `networkPolicy.enabled` | `false` | Restrict ingress to the controller |
