@@ -51,9 +51,9 @@ const (
 // issuerLogValue names the issuer serving a transaction as one greppable value.
 func issuerLogValue(issuer issuerapi.Issuer) string {
 	if _, isCluster := issuer.(*cmpv1alpha1.CMPClusterIssuer); isCluster {
-		return "CMPClusterIssuer/" + issuer.GetName()
+		return issuerKindCluster + "/" + issuer.GetName()
 	}
-	return "CMPIssuer/" + issuer.GetNamespace() + "/" + issuer.GetName()
+	return issuerKindNamespaced + "/" + issuer.GetNamespace() + "/" + issuer.GetName()
 }
 
 // transactionIDLogValue renders a CMP transaction identifier the way CMP servers report it.
