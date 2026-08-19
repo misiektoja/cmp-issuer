@@ -1684,30 +1684,42 @@
 </tr>
 <tr>
 <td>Installer manifest</td>
-<td><code>dist/install.yaml</code> from Kustomize</td>
+<td><code>dist/cmp-issuer-&lt;version&gt;-install.yaml</code> from Kustomize</td>
 </tr>
 <tr>
 <td>Helm chart</td>
-<td>Packaged from <code>charts/cmp-issuer</code> and indexed into the chart repository</td>
+<td><code>dist/cmp-issuer-&lt;chart version&gt;.tgz</code>, packaged from <code>charts/cmp-issuer</code> and indexed into the chart repository</td>
 </tr>
 <tr>
 <td>SBOM</td>
-<td>CycloneDX at <code>dist/cmp-issuer.cdx.json</code></td>
+<td>CycloneDX at <code>dist/cmp-issuer-&lt;version&gt;-sbom.cdx.json</code></td>
 </tr>
 <tr>
 <td>Air-gapped bundle</td>
-<td><code>cmp-issuer-&lt;version&gt;-airgap.tar.gz</code> with the image as an OCI archive, the chart, the installer, the notices and an <code>INSTALL.txt</code></td>
+<td><code>cmp-issuer-&lt;version&gt;-airgap.tar.gz</code>, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the bill of materials, the notices and an <code>INSTALL.txt</code></td>
 </tr>
 </tbody>
 </table>
 <p>The image is pushed and exported to the OCI archive by a single <code>make docker-release</code> build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
-<code>make release-bundle VERSION=&lt;version&gt;</code> then assembles the tarball from what is already in <code>dist</code>.</p>
-<p>Every target that writes a release artifact requires <code>VERSION</code> and names its output after it, so the
-exported image archive is <code>dist/cmp-issuer-&lt;version&gt;-image.tar</code> alongside the packaged chart and the
-bundle. Set it to the tag carried by <code>IMG</code>, for example:</p>
+<code>make release-bundle VERSION=&lt;version&gt;</code> then assembles the tarball from what is already in <code>dist</code>, so
+the image export, <code>build-installer</code>, <code>sbom</code> and the chart packaging all have to have run for the same
+version first. The target names whichever one is missing.</p>
+<p>Every target that writes a release artifact requires <code>VERSION</code> and names its output after it, so no two
+releases can share a file name and a file copied out of <code>dist</code> still says which release produced it. Set
+<code>VERSION</code> to the tag carried by <code>IMG</code>, for example:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>docker-archive<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>ghcr.io/misiektoja/cmp-issuer:v0.1.0<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span>v0.1.0
 </code></pre></div>
+<p>The names come from one block at the top of the supply chain section of the <code>Makefile</code>, so a new
+artifact is named alongside the existing ones rather than inline in the target that writes it. Two of
+them do not carry the release tag verbatim:</p>
+<ul>
+<li>The packaged chart is <code>cmp-issuer-&lt;chart version&gt;.tgz</code>, without the leading <code>v</code>, because a Helm chart
+  version has to be bare SemVer. <code>helm package</code> also names the directory inside the archive after the
+  chart rather than the version, which Helm requires and which no build step here can change.</li>
+<li><code>make sbom</code> run without <code>VERSION</code>, as <code>make supply-chain</code> and the supply chain workflow do, names the
+  bill of materials after the commit it describes instead, since there is no release to name.</li>
+</ul>
 <h2 id="ci-workflows">CI workflows<a class="headerlink" href="#ci-workflows" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

@@ -1763,7 +1763,10 @@ make<span class="w"> </span>clean<span class="w">           </span><span class="
 make<span class="w"> </span>docker-build<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span><span class="nv">$IMG</span>
 make<span class="w"> </span>deploy<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span><span class="nv">$IMG</span>
 </code></pre></div>
-<p><code>make build-installer</code> rewrites <code>config/manager/kustomization.yaml</code> image tags. Restore with <code>git checkout -- config/manager/kustomization.yaml</code> when finished if a clean worktree is required.</p>
+<p><code>make build-installer</code> needs both <code>IMG</code> and <code>VERSION</code>, since it writes the release-named
+<code>dist/cmp-issuer-&lt;version&gt;-install.yaml</code>. It also rewrites <code>config/manager/kustomization.yaml</code> image
+tags. Restore with <code>git checkout -- config/manager/kustomization.yaml</code> when finished if a clean worktree
+is required.</p>
 <h2 id="chart-regeneration">Chart regeneration<a class="headerlink" href="#chart-regeneration" title="Permanent link">&para;</a></h2>
 <p>The chart directory is named after the chart, <code>charts/cmp-issuer</code>, so that a clone matches the packaged
 artifact. The kubebuilder Helm plugin does not support that name. It writes to <code>&lt;output&gt;/chart</code>, where
@@ -1772,7 +1775,12 @@ a fresh <code>charts/chart</code> beside the real chart instead of updating it. 
 directory, so regenerated CRD and RBAC templates would be silently left out of the release.</p>
 <p>If you regenerate, move the refreshed templates into <code>charts/cmp-issuer</code> and delete <code>charts/chart</code>.
 <code>make helm-lint</code> fails while <code>charts/chart</code> exists, so CI catches a regeneration that was left in place.
-<code>Chart.yaml</code> is never overwritten by the plugin, so the metadata in the real chart is safe either way.</p>
+<code>Chart.yaml</code> is never overwritten by the plugin, so the metadata in the real chart is safe either way,
+including the <code>appVersion</code> that has to keep matching the published image tag.</p>
+<p>The plugin reads the manifest path recorded in <code>PROJECT</code>, which is <code>dist/install.yaml</code>, while
+<code>make build-installer</code> writes the release-named <code>dist/cmp-issuer-&lt;version&gt;-install.yaml</code>. Copy the
+manifest to <code>dist/install.yaml</code> before regenerating. <code>PROJECT</code> is tool-generated and records one fixed
+path, so it is left alone rather than pointed at a name that changes every release.</p>
 <h2 id="api-changes">API changes<a class="headerlink" href="#api-changes" title="Permanent link">&para;</a></h2>
 <p>Use kubebuilder CLI to scaffold new APIs or webhooks. Do not delete <code>// +kubebuilder:scaffold:*</code> markers.</p>
 <p>The API is <code>v1alpha1</code> and may change before a stable release.</p>

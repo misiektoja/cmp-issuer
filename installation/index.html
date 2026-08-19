@@ -1795,8 +1795,9 @@ helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class
 </code></pre></div>
 <p>List the available chart versions with <code>helm search repo cmp-issuer -l</code>.</p>
 <h3 id="from-a-packaged-chart">From a packaged chart<a class="headerlink" href="#from-a-packaged-chart" title="Permanent link">&para;</a></h3>
-<p>Every release attaches a packaged chart, which is useful offline or behind a mirror:</p>
-<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>./cmp-issuer-&lt;version&gt;.tgz<span class="w"> </span><span class="se">\</span>
+<p>Every release attaches a packaged chart, which is useful offline or behind a mirror. Its version has no
+leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
+<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>./cmp-issuer-&lt;chart<span class="w"> </span>version&gt;.tgz<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--create-namespace
 </code></pre></div>
@@ -1832,6 +1833,10 @@ helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class
 <td>Scope RBAC to the release namespace instead of cluster-wide</td>
 </tr>
 <tr>
+<td><code>rbac.helpers.enabled</code></td>
+<td>Install the admin, editor and viewer roles for the issuer kinds, default <code>true</code>. They bind to nobody until you create a binding, and the manifest path always installs them</td>
+</tr>
+<tr>
 <td><code>crd.enabled</code></td>
 <td>Install the CRDs with the chart, default <code>true</code></td>
 </tr>
@@ -1858,24 +1863,38 @@ helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class
 </tbody>
 </table>
 <h2 id="install-with-the-manifest">Install with the manifest<a class="headerlink" href="#install-with-the-manifest" title="Permanent link">&para;</a></h2>
-<p>Every release also attaches a self-contained <code>install.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>install.yaml
+<p>Every release also attaches a self-contained <code>cmp-issuer-&lt;version&gt;-install.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>cmp-issuer-&lt;version&gt;-install.yaml
 </code></pre></div>
 <p>It installs the same CRDs, RBAC, cert-manager approval permission and controller Deployment in
 <code>cmp-issuer-system</code>, plus a ClusterRoleBinding that lets the controller read Secrets <strong>only</strong> in
 <code>cmp-issuer-system</code>. Neither installation path grants Secret access in workload namespaces.</p>
 <h2 id="install-without-registry-access">Install without registry access<a class="headerlink" href="#install-without-registry-access" title="Permanent link">&para;</a></h2>
 <p>Every release attaches <code>cmp-issuer-&lt;version&gt;-airgap.tar.gz</code>, which carries everything an air-gapped
-cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, <code>install.yaml</code>,
-the licence and notices, and an <code>INSTALL.txt</code> repeating the two commands below.</p>
+cluster needs: the manager image as a multi-architecture OCI archive, the packaged chart, the installer
+manifest, the bill of materials, the licence and notices, and an <code>INSTALL.txt</code> repeating the two
+commands below. The bill of materials travels with the bundle so a cluster with no route to the release
+page can still answer what the image was built from.</p>
+<p>It unpacks into <code>cmp-issuer-&lt;version&gt;-airgap/</code>, and every file inside carries the version too, so two
+releases can be unpacked side by side and a file copied out of either one still names the release it
+came from:</p>
+<div class="highlight"><pre><span></span><code>cmp-issuer-&lt;version&gt;-airgap/
+  images/cmp-issuer-&lt;version&gt;-image.tar    manager image as an OCI archive
+  charts/cmp-issuer-&lt;chart version&gt;.tgz    packaged Helm chart
+  cmp-issuer-&lt;version&gt;-install.yaml        self-contained manifest install
+  cmp-issuer-&lt;version&gt;-sbom.cdx.json       CycloneDX bill of materials
+  INSTALL.txt  README.md  RELEASE_NOTES.md  LICENSE  THIRD_PARTY_NOTICES.md
+</code></pre></div>
+<p>The chart is the one file named without the leading <code>v</code>, because a Helm chart version has to be bare
+SemVer. It is otherwise the same version as everything else in the bundle.</p>
 <p>Copy the image into a registry your cluster can reach:</p>
-<div class="highlight"><pre><span></span><code>skopeo<span class="w"> </span>copy<span class="w"> </span>--all<span class="w"> </span>oci-archive:images/cmp-issuer-*-image.tar<span class="w"> </span>docker://&lt;registry&gt;/cmp-issuer:&lt;version&gt;
+<div class="highlight"><pre><span></span><code>skopeo<span class="w"> </span>copy<span class="w"> </span>--all<span class="w"> </span>oci-archive:images/cmp-issuer-&lt;version&gt;-image.tar<span class="w"> </span>docker://&lt;registry&gt;/cmp-issuer:&lt;version&gt;
 </code></pre></div>
 <p>Import it straight into each node's container runtime instead when you have no registry at all:</p>
-<div class="highlight"><pre><span></span><code>ctr<span class="w"> </span>--namespace<span class="w"> </span>k8s.io<span class="w"> </span>images<span class="w"> </span>import<span class="w"> </span>images/cmp-issuer-*-image.tar
+<div class="highlight"><pre><span></span><code>ctr<span class="w"> </span>--namespace<span class="w"> </span>k8s.io<span class="w"> </span>images<span class="w"> </span>import<span class="w"> </span>images/cmp-issuer-&lt;version&gt;-image.tar
 </code></pre></div>
 <p>Then install from the bundled chart, pointing it at wherever the image now lives:</p>
-<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>charts/cmp-issuer-*.tgz<span class="w"> </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span>--create-namespace<span class="w"> </span>--set<span class="w"> </span>manager.image.repository<span class="o">=</span>&lt;registry&gt;/cmp-issuer
+<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>charts/cmp-issuer-&lt;chart<span class="w"> </span>version&gt;.tgz<span class="w"> </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span>--create-namespace<span class="w"> </span>--set<span class="w"> </span>manager.image.repository<span class="o">=</span>&lt;registry&gt;/cmp-issuer
 </code></pre></div>
 <p>The archive holds the image that was published, exported from the same build rather than rebuilt, so its
 digest matches the one covered by the release provenance attestation described in
@@ -1914,7 +1933,8 @@ makes the decision instead, and express the same rule in a <code>CertificateRequ
 <span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span>--create-namespace<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span>certManagerApproval.create<span class="o">=</span><span class="nb">false</span>
 </code></pre></div>
-<p>For the manifest path, edit or remove the <code>cert-manager-approver-role</code> ClusterRole and its binding.</p>
+<p>For the manifest path, edit or remove the <code>cmp-issuer-cert-manager-approver</code> ClusterRole and its
+binding. Both installation paths name it the same way.</p>
 <h2 id="namespace-access-for-cmpissuer">Namespace access for CMPIssuer<a class="headerlink" href="#namespace-access-for-cmpissuer" title="Permanent link">&para;</a></h2>
 <p>The controller has no cluster-wide Secret access. Every namespace hosting a <code>CMPIssuer</code> needs a
 RoleBinding granting it the credential reader role there, described in
