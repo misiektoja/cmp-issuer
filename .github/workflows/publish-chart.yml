@@ -60,7 +60,9 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           mkdir -p staging
-          gh release download "$VERSION" --pattern 'cmp-issuer-*.tgz' --dir staging
+          # Named after the release rather than matched by a glob, so only the chart of this release is
+          # indexed. A chart version is bare SemVer, so it is the release tag without the leading v.
+          gh release download "$VERSION" --pattern "cmp-issuer-${VERSION#v}.tgz" --dir staging
           ls -l staging
 
       - name: Fetch the current chart repository index
