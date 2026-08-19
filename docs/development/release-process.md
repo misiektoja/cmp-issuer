@@ -19,11 +19,13 @@ Each release publishes:
 | Installer manifest | `dist/cmp-issuer-<version>-install.yaml` from Kustomize |
 | Helm chart | `dist/cmp-issuer-<chart version>.tgz`, packaged from `charts/cmp-issuer` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer-<version>-sbom.cdx.json` |
-| Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz`, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the notices and an `INSTALL.txt` |
+| Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz`, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the bill of materials, the notices and an `INSTALL.txt` |
 
 The image is pushed and exported to the OCI archive by a single `make docker-release` build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
-`make release-bundle VERSION=<version>` then assembles the tarball from what is already in `dist`.
+`make release-bundle VERSION=<version>` then assembles the tarball from what is already in `dist`, so
+the image export, `build-installer`, `sbom` and the chart packaging all have to have run for the same
+version first. The target names whichever one is missing.
 
 Every target that writes a release artifact requires `VERSION` and names its output after it, so no two
 releases can share a file name and a file copied out of `dist` still says which release produced it. Set
