@@ -84,6 +84,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `manager.image.pullPolicy` | `IfNotPresent` | Image pull policy |
 | `manager.args` | `["--leader-elect"]` | Extra controller arguments |
 | `manager.imagePullSecrets` | unset | Pull secrets for a private registry |
+| `manager.extraEnv` | unset | Extra environment variables for the controller container |
 | `manager.resources` | 500m / 128Mi limits, 10m / 64Mi requests | Controller resources |
 | `manager.podSecurityContext`, `manager.securityContext` | non-root, no privilege escalation, all capabilities dropped, read-only root filesystem | Security context |
 | `manager.affinity`, `manager.nodeSelector`, `manager.tolerations`, `manager.topologySpreadConstraints` | empty | Scheduling |
@@ -126,6 +127,9 @@ The two symptoms that account for most first installs:
 | --- | --- |
 | `CertificateRequest` stays pending with no error and no events | cert-manager's approver lacks permission. See `certManagerApproval` above |
 | Issuer reports it cannot read its credential Secret | The namespace is not listed in `credentialNamespaces` |
+
+The manager names its own build, image, chart and release on its first log line, and `/manager
+--version` prints the same thing, so a bug report can say exactly what was running.
 
 [Troubleshooting](https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/) is organized by
 the symptom you actually see.
