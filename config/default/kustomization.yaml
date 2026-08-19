@@ -21,7 +21,11 @@ resources:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
 # crd/kustomization.yaml
 #- ../webhook
-# [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'. 'WEBHOOK' components are required.
+# [CERTMANAGER] To have cert-manager issue the metrics serving certificate, uncomment every section
+# marked 'CERTMANAGER' here, the [METRICS-WITH-CERTS] patch below, and the [PROMETHEUS-WITH-CERTS]
+# patch in config/prometheus/kustomization.yaml. This project has no webhooks, so nothing else is
+# needed. Left commented, the metrics server generates a certificate valid for localhost only and a
+# scraper has to skip verification.
 #- ../certmanager
 # [PROMETHEUS] To enable prometheus monitor, uncomment all sections with 'PROMETHEUS'.
 #- ../prometheus
@@ -42,8 +46,9 @@ patches:
     kind: Deployment
 
 # Uncomment the patches line if you enable Metrics and CertManager
-# [METRICS-WITH-CERTS] To enable metrics protected with certManager, uncomment the following line.
-# This patch will protect the metrics with certManager self-signed certs.
+# [METRICS-WITH-CERTS] To serve the metrics endpoint with the cert-manager issued certificate,
+# uncomment the following line. It mounts the metrics-server-cert Secret and points the manager at it
+# with --metrics-cert-path.
 #- path: cert_metrics_manager_patch.yaml
 #  target:
 #    kind: Deployment
@@ -54,8 +59,10 @@ patches:
 #  target:
 #    kind: Deployment
 
-# [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
-# Uncomment the following replacements to add the cert-manager CA injection annotations
+# [CERTMANAGER] Uncomment the two blocks below, which point the metrics certificate and the
+# ServiceMonitor at the metrics Service name and namespace. Leave the blocks after them commented:
+# they target a webhook Service and a serving-cert Certificate that this project does not have, and
+# uncommenting them fails the build.
 #replacements:
 # - source: # Uncomment the following block to enable certificates for metrics
 #     kind: Service
