@@ -46,6 +46,12 @@ import (
 )
 
 const testRequestName = "request"
+
+// testCMPFailure is the CMP failure name the rejection fixtures report.
+const testCMPFailure = "badRequest"
+
+// testCMPOperation is the protocol step the rejection fixtures report the failure against.
+const testCMPOperation = "process PKIStatus"
 const testRequestUID = types.UID("11111111-1111-1111-1111-111111111111")
 
 // asyncFixture holds the collaborators of one asynchronous transaction test.
@@ -546,7 +552,7 @@ func TestSignRetriesEnrollmentUnderTheRecordedTransactionID(t *testing.T) {
 // TestSignRemovesStateOnPermanentFailure verifies a rejected transaction leaves no stale state.
 func TestSignRemovesStateOnPermanentFailure(t *testing.T) {
 	fixture := newAsyncFixture(t, []fakeExchange{
-		{err: &protocol.Error{Kind: protocol.ErrorKindPermanent, Operation: "process PKIStatus", Failure: "badRequest", Err: errors.New("rejected")}},
+		{err: &protocol.Error{Kind: protocol.ErrorKindPermanent, Operation: testCMPOperation, Failure: testCMPFailure, Err: errors.New("rejected")}},
 	})
 	_, err := fixture.sign(t)
 	var permanent issuersigner.PermanentError
