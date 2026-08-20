@@ -4,15 +4,11 @@ Behavior to plan around in the current release. Each item states what is not cov
 
 ## Transaction durability
 
-cmp-issuer records the transaction identifier, the transaction detail and the issued chain in `CMPTransaction`, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.
+cmp-issuer records the transaction identifier, issuer and credential configuration identity and the issued chain in `CMPTransaction`, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.
 
 ### A lost enrollment response cannot be recovered
 
 If the controller stops after sending an enrollment and the response never arrives, retrying under the recorded transaction identifier reliably prevents a second certificate but does not retrieve the first one. Neither tested server answers the repeat from its existing transaction: Nokia NCM 26.7 refuses it with `transactionIdInUse` and EJBCA CE 9.3.7 refuses it with `badRequest`. The `CertificateRequest` fails and cert-manager enrolls again under a new transaction identifier, which succeeds. The certificate the server issued for the lost response is orphaned and counts against any issuance quota or audit trail the certificate authority keeps.
-
-### Credential rotation is not detected
-
-Credential Secret versions are not recorded when a transaction begins. Rotating a PasswordBasedMac or signature Secret while a transaction is open changes the protection material without an explicit signal. The transaction fails when the server rejects the new protection or when `maximumDuration` elapses, not at the moment of rotation.
 
 ### Coarse progress reporting
 
