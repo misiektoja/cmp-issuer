@@ -5,6 +5,7 @@
 [![Tests](https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml)
 [![E2E Tests](https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml)
 [![Supply chain](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/misiektoja/cmp-issuer/badge)](https://scorecard.dev/viewer/?uri=github.com/misiektoja/cmp-issuer)
 
 cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
 servers. Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2
@@ -22,7 +23,7 @@ runs after changes land on `dev` or `main`.
 **[Getting started](getting-started.md)** walks from an empty cluster to an issued certificate in five
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.
 
-## Then
+## Where to go next
 
 | I want to | Page |
 | --- | --- |
