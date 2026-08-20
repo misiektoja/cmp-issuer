@@ -1,4 +1,4 @@
-{{- if .Values.metrics.enabled }}
+{{- if and (include "cmp-issuer.managerEnabled" .) .Values.metrics.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
