@@ -152,6 +152,13 @@ PKCS #10 request in a protected P10CR and returns the issued chain to cert-manag
 accepts only `P10CR`, because IR needs CRMF proof of possession over the workload private key, which the
 issuer deliberately never reads.
 
+**Built on cert-manager's own reconciliation library.** Approval, denial, retry classification, Ready
+conditions and Events come from [issuer-lib](https://github.com/cert-manager/issuer-lib), maintained by
+the cert-manager project, pinned to an exact version and upgraded deliberately rather than
+automatically. The Kubernetes `CertificateSigningRequest` controller it also offers is disabled, so
+cmp-issuer signs only through CMP. See
+[ADR 0002](https://misiektoja.github.io/cmp-issuer/adr/0002-issuer-lib/).
+
 **Asynchronous transactions.** Certificate authorities that queue requests answer with `waiting` instead
 of a certificate, and the issuer polls with `pollReq` until the certificate arrives. Each transaction is
 recorded in a `CMPTransaction` before the first message is sent, so a controller restart resumes the
