@@ -43,9 +43,14 @@ hostname.
 | --- | --- |
 | Issuing authority | `CmpIssuerTestCA`, which signs both the issued certificates and the CMP responses |
 | Administration authority | `ManagementCA`, which signs the TLS server certificate and the registration certificate |
-| CMP alias `cmpissuerpbm` | RA mode, requests protected with a shared secret |
+| CMP alias `cmpissuerpbm` | RA mode, requests protected with a shared secret, responses signed by the issuing authority |
 | CMP alias `cmpissuersig` | RA mode, requests protected with a certificate signature |
 | `/opt/keyfactor/cmp-issuer-e2e` | trust anchors, registration credential, alias names and the shared secret, which the specs read from the running container |
+
+Both aliases set `responseprotection` to `signature`, so the issuing authority signs every response
+including the answer to a request protected with a shared secret. The shared secret issuers in the
+specs therefore set `spec.protocol.macResponseProtection` to `AllowSignature`, which is the value a
+real deployment against such an alias needs, so the suite exercises that path rather than avoiding it.
 
 Two authorities rather than one is deliberate. The authority that signs CMP responses is not the
 authority that signed the endpoint TLS certificate, so a run proves that the two trust decisions stay
