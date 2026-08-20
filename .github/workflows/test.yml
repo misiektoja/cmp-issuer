@@ -16,7 +16,7 @@ jobs:
   test:
     permissions:
       contents: read
-    name: Run on Ubuntu
+    name: Unit and integration tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
