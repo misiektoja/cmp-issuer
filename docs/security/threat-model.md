@@ -18,17 +18,17 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | --- | --- |
 | Credential exfiltration | Least-privilege Secret RBAC, no secret values in logs or Events and no credentials in command arguments |
 | Workload key exfiltration | P10CR never follows private-key Secret annotations and has no need to read workload Secrets |
-| Forged CMP response | Validate transaction ID, nonces, response body, response protection and signer trust before accepting a certificate |
+| Forged CMP response | Require the configured protection mechanism then validate transaction ID, nonces, response body and signer trust before accepting a certificate |
 | Certificate substitution | Verify the issued leaf public key matches the signed CSR public key and validate the chain against CMP trust |
-| Impersonation by another authority under the same anchor | Require every response to be sent by the authority configured as `spec.protocol.recipient`. Trust anchors establish that a responder is trusted, not which responder answered, so under a shared root any subordinate CA would otherwise satisfy protection verification. The comparison ignores attribute order, and a response that sends no sender name is accepted on its protection alone |
+| Impersonation by another authority under the same anchor | Require every response to name the authority configured as `spec.protocol.recipient`. Trust anchors establish that a responder is trusted, not which responder answered, so under a shared root any subordinate CA would otherwise satisfy protection verification. The comparison ignores attribute order. A response without a sender name is rejected because it cannot be bound to the configured authority |
 | P10CR response identifier ambiguity | Accept only the standards value `-1` or the observed legacy value `0`, echo the received value in `certConf` and allow an issuer to pin one value |
 | Unverifiable confirmation response | Reuse only the response signer already validated against CMP trust when a server omits `extraCerts` and `senderKID` from `pkiConf`, and still reject invalid protection |
 | Unbounded wait for a delayed confirmation | Record the validated chain before `certConf` is sent, then poll for a delayed `pkiConf` from that recorded state under the configured transaction deadline and poll ceiling, rather than holding a reconcile open or discarding an issued certificate |
 | Redirect or header state injection | Disable HTTP redirects and derive transaction state only from authenticated CMP DER |
 | Resource exhaustion | Bound response size, timeouts, polling, transaction duration and request concurrency |
-| Duplicate enrollment after a restart | Record the transaction identifier in a `CMPTransaction` before the first message is sent, resume the recorded transaction on the next reconcile and return the recorded chain when the certificate was already issued |
+| Duplicate enrollment after a restart | Record the transaction identifier plus issuer and credential configuration identity in a `CMPTransaction` before the first message is sent, resume only that bound transaction on the next reconcile and return the recorded chain when the certificate was already issued |
 | Ambiguous timeout on an unanswered enrollment | Pin the transaction identifier before the message reaches the network and retry under it. Both tested servers refuse the repeat under an authenticated error, Nokia NCM 26.7 with `transactionIdInUse` and EJBCA CE 9.3.7 with `badRequest`, and neither issues a second certificate. The request fails permanently and cert-manager enrolls again under a new transaction identifier |
-| Credential rotation mid-transaction | Not addressed. Credentials are reloaded from the issuer on every reconcile, so a rotated shared secret invalidates the protection of an in-flight transaction and it fails within its configured `maximumDuration` |
+| Credential rotation mid-transaction | Record credential Secret versions before the first message and stop an unfinished transaction before more CMP traffic when any version changes |
 | Cross-namespace Secret reference | Secret references contain names and keys only. Namespace selection is fixed by issuer scope |
 | Malformed ASN.1 | Fail closed, fuzz parsers and keep the provisional parser behind project-owned interfaces |
 
