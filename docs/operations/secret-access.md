@@ -51,7 +51,10 @@ subjects:
 
 Both routes create the same grant, so the boundary is unchanged either way: only the namespaces you named are readable, and a namespace added later still needs its own binding. The two bindings carry different names, so listing a namespace that already has a hand-applied binding leaves two identical grants in it. Delete the one you applied when you move a namespace into `credentialNamespaces`.
 
-Under `rbac.namespaced=true` the credential reader is a Role in the release namespace rather than a ClusterRole, so it cannot be bound anywhere else. A workload namespace then needs its own Role granting `get` on Secrets, plus a RoleBinding to the controller ServiceAccount.
+Under `rbac.namespaced=true` the manager watches only the release namespace, registers only
+`CMPIssuer` and uses a Role-based credential reader there. `CMPClusterIssuer` and `CMPIssuer`
+resources outside the release namespace are not reconciled. Use the default cluster-scoped mode when
+issuers live in more than one namespace.
 
 The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.
 
