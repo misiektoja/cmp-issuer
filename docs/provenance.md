@@ -45,7 +45,11 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 | Toolchain currency | `go-patch.yml` | Newest Go patch in the release series `go.mod` targets |
 | Documentation | MkDocs strict mode | Broken links, unresolved anchors and omitted files |
 
-Every check runs on each push and on a weekly schedule so that vulnerabilities published after a change merged are still reported. Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.
+Pull requests run the inexpensive lint, vulnerable dependency and credential checks. Pushes to `dev`
+and `main` add the bill of materials and container scan. The weekly schedule repeats the complete supply
+chain set so vulnerabilities published after a change merged are still reported. CodeQL follows the
+trusted-branch and weekly schedule after the repository becomes public. Tool versions are pinned in the
+Makefile and GitHub Actions are pinned to commit digests.
 
 ## Dependency policy
 
