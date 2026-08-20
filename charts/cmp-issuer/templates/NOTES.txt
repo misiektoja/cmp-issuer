@@ -2,11 +2,17 @@ Thank you for installing {{ .Chart.Name }}.
 
 Your release is named {{ .Release.Name }}.
 
-The controller and CRDs have been installed in namespace {{ .Release.Namespace }}.
+{{- if include "cmp-issuer.managerEnabled" . }}
+The controller and enabled CRDs have been installed in namespace {{ .Release.Namespace }}.
+{{- else }}
+The enabled CRDs have been installed. No controller or supporting resources were rendered.
+{{- end }}
 
 To verify the installation:
 
+{{- if include "cmp-issuer.managerEnabled" . }}
   kubectl get pods -n {{ .Release.Namespace }}
+{{- end }}
   kubectl get customresourcedefinitions
 
 To learn more about the release, try:
