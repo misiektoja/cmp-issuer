@@ -11,6 +11,7 @@ version: 2
 updates:
   - package-ecosystem: gomod
     directory: "/"
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
@@ -28,6 +29,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
@@ -48,6 +50,7 @@ updates:
   # is worth learning from a pull request rather than from the first push after a release.
   - package-ecosystem: pip
     directory: "/docs"
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
@@ -65,6 +68,7 @@ updates:
 
   - package-ecosystem: docker
     directory: "/"
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
