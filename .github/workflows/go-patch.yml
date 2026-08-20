@@ -24,6 +24,7 @@ jobs:
         # Credentials are kept because this is the one workflow that writes back to the repository.
         # Every other checkout drops them.
         with:
+          ref: dev
           persist-credentials: true
 
       # Runs before the toolchain is installed, because it needs only curl and jq. Doing it first means
@@ -79,11 +80,10 @@ jobs:
           git add docs/development/development.md
           git commit -m "docs(development): name Go ${VERSION} as the minimum the module requires"
           git push origin "$BRANCH"
-          # gh targets the default branch when no base is given, so the base needs no lookup here.
           printf '%s\n' \
             "Go ${VERSION} is the newest patch in the release series go.mod targets. Standard library security fixes ship in patch releases, so staying on an older one makes \`make govulncheck\` report them even though no dependency changed." \
             "" \
-            "\`make vet\` and \`make govulncheck\` passed against ${VERSION} in the run that opened this pull request. A pull request raised with \`GITHUB_TOKEN\` does not start the other workflows, so push an empty commit to this branch if you want the full matrix before merging." \
+            "\`make vet\` and \`make govulncheck\` passed against ${VERSION} in the run that opened this pull request. Pull request checks stay lightweight. The full Kubernetes and EJBCA matrix runs after the change lands on dev." \
             "" \
             "The release series itself is never advanced automatically, because a minor bump is a compatibility decision rather than a security one." >"$RUNNER_TEMP/pr-body.md"
-          gh pr create --head "$BRANCH" --title "build(deps): require Go ${VERSION} for the standard library fixes it carries" --body-file "$RUNNER_TEMP/pr-body.md"
+          gh pr create --base dev --head "$BRANCH" --title "build(deps): require Go ${VERSION} for the standard library fixes it carries" --body-file "$RUNNER_TEMP/pr-body.md"
