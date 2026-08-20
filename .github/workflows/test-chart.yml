@@ -2,9 +2,30 @@ name: Test Chart
 
 on:
   push:
+    branches: [dev, main]
+    paths:
+      - charts/**
+      - Dockerfile
+      - Makefile
+      - go.mod
+      - go.sum
+      - .github/workflows/test-chart.yml
   pull_request:
+    branches: [dev, main]
+    paths:
+      - charts/**
+      - Dockerfile
+      - Makefile
+      - go.mod
+      - go.sum
+      - .github/workflows/test-chart.yml
+  workflow_dispatch:
 
 permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test-chart:
