@@ -30,6 +30,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -50,6 +51,7 @@ var (
 // runConfiguration contains the manager settings populated by command-line flags.
 type runConfiguration struct {
 	ClusterResourceNamespace string
+	WatchNamespace           string
 	EnableLeaderElection     bool
 	MetricsAddress           string
 	MetricsSecure            bool
@@ -69,6 +71,7 @@ func init() {
 // main parses controller flags and starts the manager.
 func main() {
 	var clusterResourceNamespace string
+	var watchNamespace string
 	var enableLeaderElection bool
 	var metricsAddress string
 	var metricsSecure bool
@@ -84,6 +87,12 @@ func main() {
 		"Namespace containing CMPClusterIssuer credential Secrets",
 	)
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Enable controller leader election")
+	flag.StringVar(
+		&watchNamespace,
+		"watch-namespace",
+		"",
+		"Restrict CMPIssuer and CertificateRequest reconciliation to one namespace and disable CMPClusterIssuer",
+	)
 	flag.StringVar(&metricsAddress, "metrics-bind-address", "0", "Metrics listener address or 0 to disable")
 	flag.BoolVar(
 		&metricsSecure,
@@ -111,6 +120,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOptions)))
 	configuration := runConfiguration{
 		ClusterResourceNamespace: clusterResourceNamespace,
+		WatchNamespace:           watchNamespace,
 		EnableLeaderElection:     enableLeaderElection,
 		MetricsAddress:           metricsAddress,
 		MetricsSecure:            metricsSecure,
@@ -153,18 +163,25 @@ func run(ctx context.Context, configuration runConfiguration) error {
 			"key", configuration.MetricsCertificateKey,
 		)
 	}
-	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	managerOptions := ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsOptions,
 		WebhookServer:          webhook.NewServer(webhook.Options{TLSOpts: []func(*tls.Config){disableHTTP2}}),
 		HealthProbeBindAddress: configuration.ProbeAddress,
 		LeaderElection:         configuration.EnableLeaderElection,
 		LeaderElectionID:       "4f0dc535.misiektoja.github.io",
-	})
+	}
+	if configuration.WatchNamespace != "" {
+		managerOptions.Cache.DefaultNamespaces = map[string]cache.Config{configuration.WatchNamespace: {}}
+	}
+	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), managerOptions)
 	if err != nil {
 		return fmt.Errorf("create manager: %w", err)
 	}
-	signer := &cmpcontroller.Signer{ClusterResourceNamespace: configuration.ClusterResourceNamespace}
+	signer := &cmpcontroller.Signer{
+		ClusterResourceNamespace: configuration.ClusterResourceNamespace,
+		WatchNamespace:           configuration.WatchNamespace,
+	}
 	if err := signer.SetupWithManager(ctx, manager); err != nil {
 		return fmt.Errorf("register CMP signer: %w", err)
 	}
