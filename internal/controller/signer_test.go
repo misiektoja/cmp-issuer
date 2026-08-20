@@ -48,10 +48,12 @@ import (
 
 const (
 	testCMPTrustKey               = "ca.crt"
+	testAuthSecretName            = "cmp-auth"
 	testClusterResourceNamespace  = "cluster-resources"
 	testIssuerName                = "issuer"
 	testIssuerNamespace           = "issuer-ns"
 	testPasswordReferenceKey      = "reference"
+	testTrustSecretName           = "cmp-trust"
 	testUnrelatedPrivateKeySecret = "unrelated-private-key"
 )
 
@@ -192,7 +194,7 @@ func testCSR(t *testing.T) []byte {
 
 // validSpec returns a fully explicit P10CR PasswordBasedMac issuer spec.
 func validSpec(endpoint string) cmpv1alpha1.CMPIssuerSpec {
-	return cmpv1alpha1.CMPIssuerSpec{Endpoint: cmpv1alpha1.EndpointSpec{URL: endpoint, Timeout: metav1.Duration{Duration: 30 * time.Second}, MaxResponseSize: 1 << 20}, Protocol: cmpv1alpha1.ProtocolSpec{Version: 2, InitialEnrollment: cmpv1alpha1.InitialEnrollmentP10CR, Recipient: "C=DE, O=Test, CN=Test CA", Confirmation: "Explicit"}, Protection: cmpv1alpha1.ProtectionSpec{Type: cmpv1alpha1.ProtectionTypePasswordBasedMac, PasswordBasedMac: &cmpv1alpha1.PasswordBasedMacSpec{SecretRef: cmpv1alpha1.LocalSecretReference{Name: "cmp-auth"}, ReferenceKey: testPasswordReferenceKey, SecretKey: "secret", Algorithm: cmpv1alpha1.PasswordBasedMacAlgorithmSpec{OWF: "SHA256", MAC: "HMACSHA256", IterationCount: 1024}}}, CMPTrust: cmpv1alpha1.CMPTrustSpec{CASecretRef: cmpv1alpha1.SecretKeyReference{Name: "cmp-trust", Key: testCMPTrustKey}}, Transaction: cmpv1alpha1.TransactionSpec{MaximumDuration: metav1.Duration{Duration: 10 * time.Minute}, MinimumPollInterval: metav1.Duration{Duration: time.Second}, MaximumPollInterval: metav1.Duration{Duration: time.Minute}, MaximumPolls: 60}, Policy: cmpv1alpha1.PolicySpec{GrantedModifications: cmpv1alpha1.GrantedModificationsReject}}
+	return cmpv1alpha1.CMPIssuerSpec{Endpoint: cmpv1alpha1.EndpointSpec{URL: endpoint, Timeout: metav1.Duration{Duration: 30 * time.Second}, MaxResponseSize: 1 << 20}, Protocol: cmpv1alpha1.ProtocolSpec{Version: 2, InitialEnrollment: cmpv1alpha1.InitialEnrollmentP10CR, Recipient: "C=DE, O=Test, CN=Test CA", Confirmation: "Explicit"}, Protection: cmpv1alpha1.ProtectionSpec{Type: cmpv1alpha1.ProtectionTypePasswordBasedMac, PasswordBasedMac: &cmpv1alpha1.PasswordBasedMacSpec{SecretRef: cmpv1alpha1.LocalSecretReference{Name: testAuthSecretName}, ReferenceKey: testPasswordReferenceKey, SecretKey: "secret", Algorithm: cmpv1alpha1.PasswordBasedMacAlgorithmSpec{OWF: "SHA256", MAC: "HMACSHA256", IterationCount: 1024}}}, CMPTrust: cmpv1alpha1.CMPTrustSpec{CASecretRef: cmpv1alpha1.SecretKeyReference{Name: testTrustSecretName, Key: testCMPTrustKey}}, Transaction: cmpv1alpha1.TransactionSpec{MaximumDuration: metav1.Duration{Duration: 10 * time.Minute}, MinimumPollInterval: metav1.Duration{Duration: time.Second}, MaximumPollInterval: metav1.Duration{Duration: time.Minute}, MaximumPolls: 60}, Policy: cmpv1alpha1.PolicySpec{GrantedModifications: cmpv1alpha1.GrantedModificationsReject}}
 }
 
 // testScheme creates a scheme containing core and cmp-issuer APIs.
@@ -212,8 +214,8 @@ func testScheme(t *testing.T) *runtime.Scheme {
 func credentialSecrets(t *testing.T, namespace string) (*corev1.Secret, *corev1.Secret, *x509.Certificate) {
 	t.Helper()
 	certificate, _, certificatePEM, _ := testCertificateMaterial(t, "CMP Root")
-	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "cmp-auth", Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
-	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "cmp-trust", Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
+	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
+	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testTrustSecretName, Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
 	return auth, trust, certificate
 }
 
