@@ -25,6 +25,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha512"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -43,8 +44,9 @@ import (
 
 // Names used by the response sender comparison tests, modelled on a CA whose subject carries a UID.
 const (
-	testAuthorityCN = "ManagementCA"
-	testAuthorityO  = "Example Container Quickstart"
+	testAuthorityCN     = "ManagementCA"
+	testAuthorityO      = "Example Container Quickstart"
+	testBadMessageCheck = "badMessageCheck"
 )
 
 // testPKI contains ephemeral credentials used by one protocol test.
@@ -64,6 +66,9 @@ type mockOptions struct {
 	WrongNonce          bool
 	ImpostorAuthority   bool
 	MismatchedSenderKID bool
+	ForceSignature      bool
+	ForceMAC            bool
+	NullSender          bool
 	OmitPKIConfCerts    bool
 	InvalidPKIConf      bool
 	HTTPStatus          int
@@ -203,7 +208,8 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			return
 		}
 		verifyOptions := pkicmp.VerifyOptions{SharedSecret: password, TrustPool: bootstrapRoots, ExtraCerts: message.ExtraCerts, SenderKID: message.Header.SenderKID}
-		if _, err := message.Verify(verifyOptions); err != nil {
+		verification, err := message.Verify(verifyOptions)
+		if err != nil {
 			t.Errorf("verify request protection: %v", err)
 			return
 		}
@@ -241,6 +247,9 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		if options.WrongNonce {
 			response.Header.RecipNonce = []byte("wrong-nonce")
 		}
+		if options.NullSender {
+			response.Header.Sender = pkicmp.GeneralName{}
+		}
 		signingCertificate := pki.CACertificate
 		signingKey := pki.CAKey
 		if options.ImpostorAuthority {
@@ -257,7 +266,12 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			copyCertificate.SubjectKeyId = []byte{9, 9, 9}
 			signingCertificate = &copyCertificate
 		}
-		credentials, err := pkicmp.NewSignatureCredentials(signingKey, signingCertificate)
+		var credentials pkicmp.Credentials
+		if (verification.MACVerified && !options.ForceSignature) || options.ForceMAC {
+			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(1024))
+		} else {
+			credentials, err = pkicmp.NewSignatureCredentials(signingKey, signingCertificate)
+		}
 		if err != nil {
 			t.Errorf("create response credentials: %v", err)
 			return
@@ -293,6 +307,23 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		_, _ = writer.Write(responseDER)
 	}))
 	return server, state
+}
+
+// TestEnrollP10CRRejectsMACSubstitution verifies signature operations cannot switch to shared-secret protection.
+func TestEnrollP10CRRejectsMACSubstitution(t *testing.T) {
+	pki := newTestPKI(t)
+	password := []byte("test-shared-secret")
+	bootstrapRoots := x509.NewCertPool()
+	bootstrapRoots.AddCert(pki.CACertificate)
+	server, _ := newMockCMPServer(t, pki, password, bootstrapRoots, mockOptions{CertReqID: -1, ForceMAC: true})
+	defer server.Close()
+	request := baseEnrollmentRequest(t, pki, server.URL)
+	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
+	_, err := NewClient().EnrollP10CR(context.Background(), request)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testBadMessageCheck {
+		t.Fatalf("expected protection substitution rejection, got %v", err)
+	}
 }
 
 // baseEnrollmentRequest creates common trusted P10CR test input without a pinned response identifier.
@@ -425,7 +456,7 @@ func TestEnrollP10CRRejectsInvalidPKIConfWithRememberedSigner(t *testing.T) {
 	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
 	_, err := enrollAndConfirm(t, request)
 	var typed *Error
-	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != "badMessageCheck" {
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testBadMessageCheck {
 		t.Fatalf("expected protected pkiConf rejection, got %v", err)
 	}
 }
@@ -441,10 +472,11 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 		{name: "pinned certReqId", options: mockOptions{CertReqID: 0}, pinned: pinCertReqID(ResponseCertReqIDStandard), failure: "certReqIdMismatch"},
 		{name: "unsupported certReqId", options: mockOptions{CertReqID: 7}, failure: "certReqIdUnsupported"},
 		{name: "public key", options: mockOptions{CertReqID: -1, WrongPublicKey: true}, failure: "publicKeyMismatch"},
-		{name: "protection", options: mockOptions{CertReqID: -1, InvalidProtection: true}, failure: "badMessageCheck"},
+		{name: "protection", options: mockOptions{CertReqID: -1, InvalidProtection: true}, failure: testBadMessageCheck},
 		{name: "transaction", options: mockOptions{CertReqID: -1, WrongTransactionID: true}, failure: "transactionIdMismatch"},
 		{name: "nonce", options: mockOptions{CertReqID: -1, WrongNonce: true}, failure: "nonceMismatch"},
-		{name: "impostor authority", options: mockOptions{CertReqID: -1, ImpostorAuthority: true}, failure: "wrongAuthority"},
+		{name: "protection mechanism substitution", options: mockOptions{CertReqID: -1, ForceSignature: true}, failure: testBadMessageCheck},
+		{name: "absent sender", options: mockOptions{CertReqID: -1, NullSender: true}, failure: "wrongAuthority"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -461,6 +493,22 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 				t.Fatalf("expected security failure %s, got %v", test.failure, err)
 			}
 		})
+	}
+}
+
+// TestEnrollP10CRRejectsSignatureFromAnotherTrustedAuthority verifies recipient binding for signature responses.
+func TestEnrollP10CRRejectsSignatureFromAnotherTrustedAuthority(t *testing.T) {
+	pki := newTestPKI(t)
+	bootstrapRoots := x509.NewCertPool()
+	bootstrapRoots.AddCert(pki.CACertificate)
+	server, _ := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: -1, ImpostorAuthority: true})
+	defer server.Close()
+	request := baseEnrollmentRequest(t, pki, server.URL)
+	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
+	_, err := NewClient().EnrollP10CR(context.Background(), request)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != "wrongAuthority" {
+		t.Fatalf("expected wrongAuthority security failure, got %v", err)
 	}
 }
 
@@ -548,17 +596,45 @@ func TestSenderMatchesRecipientRejectsAnotherAuthority(t *testing.T) {
 	}
 }
 
-// TestSenderMatchesRecipientAcceptsAbsentName covers the RFC 4210 section 5.1.1 NULL DN, which carries
-// no name to compare, and a recipient the issuer left unset.
-func TestSenderMatchesRecipientAcceptsAbsentName(t *testing.T) {
+// TestSenderMatchesRecipientRejectsAbsentName verifies a configured authority cannot be bypassed by a NULL sender.
+func TestSenderMatchesRecipientRejectsAbsentName(t *testing.T) {
 	recipient, err := ParseDistinguishedName("CN=" + testAuthorityCN)
 	if err != nil {
 		t.Fatalf("parse recipient: %v", err)
 	}
-	if !senderMatchesRecipient(pkicmp.GeneralName{}, recipient) {
-		t.Error("a NULL DN sender should be accepted")
+	if senderMatchesRecipient(pkicmp.GeneralName{}, recipient) {
+		t.Error("a NULL DN sender should be rejected")
 	}
 	if !senderMatchesRecipient(pkicmp.NewDirectoryName(pkix.Name{CommonName: testAuthorityCN}), pkix.Name{}) {
 		t.Error("an unset recipient should not reject a named sender")
+	}
+}
+
+// TestSendCMPRetriesTransientClientStatuses verifies overload and timeout responses remain retryable.
+func TestSendCMPRetriesTransientClientStatuses(t *testing.T) {
+	for _, status := range []int{http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) { writer.WriteHeader(status) }))
+			defer server.Close()
+			request := EnrollmentRequest{Timeout: time.Second}
+			_, err := sendCMP(context.Background(), newHTTPClient(request), server.URL, []byte{1}, 1024, operationEnrollment)
+			var typed *Error
+			if !errors.As(err, &typed) || typed.Kind != ErrorKindRetryable || typed.Failure != "systemUnavail" {
+				t.Fatalf("expected retryable systemUnavail for HTTP %d, got %v", status, err)
+			}
+		})
+	}
+}
+
+// TestCertificateHashSupportsEd25519 verifies certConf uses SHA-512 for an Ed25519-signed certificate.
+func TestCertificateHashSupportsEd25519(t *testing.T) {
+	raw := []byte("ed25519-certificate")
+	want := sha512.Sum512(raw)
+	got, err := certificateHash(&x509.Certificate{Raw: raw, SignatureAlgorithm: x509.PureEd25519})
+	if err != nil {
+		t.Fatalf("certificateHash returned error: %v", err)
+	}
+	if !bytes.Equal(got, want[:]) {
+		t.Fatalf("expected SHA-512 certificate hash, got %x", got)
 	}
 }
