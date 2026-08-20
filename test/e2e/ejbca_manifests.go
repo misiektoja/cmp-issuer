@@ -101,7 +101,7 @@ spec:
     version: 2
     initialEnrollment: P10CR
     recipient: %[3]s
-    confirmation: Explicit
+    confirmation: Explicit%[7]s
   protection:
 %[4]s  cmpTrust:
     caSecretRef:
@@ -149,6 +149,10 @@ type ejbcaIssuer struct {
 	protection  string
 	trustSecret string
 	transport   string
+	// macResponseProtection carries the optional spec.protocol.macResponseProtection line. Every alias
+	// this image configures sets responseprotection to signature, so a shared secret request is
+	// answered with a signed message and the opt-in is what accepts it.
+	macResponseProtection string
 }
 
 // ejbcaWorkloadManifest renders the CMP server Deployment and the Service that publishes it.
@@ -158,6 +162,10 @@ func ejbcaWorkloadManifest(name string, image string, httpPort int, httpsPort in
 
 // ejbcaIssuerManifest renders an issuer for one combination of protection mechanism and transport.
 func (issuer ejbcaIssuer) manifest() string {
+	macResponseProtection := ""
+	if issuer.macResponseProtection != "" {
+		macResponseProtection = "\n    macResponseProtection: " + issuer.macResponseProtection
+	}
 	return fmt.Sprintf(ejbcaIssuerTemplate, issuer.name, issuer.url, yamlQuote(issuer.recipient),
-		issuer.protection, issuer.trustSecret, issuer.transport)
+		issuer.protection, issuer.trustSecret, issuer.transport, macResponseProtection)
 }
