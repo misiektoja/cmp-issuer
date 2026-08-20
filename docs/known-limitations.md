@@ -35,7 +35,7 @@ See [Support matrix](support-matrix.md).
 
 ## Dependencies
 
-The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. It remains security sensitive, so responses are validated independently of it. It is currently built from a fork carrying verification-path corrections that are pending upstream, which means a build of cmp-issuer must come from a checkout of this repository rather than from `go install` at a version. See [ADR 0001](adr/0001-cmp-library.md).
+The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. It remains security sensitive, so responses are validated independently of it. See [ADR 0001](adr/0001-cmp-library.md).
 
 ## API stability
 
