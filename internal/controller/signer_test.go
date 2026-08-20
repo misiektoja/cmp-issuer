@@ -232,6 +232,9 @@ func TestValidateSpec(t *testing.T) {
 			unsupported := int64(1)
 			spec.Protocol.P10CRResponseCertReqID = &unsupported
 		}},
+		{name: "unsupported MAC response protection", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.MACResponseProtection = "Any"
+		}},
 		{name: "profile not encoded", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.CertProfile = "profile" }},
 		{name: "same password key", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protection.PasswordBasedMac.SecretKey = testPasswordReferenceKey
@@ -348,5 +351,35 @@ func TestSignLeavesResponseCertReqIDUnpinnedByDefault(t *testing.T) {
 	}
 	if protocolClient.request.ResponseCertReqID != nil {
 		t.Fatalf("expected no pinned response certReqId, got %d", *protocolClient.request.ResponseCertReqID)
+	}
+}
+
+// TestSignForwardsMACResponseProtection verifies only the explicit opt-in relaxes MAC response protection.
+func TestSignForwardsMACResponseProtection(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure string
+		allowed   bool
+	}{
+		{name: "unset", configure: "", allowed: false},
+		{name: "strict", configure: cmpv1alpha1.MACResponseProtectionStrict, allowed: false},
+		{name: "allow signature", configure: cmpv1alpha1.MACResponseProtectionAllowSignature, allowed: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			auth, trust, leaf := credentialSecrets(t, testIssuerNamespace)
+			kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+			protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{leaf}}}
+			signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+			issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
+			issuer.Spec.Protocol.MACResponseProtection = test.configure
+			request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
+			if _, err := signer.Sign(context.Background(), request, issuer); err != nil {
+				t.Fatalf("Sign failed: %v", err)
+			}
+			if protocolClient.request.AllowSignedMACResponse != test.allowed {
+				t.Fatalf("expected AllowSignedMACResponse %t, got %t", test.allowed, protocolClient.request.AllowSignedMACResponse)
+			}
+		})
 	}
 }
