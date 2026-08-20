@@ -1053,6 +1053,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../operations/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
@@ -1628,7 +1656,7 @@
 
 
 <h1 id="p10cr-renewal-and-kur-roadmap">P10CR renewal and KUR roadmap<a class="headerlink" href="#p10cr-renewal-and-kur-roadmap" title="Permanent link">&para;</a></h1>
-<p>cmp-issuer today implements <strong>initial enrollment only</strong> through P10CR. cert-manager renewal and CMP Key Update Request (KUR) are distinct concepts.</p>
+<p>cmp-issuer implements enrollment through P10CR and renews the same way, by sending a fresh P10CR. It implements <strong>no CMP Key Update Request</strong>, so cert-manager renewal and KUR stay distinct concepts here.</p>
 <h2 id="cert-manager-renewal">cert-manager renewal<a class="headerlink" href="#cert-manager-renewal" title="Permanent link">&para;</a></h2>
 <p>When a <code>Certificate</code> nears expiry cert-manager may create a new <code>CertificateRequest</code> for the same identity. cmp-issuer sends another P10CR with a fresh CSR.</p>
 <p>Whether that succeeds depends entirely on the CMP server profile:</p>

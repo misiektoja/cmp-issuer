@@ -932,6 +932,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../operations/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
@@ -1682,9 +1710,9 @@
 
 
 <h1 id="release-process">Release process<a class="headerlink" href="#release-process" title="Permanent link">&para;</a></h1>
-<p>This page describes the intended release workflow. No release has been published yet.</p>
+<p>This page describes how a release is built, published and indexed.</p>
 <h2 id="versioning">Versioning<a class="headerlink" href="#versioning" title="Permanent link">&para;</a></h2>
-<p><code>RELEASE_NOTES.md</code> tracks <code>0.1.0</code> as the initial development release. Future versions follow semantic versioning for user-visible behavior.</p>
+<p><code>RELEASE_NOTES.md</code> records every released version. Versions follow semantic versioning for user-visible behavior.</p>
 <p>Check the latest published GitHub Release on the default branch before choosing the next version.</p>
 <h2 id="release-artifacts">Release artifacts<a class="headerlink" href="#release-artifacts" title="Permanent link">&para;</a></h2>
 <p>Each release publishes:</p>
@@ -1805,11 +1833,11 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 </tr>
 <tr>
 <td><code>release.yml</code></td>
-<td>Build and publish on tag (not yet run)</td>
+<td>Build and publish the release artifacts on a version tag</td>
 </tr>
 <tr>
 <td><code>publish-chart.yml</code></td>
-<td>Add the released chart to the Helm repository index (not yet run)</td>
+<td>Add the released chart to the Helm repository index when the release is published</td>
 </tr>
 </tbody>
 </table>

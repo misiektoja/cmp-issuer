@@ -1097,6 +1097,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../operations/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
@@ -1736,7 +1764,7 @@
 </tr>
 <tr>
 <td><code>waiting</code> on delayed <code>certConf</code></td>
-<td>Inline poll up to one minute; <strong>not</strong> persisted in <code>CMPTransaction</code></td>
+<td>Chain recorded first, then polled from <code>CMPTransaction</code> in phase <code>Confirming</code></td>
 </tr>
 </tbody>
 </table>

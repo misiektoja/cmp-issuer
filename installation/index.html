@@ -487,6 +487,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Namespace access for CMPIssuer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#let-the-chart-create-the-binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Let the chart create the binding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apply-the-binding-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apply the binding yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1117,6 +1145,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../operations/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../operations/troubleshooting/" class="md-nav__link">
         
   
@@ -1713,6 +1769,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Namespace access for CMPIssuer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#let-the-chart-create-the-binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Let the chart create the binding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apply-the-binding-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apply the binding yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1759,7 +1843,7 @@
 
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
 <p>cmp-issuer runs as a controller alongside cert-manager. Install cert-manager first, then the controller,
-then grant the two permissions described below.</p>
+naming the namespaces your issuers will live in.</p>
 <p>If you are installing for the first time, follow <a href="../getting-started/">Getting started</a> instead. It
 covers these steps in order and ends with an issued certificate.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
@@ -1793,6 +1877,10 @@ helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class
 <span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--create-namespace
 </code></pre></div>
+<p>Add <code>--set 'credentialNamespaces={team-a,team-b}'</code> to that command, naming the namespaces your
+<code>CMPIssuer</code> resources live in. The controller has no cluster-wide Secret access, so without it their
+credential Secrets are unreadable and the issuers stay Not Ready. See
+<a href="#namespace-access-for-cmpissuer">Namespace access for CMPIssuer</a>.</p>
 <p>List the available chart versions with <code>helm search repo cmp-issuer -l</code>.</p>
 <h3 id="from-a-packaged-chart">From a packaged chart<a class="headerlink" href="#from-a-packaged-chart" title="Permanent link">&para;</a></h3>
 <p>Every release attaches a packaged chart, which is useful offline or behind a mirror. Its version has no
@@ -1871,8 +1959,10 @@ leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>cmp-issuer-&lt;version&gt;-install.yaml
 </code></pre></div>
 <p>It installs the same CRDs, RBAC, cert-manager approval permission and controller Deployment in
-<code>cmp-issuer-system</code>, plus a ClusterRoleBinding that lets the controller read Secrets <strong>only</strong> in
-<code>cmp-issuer-system</code>. Neither installation path grants Secret access in workload namespaces.</p>
+<code>cmp-issuer-system</code>, plus a RoleBinding that lets the controller read Secrets <strong>only</strong> in
+<code>cmp-issuer-system</code>. Neither installation path grants Secret access in workload namespaces on its own,
+and the manifest has no values to set, so a <code>CMPIssuer</code> namespace is authorized by applying the
+RoleBinding yourself.</p>
 <p>The metrics endpoint serves HTTPS and authorizes every scrape, the same as the chart. It is the one
 place where the two paths differ in what they offer: the chart can have cert-manager issue the metrics
 serving certificate through <code>metrics.tls.certManager.enabled</code>, and the released manifest is built
@@ -1949,19 +2039,32 @@ makes the decision instead, and express the same rule in a <code>CertificateRequ
 binding. Both installation paths name it the same way.</p>
 <h2 id="namespace-access-for-cmpissuer">Namespace access for CMPIssuer<a class="headerlink" href="#namespace-access-for-cmpissuer" title="Permanent link">&para;</a></h2>
 <p>The controller has no cluster-wide Secret access. Every namespace hosting a <code>CMPIssuer</code> needs a
-RoleBinding granting it the credential reader role there, described in
-<a href="../operations/secret-access/">Credential Secret access</a>. Without it the issuer stays Not Ready and names
-the missing authorization.</p>
-<p>The chart can create those bindings for namespaces you already know about:</p>
+RoleBinding granting it the credential reader role there. Without it the issuer stays Not Ready and
+names the missing authorization. Both routes below create the same grant, described in
+<a href="../operations/secret-access/">Credential Secret access</a>.</p>
+<h3 id="let-the-chart-create-the-binding">Let the chart create the binding<a class="headerlink" href="#let-the-chart-create-the-binding" title="Permanent link">&para;</a></h3>
+<p>List the namespaces in <code>credentialNamespaces</code>, at install time or in a later upgrade:</p>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>cmp-issuer/cmp-issuer<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span>--create-namespace<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span><span class="s1">'credentialNamespaces={team-a,team-b}'</span>
 </code></pre></div>
+<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>upgrade<span class="w"> </span>cmp-issuer<span class="w"> </span>cmp-issuer/cmp-issuer<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reuse-values<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set<span class="w"> </span><span class="s1">'credentialNamespaces={team-a,team-b}'</span>
+</code></pre></div>
 <p>Each listed namespace must exist before the release is installed or upgraded, and each entry widens the
-boundary this project is built around, so name only the namespaces you have decided on. Namespaces
-added later still need the RoleBinding, either by listing them and upgrading or by applying it directly.
-This setting requires <code>rbac.namespaced=false</code>, because a RoleBinding in one namespace cannot reference a
-Role that lives in another.</p>
+boundary this project is built around, so name only the namespaces you have decided on. An upgrade has
+to carry the whole list, since <code>--set</code> replaces the value rather than appending to it. This setting
+requires <code>rbac.namespaced=false</code>, because a RoleBinding in one namespace cannot reference a Role that
+lives in another.</p>
+<h3 id="apply-the-binding-yourself">Apply the binding yourself<a class="headerlink" href="#apply-the-binding-yourself" title="Permanent link">&para;</a></h3>
+<p>Applying the RoleBinding directly suits a namespace you do not want recorded in the release values, one
+created long after the install, and the manifest installation, which has no values to set. The manifest
+is in <a href="../operations/secret-access/#apply-the-rolebinding-yourself">Credential Secret access</a>.</p>
+<p>The chart names its binding <code>cmp-issuer-credential-reader-rolebinding</code>, so a hand-applied binding under
+a different name is not adopted or replaced by a later upgrade. Delete yours if you move the same
+namespace into <code>credentialNamespaces</code>, or the namespace ends up with two identical grants.</p>
 <p>A <code>CMPClusterIssuer</code> reads its credentials only from the controller's cluster resource namespace and
 needs no per-namespace binding.</p>
 <h2 id="verify-the-installation">Verify the installation<a class="headerlink" href="#verify-the-installation" title="Permanent link">&para;</a></h2>

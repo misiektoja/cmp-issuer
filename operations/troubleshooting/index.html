@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/">
       
       
-        <link rel="prev" href="../secret-access/">
+        <link rel="prev" href="../metrics/">
       
       
         <link rel="next" href="../../security/security-model/">
@@ -914,6 +914,34 @@
     
   
     Credential Secret access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
   
 
     
@@ -2014,7 +2042,7 @@ the log.</p>
 <tr>
 <td>Ready=False, message names a Secret</td>
 <td>Credential or trust Secret missing or unreadable</td>
-<td>Create the Secret; for <code>CMPIssuer</code> add the RoleBinding from <a href="../secret-access/">Credential Secret access</a></td>
+<td>Create the Secret; for <code>CMPIssuer</code> authorize the namespace with <code>credentialNamespaces</code> or the RoleBinding from <a href="../secret-access/">Credential Secret access</a></td>
 </tr>
 <tr>
 <td>Ready=False after install</td>

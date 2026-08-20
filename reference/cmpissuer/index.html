@@ -1130,6 +1130,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../operations/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
@@ -2017,7 +2045,7 @@
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
 <p>Ready condition follows issuer-lib conventions. When credential or trust Secrets are unreadable the message names the Secret.</p>
 <h2 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h2>
-<p>Create the RoleBinding from <a href="../../operations/secret-access/">Credential Secret access</a> in the issuer namespace before expecting Ready=True.</p>
+<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../cmpclusterissuer/">CMPClusterIssuer</a> for cluster-scoped issuers</li>

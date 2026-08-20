@@ -932,6 +932,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../operations/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
@@ -1551,7 +1579,7 @@
 
 <h1 id="adr-0001-isolate-go-pkicmp-behind-project-interfaces">ADR 0001: isolate go-pkicmp behind project interfaces<a class="headerlink" href="#adr-0001-isolate-go-pkicmp-behind-project-interfaces" title="Permanent link">&para;</a></h1>
 <ul>
-<li>Status: accepted for initial development</li>
+<li>Status: accepted</li>
 </ul>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
 <p>cmp-issuer needs CMPv2 P10CR, CP, certConf and pkiConf support with PasswordBasedMac and signature protection. Implementing all ASN.1 from scratch would expand the security review substantially. go-pkicmp implements the needed primitives but is pre-v1, lightly adopted, partly incomplete and has had little independent review.</p>

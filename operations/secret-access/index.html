@@ -16,7 +16,7 @@
         <link rel="prev" href="../../interoperability/tested-pkis/">
       
       
-        <link rel="next" href="../troubleshooting/">
+        <link rel="next" href="../metrics/">
       
       
         
@@ -915,6 +915,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Credential Secret access
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -932,6 +950,75 @@
 
       </a>
       
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#let-the-chart-create-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Let the chart create it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#apply-the-rolebinding-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apply the RoleBinding yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1420,6 +1507,36 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#let-the-chart-create-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Let the chart create it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#apply-the-rolebinding-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apply the RoleBinding yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1442,7 +1559,22 @@
 <p>cmp-issuer resolves Secrets through an uncached Kubernetes API reader. Its manager ClusterRole cannot read Secrets.</p>
 <p>The installation creates the <code>cmp-issuer-credential-reader</code> ClusterRole with only <code>get</code> permission for Secrets. A RoleBinding grants that role to the controller ServiceAccount in the controller's own namespace, <code>cmp-issuer-system</code> by default. This is the only namespace from which <code>CMPClusterIssuer</code> credentials can be read by default.</p>
 <p>The chart binds the role in the release namespace and points <code>--cluster-resource-namespace</code> at the same namespace, so the permission and the lookup always agree. Moving the lookup with <code>manager.clusterResourceNamespace</code> moves the binding with it.</p>
-<p>An administrator must create a RoleBinding in each namespace that uses a <code>CMPIssuer</code>. The binding grants access only inside that namespace:</p>
+<p>Every namespace that uses a <code>CMPIssuer</code> needs a RoleBinding of its own. The binding grants access only inside that namespace, and there are two ways to create it.</p>
+<h2 id="let-the-chart-create-it">Let the chart create it<a class="headerlink" href="#let-the-chart-create-it" title="Permanent link">&para;</a></h2>
+<p>Name the namespaces in <code>credentialNamespaces</code> when you install:</p>
+<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>cmp-issuer<span class="w"> </span>cmp-issuer/cmp-issuer<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span>--create-namespace<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set<span class="w"> </span><span class="s1">'credentialNamespaces={team-a,team-b}'</span>
+</code></pre></div>
+<p>The chart creates one <code>cmp-issuer-credential-reader-rolebinding</code> per listed namespace. Each namespace must exist before the release is installed or upgraded, and the setting requires <code>rbac.namespaced=false</code>, because a RoleBinding in one namespace cannot reference a Role that lives in another.</p>
+<p>Authorize a namespace you add later by upgrading with the full list, since <code>--set</code> replaces the value rather than appending to it:</p>
+<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>upgrade<span class="w"> </span>cmp-issuer<span class="w"> </span>cmp-issuer/cmp-issuer<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>cmp-issuer-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reuse-values<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set<span class="w"> </span><span class="s1">'credentialNamespaces={team-a,team-b,team-c}'</span>
+</code></pre></div>
+<h2 id="apply-the-rolebinding-yourself">Apply the RoleBinding yourself<a class="headerlink" href="#apply-the-rolebinding-yourself" title="Permanent link">&para;</a></h2>
+<p>This is the route for a namespace you would rather not carry in the release values, for one created long after the install, or for the manifest installation, which has no values to set:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rbac.authorization.k8s.io/v1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RoleBinding</span>
 <span class="nt">metadata</span><span class="p">:</span>
@@ -1457,9 +1589,8 @@
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-issuer-controller-manager</span>
 <span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-issuer-system</span>
 </code></pre></div>
-<p>The chart can create these bindings for namespaces you already know about, with
-<code>--set 'credentialNamespaces={team-a,team-b}'</code>. It is the same RoleBinding, so the boundary is
-unchanged: only the listed namespaces are readable, and a namespace added later still needs one.</p>
+<p>Both routes create the same grant, so the boundary is unchanged either way: only the namespaces you named are readable, and a namespace added later still needs its own binding. The two bindings carry different names, so listing a namespace that already has a hand-applied binding leaves two identical grants in it. Delete the one you applied when you move a namespace into <code>credentialNamespaces</code>.</p>
+<p>Under <code>rbac.namespaced=true</code> the credential reader is a Role in the release namespace rather than a ClusterRole, so it cannot be bound anywhere else. A workload namespace then needs its own Role granting <code>get</code> on Secrets, plus a RoleBinding to the controller ServiceAccount.</p>
 <p>The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.</p>
 <p>P10CR does not require the workload private key. The controller does not interpret <code>cert-manager.io/private-key-secret-name</code> and it has no default Secret access in workload namespaces beyond explicitly authorized issuer credential namespaces.</p>
 

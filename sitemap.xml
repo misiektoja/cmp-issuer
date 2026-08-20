@@ -2,106 +2,110 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/architecture/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/getting-started/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/installation/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/known-limitations/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/provenance/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/support-matrix/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/adr/0001-cmp-library/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/adr/0002-issuer-lib/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/development/development/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/development/release-process/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/development/testing/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/cmp-response-trust/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/enrollment/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/message-protection/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/private-key-handling/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/transaction-recovery/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/guide/transport/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
+    </url>
+    <url>
+         <loc>https://misiektoja.github.io/cmp-issuer/operations/metrics/</loc>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/operations/secret-access/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/reference/cmpclusterissuer/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/reference/cmpissuer/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/security/security-model/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
     <url>
          <loc>https://misiektoja.github.io/cmp-issuer/security/threat-model/</loc>
-         <lastmod>2026-08-19</lastmod>
+         <lastmod>2026-08-20</lastmod>
     </url>
 </urlset>
