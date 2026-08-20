@@ -70,6 +70,12 @@ spec:
                   that reuses a name.
                 maxLength: 253
                 type: string
+              configurationDigest:
+                description: |-
+                  ConfigurationDigest binds an unfinished transaction to the credential Secret versions used
+                  when its first request was protected.
+                maxLength: 64
+                type: string
               csrDigest:
                 description: |-
                   CSRDigest is the lowercase hexadecimal SHA-256 digest of the DER CSR this transaction enrolls.
@@ -85,6 +91,11 @@ spec:
               issuerRef:
                 description: IssuerRef identifies the issuer that served this transaction.
                 properties:
+                  generation:
+                    description: Generation binds the transaction to the issuer spec
+                      generation that started it.
+                    format: int64
+                    type: integer
                   kind:
                     description: Kind is the issuer resource kind.
                     enum:
