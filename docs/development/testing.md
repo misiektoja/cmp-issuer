@@ -23,6 +23,13 @@ per function with `go tool cover -func=cover.out` or in a browser with `go tool 
 `cmd/` and `test/utils/` are reported as having no test files, which is accurate: the first is manager
 wiring and the second is scaffolding for the e2e suite.
 
+`make test` regenerates the CRDs, the RBAC rules and the DeepCopy code before it runs anything, so a
+stale generated file is repaired on the spot rather than reported. CI therefore runs `go mod tidy` and
+the generation targets in a step of their own and fails when the working tree changed, which is what
+turns a forgotten `make manifests generate` into a red run instead of a green one on a tree that no
+longer matches the commit. Run `go mod tidy` and `make manifests generate fmt` locally and commit what
+they change.
+
 `test/workflows` runs in the same command and checks the GitHub Actions workflow definitions rather than
 Go code, so it reports no coverage either. It fails a change that references an action by tag or branch
 instead of a commit SHA, that drops the version comment which makes a pinned SHA reviewable, that
@@ -111,6 +118,31 @@ CI runs these specs in their own job after a change lands on `dev` or `main` and
 image only when the upstream release it is built from is republished under a new digest. Pull requests
 omit the EJBCA job.
 
+## Chart installation
+
+```bash
+make helm-lint
+make helm-deploy IMG=<image>
+```
+
+`make helm-lint` renders the chart and asserts the value combinations that change what is rendered, and
+it needs no cluster. `test-chart.yml` installs the chart into a Kind cluster on top of that, and it
+installs each mode that changes the arguments the manager is started with or the permissions it is
+granted, not only the default values:
+
+| Mode | What an install proves |
+| --- | --- |
+| Default values | The chart installs and the manager becomes available |
+| `rbac.namespaced=true` | The namespaced Role and its bindings are the ones the manager is granted |
+| `metrics.secure=false` | The plain HTTP metrics endpoint starts instead of failing at flag parsing |
+| `metrics.tls.certManager.enabled=true` | The manager mounts the certificate cert-manager issues for the metrics endpoint |
+
+Every install waits for the Deployment to become available, which is how a mode that renders correctly
+but leaves the manager unable to start is caught. The release is uninstalled between modes, because a
+RoleBinding `roleRef` is immutable and upgrading an existing release into namespaced RBAC fails for a
+reason that says nothing about the chart. The workflow runs on a pull request only when the chart or a
+build input changes.
+
 ## Interoperability against real CMP servers
 
 Enrollment against Nokia NCM is verified against a dedicated CMP server, because that product is not distributable as a test image. Outcomes are summarized in [Tested PKIs](../interoperability/tested-pkis.md).
@@ -184,6 +216,10 @@ generate the SBOM and build and scan the container image. The weekly schedule re
 newly disclosed vulnerability is found without a source change.
 
 `make go-patch-check` reports whether `go.mod` still names the newest Go patch in the release series it targets and `make go-patch-update` moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. `go-patch.yml` runs the same check weekly and opens the bump as a pull request against `dev`. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.
+
+golangci-lint is built with the logcheck module plugin, which `.custom-gcl.yml` pins to an exact
+version so that a fresh run analyses the code with the same reviewed plugin as the last one. Editing
+that file rebuilds the custom binary on the next `make lint`.
 
 `make lint` runs golangci-lint over the Go code and actionlint over `.github/workflows`. actionlint
 delegates `run:` blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
