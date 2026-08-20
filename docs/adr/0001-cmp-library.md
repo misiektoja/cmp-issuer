@@ -22,4 +22,6 @@ The adapter also owns cross-message signer state. Once a response signer certifi
 
 The project can replace or patch the dependency without changing its public API. It maintains independent negative tests and interoperability evidence. A dependency defect is reproduced with a minimal failing test and an RFC citation before a patch is proposed.
 
+Isolating the library was originally a hedge against a third-party dependency that could not be corrected on this project's schedule. That risk is gone now that the library is maintained here, and a different one takes its place: the library and cmp-issuer share an author, so a mistaken reading of a specification can be made on both sides of the interface at once. The independent re-validation of every response is what stands in for the second reader an outside dependency would otherwise have provided, which makes it more load bearing than before rather than less. It stays, and so does the rule that a defect is reproduced against the RFC rather than against the library's own behavior.
+
 Because the dependency is an ordinary requirement rather than a `replace`, every consumption route resolves the same corrected library: the manager image, the installer, the Helm chart, `go install` at a version and any module that imports cmp-issuer as a library. Dependabot tracks it like any other module.
