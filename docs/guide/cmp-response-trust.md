@@ -48,8 +48,13 @@ from any of them.
 
 Every response is therefore also required to be sent by the authority named in `spec.protocol.recipient`.
 A response naming a different authority is rejected with `wrongAuthority` and no certificate is
-accepted, whichever protection mechanism was used. A response must also use the same protection
-mechanism as the request. A signature cannot replace PasswordBasedMac or the reverse.
+accepted, whichever protection mechanism was used.
+
+A response must also use the same protection mechanism as the request. A MAC can never replace a
+signature. A signature replaces PasswordBasedMac only when `spec.protocol.macResponseProtection` is set
+to `AllowSignature`, which is what a server that signs every response needs. The signer still has to
+chain to `spec.cmpTrust.caSecretRef` and name the recipient, so the two rules above still apply. See
+[message protection](message-protection.md).
 
 The comparison requires the same attributes and values, and ignores their order. Certificate tools
 disagree about whether to print a distinguished name in encoded order or in the reverse order RFC 4514
