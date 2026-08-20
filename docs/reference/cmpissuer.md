@@ -62,7 +62,7 @@ spec:
 | `recipient` | yes | | RFC 4514 recipient DN. Also the authority every response must be sent by, compared ignoring attribute order |
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
 | `p10crResponseCertReqId` | no | accept `-1` or `0` | Pin `-1` or `0` when the server behavior is known |
-| `macResponseProtection` | no | `Strict` | `Strict` requires a `PasswordBasedMac` request to be answered with MAC-based protection. `AllowSignature` also accepts a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`, which is what a server that signs every response returns |
+| `macResponseProtection` | no | `AllowSignature` | `AllowSignature` accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `Strict` requires MAC-based protection throughout, so the shared secret authenticates the response as well as the request |
 | `certProfile` | no | | Optional server certificate profile |
 | `sender` | no | | Optional sender DN |
 
