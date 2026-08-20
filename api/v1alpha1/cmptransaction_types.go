@@ -60,6 +60,9 @@ type TransactionIssuerReference struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +optional
 	UID string `json:"uid,omitempty"`
+	// Generation binds the transaction to the issuer spec generation that started it.
+	// +optional
+	Generation int64 `json:"generation,omitempty"`
 }
 
 // CMPTransactionSpec identifies the CertificateRequest that owns an in-flight CMP transaction.
@@ -90,6 +93,11 @@ type CMPTransactionSpec struct {
 	// IssuerRef identifies the issuer that served this transaction.
 	// +optional
 	IssuerRef *TransactionIssuerReference `json:"issuerRef,omitempty"`
+	// ConfigurationDigest binds an unfinished transaction to the credential Secret versions used
+	// when its first request was protected.
+	// +kubebuilder:validation:MaxLength=64
+	// +optional
+	ConfigurationDigest string `json:"configurationDigest,omitempty"`
 	// Operation is the CMP operation this transaction performs.
 	// +kubebuilder:validation:Enum=P10CR
 	// +optional
