@@ -6,15 +6,13 @@
 # toolchain named in go.mod rather than whatever the runner happens to ship.
 #
 # Findings are reported under Security, Code scanning. This needs GitHub code scanning to be available
-# for the repository, which is the case for a public repository. On a private repository without
-# GitHub Advanced Security the analysis step fails, which is expected until the repository is public.
+# for the repository, which is the case for a public repository. The job skips without starting a
+# runner while the repository is private, then begins running automatically after it becomes public.
 name: CodeQL
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
   schedule:
     # A weekly run picks up new queries shipped after a change merged.
@@ -22,8 +20,13 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
+    if: github.event.repository.private == false
     name: Analyze Go
     runs-on: ubuntu-latest
     timeout-minutes: 30
