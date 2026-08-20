@@ -1813,12 +1813,12 @@ path, so it is left alone rather than pointed at a name that changes every relea
 <p>Use kubebuilder CLI to scaffold new APIs or webhooks. Do not delete <code>// +kubebuilder:scaffold:*</code> markers.</p>
 <p>The API is <code>v1alpha1</code> and may change before a stable release.</p>
 <h2 id="protocol-layer">Protocol layer<a class="headerlink" href="#protocol-layer" title="Permanent link">&para;</a></h2>
-<p>CMP encoding and protection sit behind project-owned interfaces. go-pkicmp types must not appear in CRDs or public packages. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>.</p>
-<p><code>go.mod</code> carries a <code>replace</code> directive that redirects go-pkicmp to a fork holding verification-path corrections that are pending upstream. Keep it until those corrections are published. Advance the pin by hand, because Dependabot does not propose updates for a replaced module:</p>
-<div class="highlight"><pre><span></span><code>go<span class="w"> </span>mod<span class="w"> </span>edit<span class="w"> </span>-replace<span class="o">=</span>github.com/tsaarni/go-pkicmp<span class="o">=</span>github.com/misiektoja/go-pkicmp-ng@cmp-hardening
+<p>CMP encoding and protection sit behind project-owned interfaces. Library types must not appear in CRDs or public packages. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>.</p>
+<p>The library is <a href="https://github.com/misiektoja/go-pkicmp-ng">go-pkicmp-ng</a>, required like any other module, so no <code>replace</code> directive is involved and every build route resolves the same version. Advance the pin with:</p>
+<div class="highlight"><pre><span></span><code>go<span class="w"> </span>get<span class="w"> </span>github.com/misiektoja/go-pkicmp-ng@&lt;version&gt;
 go<span class="w"> </span>mod<span class="w"> </span>tidy
 </code></pre></div>
-<p>Removing the directive later is the reverse, <code>go mod edit -dropreplace</code> followed by <code>go get</code> of the released version. Either way rerun <code>make test</code> and one enrollment against a real CMP server, since the library sits directly in the verification path.</p>
+<p>Rerun <code>make test</code> and one enrollment against a real CMP server afterwards, since the library sits directly in the verification path.</p>
 <h2 id="license">License<a class="headerlink" href="#license" title="Permanent link">&para;</a></h2>
 <p>Original code is Apache-2.0. Dependencies retain their own licenses. See <code>THIRD_PARTY_NOTICES.md</code>.</p>
 

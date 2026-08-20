@@ -329,10 +329,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#then" class="md-nav__link">
+  <a href="#where-to-go-next" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Then
+        Where to go next
       
     </span>
   </a>
@@ -1543,10 +1543,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#then" class="md-nav__link">
+  <a href="#where-to-go-next" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Then
+        Where to go next
       
     </span>
   </a>
@@ -1600,20 +1600,17 @@
 <a href="https://github.com/misiektoja/cmp-issuer/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" /></a>
 <a href="https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml/badge.svg?branch=main" /></a>
 <a href="https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml"><img alt="E2E Tests" src="https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml/badge.svg?branch=main" /></a>
-<a href="https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml"><img alt="Supply chain" src="https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml/badge.svg?branch=main" /></a></p>
+<a href="https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml"><img alt="Supply chain" src="https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml/badge.svg?branch=main" /></a>
+<a href="https://scorecard.dev/viewer/?uri=github.com/misiektoja/cmp-issuer"><img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/misiektoja/cmp-issuer/badge" /></a></p>
 <p>cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
-servers. Point a cert-manager <code>Certificate</code> at a <code>CMPIssuer</code> and the certificate is enrolled over CMPv2
-and stored in the usual TLS Secret, so workloads that already consume cert-manager Secrets need no
-change.</p>
-<p>It implements CMPv2 enrollment with a PKCS #10 request in P10CR and a CP response, and renews the same
-way. CMP message protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and
-certificate-signature P10CR have completed protected cert-manager <code>Certificate</code> enrollments against
-Nokia NCM 26.7 and EJBCA Community Edition 9.3.7. Enrollment against EJBCA, over HTTP and over HTTPS,
-runs after changes land on <code>dev</code> or <code>main</code>.</p>
+servers.</p>
+<p>Point a cert-manager <code>Certificate</code> at a <code>CMPIssuer</code> and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.</p>
+<p>CMP message protection is mandatory. HTTP and HTTPS are both supported.</p>
+<p>Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or certificate-based signature protection for CMP P10CR requests.</p>
 <h2 id="start-here">Start here<a class="headerlink" href="#start-here" title="Permanent link">&para;</a></h2>
 <p><strong><a href="getting-started/">Getting started</a></strong> walks from an empty cluster to an issued certificate in five
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.</p>
-<h2 id="then">Then<a class="headerlink" href="#then" title="Permanent link">&para;</a></h2>
+<h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>

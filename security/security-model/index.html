@@ -1736,7 +1736,7 @@
 </table>
 <h2 id="residual-risks">Residual risks<a class="headerlink" href="#residual-risks" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>.</li>
+<li>The CMP encoding layer is a pre-v1 library kept behind project-owned interfaces, maintained by this project's author and validated independently of its own checks. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>.</li>
 <li>CMP interoperability depends on server configuration.</li>
 <li>A <code>CMPTransaction</code> records the transaction identifier, nonces, issuer identity, credential Secret versions and the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to <code>cmptransactions</code> as narrowly as you grant it to <code>certificaterequests</code>.</li>
 <li>Transaction persistence gaps leave specific ambiguous failure modes open. See <a href="../../known-limitations/">Known limitations</a>.</li>

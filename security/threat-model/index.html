@@ -1695,14 +1695,14 @@
 </tr>
 <tr>
 <td>Malformed ASN.1</td>
-<td>Fail closed, fuzz parsers and keep the provisional parser behind project-owned interfaces</td>
+<td>Fail closed, fuzz parsers and keep the parser behind project-owned interfaces</td>
 </tr>
 </tbody>
 </table>
 <h2 id="future-crmf-private-key-boundary">Future CRMF private-key boundary<a class="headerlink" href="#future-crmf-private-key-boundary" title="Permanent link">&para;</a></h2>
 <p>IR and true KUR require workload private-key access for CRMF proof of possession. A future design must validate the owning Certificate, revision, issuer reference, expected Secret state, owner references, labels, CSR signature and public-key equality before reading only <code>tls.key</code>. The annotation <code>cert-manager.io/private-key-secret-name</code> is never sufficient authorization by itself.</p>
 <h2 id="residual-risks">Residual risks<a class="headerlink" href="#residual-risks" title="Permanent link">&para;</a></h2>
-<p>go-pkicmp is pre-v1 and lightly adopted. It remains a provisional security-sensitive dependency, so every response it parses is validated again by the project's own checks. The build carries a reviewed branch that corrects sender binding on a signature-protected message and checks that an issued certificate certifies the requested key, because the published release does neither. Those corrections are pending upstream, so the pinned version is a fork. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>. CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.</p>
+<p>The CMP encoding layer is pre-v1 and lightly adopted, and it is maintained by this project's author rather than by an independent party. Every response it parses is therefore validated again by cmp-issuer's own checks, which is what stands in for the second reader a third-party dependency would otherwise have. It corrects sender binding on a signature-protected message and checks that an issued certificate certifies the requested key, neither of which the library it derives from does. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>. CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.</p>
 
 
 

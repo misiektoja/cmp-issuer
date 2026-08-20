@@ -1341,6 +1341,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#chart-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chart installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#interoperability-against-real-cmp-servers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1686,6 +1697,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#chart-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chart installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#interoperability-against-real-cmp-servers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1796,6 +1818,12 @@ a package holding no test file of its own read as 0% even when every run execute
 per function with <code>go tool cover -func=cover.out</code> or in a browser with <code>go tool cover -html=cover.out</code>.
 <code>cmd/</code> and <code>test/utils/</code> are reported as having no test files, which is accurate: the first is manager
 wiring and the second is scaffolding for the e2e suite.</p>
+<p><code>make test</code> regenerates the CRDs, the RBAC rules and the DeepCopy code before it runs anything, so a
+stale generated file is repaired on the spot rather than reported. CI therefore runs <code>go mod tidy</code> and
+the generation targets in a step of their own and fails when the working tree changed, which is what
+turns a forgotten <code>make manifests generate</code> into a red run instead of a green one on a tree that no
+longer matches the commit. Run <code>go mod tidy</code> and <code>make manifests generate fmt</code> locally and commit what
+they change.</p>
 <p><code>test/workflows</code> runs in the same command and checks the GitHub Actions workflow definitions rather than
 Go code, so it reports no coverage either. It fails a change that references an action by tag or branch
 instead of a commit SHA, that drops the version comment which makes a pinned SHA reviewable, that
@@ -1907,6 +1935,45 @@ reported on the development branch before release:</p>
 <p>CI runs these specs in their own job after a change lands on <code>dev</code> or <code>main</code> and rebuilds the server
 image only when the upstream release it is built from is republished under a new digest. Pull requests
 omit the EJBCA job.</p>
+<h2 id="chart-installation">Chart installation<a class="headerlink" href="#chart-installation" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>helm-lint
+make<span class="w"> </span>helm-deploy<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>&lt;image&gt;
+</code></pre></div>
+<p><code>make helm-lint</code> renders the chart and asserts the value combinations that change what is rendered, and
+it needs no cluster. <code>test-chart.yml</code> installs the chart into a Kind cluster on top of that, and it
+installs each mode that changes the arguments the manager is started with or the permissions it is
+granted, not only the default values:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What an install proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default values</td>
+<td>The chart installs and the manager becomes available</td>
+</tr>
+<tr>
+<td><code>rbac.namespaced=true</code></td>
+<td>The namespaced Role and its bindings are the ones the manager is granted</td>
+</tr>
+<tr>
+<td><code>metrics.secure=false</code></td>
+<td>The plain HTTP metrics endpoint starts instead of failing at flag parsing</td>
+</tr>
+<tr>
+<td><code>metrics.tls.certManager.enabled=true</code></td>
+<td>The manager mounts the certificate cert-manager issues for the metrics endpoint</td>
+</tr>
+</tbody>
+</table>
+<p>Every install waits for the Deployment to become available, which is how a mode that renders correctly
+but leaves the manager unable to start is caught. The release is uninstalled between modes, because a
+RoleBinding <code>roleRef</code> is immutable and upgrading an existing release into namespaced RBAC fails for a
+reason that says nothing about the chart. The workflow runs on a pull request only when the chart or a
+build input changes.</p>
 <h2 id="interoperability-against-real-cmp-servers">Interoperability against real CMP servers<a class="headerlink" href="#interoperability-against-real-cmp-servers" title="Permanent link">&para;</a></h2>
 <p>Enrollment against Nokia NCM is verified against a dedicated CMP server, because that product is not distributable as a test image. Outcomes are summarized in <a href="../../interoperability/tested-pkis/">Tested PKIs</a>.</p>
 <h3 id="enrolling-from-a-hosted-ncm-instance-in-ci">Enrolling from a hosted NCM instance in CI<a class="headerlink" href="#enrolling-from-a-hosted-ncm-instance-in-ci" title="Permanent link">&para;</a></h3>
@@ -2050,6 +2117,9 @@ make<span class="w"> </span>scan-image<span class="w"> </span><span class="nv">I
 generate the SBOM and build and scan the container image. The weekly schedule repeats the full set so a
 newly disclosed vulnerability is found without a source change.</p>
 <p><code>make go-patch-check</code> reports whether <code>go.mod</code> still names the newest Go patch in the release series it targets and <code>make go-patch-update</code> moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. <code>go-patch.yml</code> runs the same check weekly and opens the bump as a pull request against <code>dev</code>. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.</p>
+<p>golangci-lint is built with the logcheck module plugin, which <code>.custom-gcl.yml</code> pins to an exact
+version so that a fresh run analyses the code with the same reviewed plugin as the last one. Editing
+that file rebuilds the custom binary on the next <code>make lint</code>.</p>
 <p><code>make lint</code> runs golangci-lint over the Go code and actionlint over <code>.github/workflows</code>. actionlint
 delegates <code>run:</code> blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
 install shellcheck locally to see the same findings CI does. <code>codeql.yml</code> additionally runs CodeQL

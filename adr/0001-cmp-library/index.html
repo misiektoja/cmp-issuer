@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#adr-0001-isolate-go-pkicmp-behind-project-interfaces" class="md-skip">
+        <a href="#adr-0001-isolate-the-cmp-encoding-library-behind-project-interfaces" class="md-skip">
           Skip to content
         </a>
       
@@ -1577,21 +1577,35 @@
   
 
 
-<h1 id="adr-0001-isolate-go-pkicmp-behind-project-interfaces">ADR 0001: isolate go-pkicmp behind project interfaces<a class="headerlink" href="#adr-0001-isolate-go-pkicmp-behind-project-interfaces" title="Permanent link">&para;</a></h1>
+<h1 id="adr-0001-isolate-the-cmp-encoding-library-behind-project-interfaces">ADR 0001: isolate the CMP encoding library behind project interfaces<a class="headerlink" href="#adr-0001-isolate-the-cmp-encoding-library-behind-project-interfaces" title="Permanent link">&para;</a></h1>
 <ul>
-<li>Status: accepted</li>
+<li>Status: accepted, context revised after the library moved under this project's maintenance</li>
 </ul>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
-<p>cmp-issuer needs CMPv2 P10CR, CP, certConf and pkiConf support with PasswordBasedMac and signature protection. Implementing all ASN.1 from scratch would expand the security review substantially. go-pkicmp implements the needed primitives but is pre-v1, lightly adopted, partly incomplete and has had little independent review.</p>
+<p>cmp-issuer needs CMPv2 P10CR, CP, certConf and pkiConf support with PasswordBasedMac and signature
+protection. Implementing all ASN.1 from scratch would expand the security review substantially, so the
+project depends on a library for the encoding and protection layer.</p>
+<p>The library it started from, <code>github.com/tsaarni/go-pkicmp</code>, implemented the needed primitives but was
+pre-v1, lightly adopted, partly incomplete and had seen little review outside its own author. That is what
+made isolation behind project-owned interfaces the condition of using it at all: the project had to be
+able to validate every response independently and to replace the dependency without changing its own
+API.</p>
+<p>Reviewing it against the RFCs produced corrections the published release did not have, including two
+in the verification path this project calls directly. They were offered upstream and remain unmerged,
+so the dependency is now <code>github.com/misiektoja/go-pkicmp-ng</code>, a derivative maintained by this
+project's author. The library is still pre-v1 and still lightly adopted. What changed is who can fix
+it and who reads it: the correction path is no longer blocked, and the second reader that an outside
+dependency provided is gone. The Consequences section records what follows from that.</p>
 <h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
-<p>Pin go-pkicmp to an exact version. Use it only behind project-owned <code>ProtocolClient</code> and <code>TransactionCodec</code> interfaces. Do not expose its types through CRDs, public packages or controller contracts.</p>
-<p>The pinned version is currently <code>v0.0.0-20260817124344-a18451f3cf35</code>, supplied by the fork <a href="https://github.com/misiektoja/go-pkicmp-ng">github.com/misiektoja/go-pkicmp-ng</a> at branch <code>cmp-hardening</code> through a <code>replace</code> directive in <code>go.mod</code>. The published <code>v0.0.1</code> release accepts a signature-protected message from any certificate that chains to a configured trust anchor without checking that it matches the sender the message claims, and it returns an issued certificate without checking that the certificate certifies the key that was requested. Both are in the verification path this project calls directly, so releasing on <code>v0.0.1</code> is not acceptable. The fork also corrects PBMAC1 key-length handling, CMP media type parsing, CMP-over-HTTP error handling and response nonce validation on a delayed delivery, and it bounds the poll interval a server can ask for.</p>
-<p>The fork keeps the upstream module path, so it is consumed through <code>replace</code> rather than through a renamed import. The corrections are proposed upstream. When they are published there, drop the <code>replace</code> directive, require the released version and record it here.</p>
+<p>Pin the CMP encoding library to an exact version. Use it only behind project-owned <code>ProtocolClient</code> and <code>TransactionCodec</code> interfaces. Do not expose its types through CRDs, public packages or controller contracts.</p>
+<p>The library is <a href="https://github.com/misiektoja/go-pkicmp-ng">github.com/misiektoja/go-pkicmp-ng</a>, pinned at <code>v0.0.0-20260820223730-7b790fd80fa6</code>. It is a maintained derivative of <a href="https://github.com/tsaarni/go-pkicmp">github.com/tsaarni/go-pkicmp</a>, whose published <code>v0.0.1</code> release accepts a signature-protected message from any certificate that chains to a configured trust anchor without checking that it matches the sender the message claims, and returns an issued certificate without checking that the certificate certifies the key that was requested. Both are in the verification path this project calls directly, so releasing on <code>v0.0.1</code> is not acceptable. The derivative also corrects PBMAC1 key-length handling, CMP media type parsing, CMP-over-HTTP error handling and response nonce validation on a delayed delivery, and it bounds the poll interval a server can ask for.</p>
+<p>It declares its own module path, so it is required like any other dependency and <code>go.mod</code> holds no <code>replace</code> directive for it. The corrections were offered upstream in <a href="https://github.com/tsaarni/go-pkicmp/pull/3">tsaarni/go-pkicmp#3</a>, which remains open. Moving back to the upstream module, if that changes, is a normal dependency swap recorded here.</p>
 <p>Do not use the high-level client's polling loop in reconciliation. The adapter owns HTTP policy, transaction validation, P10CR <code>certReqId</code> validation, certificate and CSR public-key matching, confirmation behavior and error classification. It accepts the standards value <code>-1</code> and the observed legacy value <code>0</code>, echoes the received value in <code>certConf</code> and rejects any other value. An issuer may pin one value, after which only that value is accepted.</p>
 <p>The adapter also owns cross-message signer state. Once a response signer certificate is validated against the configured CMP trust anchors, the linked confirmation response is verified against that certificate. This keeps verification fail closed on servers that omit <code>extraCerts</code> and <code>senderKID</code> from <code>pkiConf</code>.</p>
 <h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
 <p>The project can replace or patch the dependency without changing its public API. It maintains independent negative tests and interoperability evidence. A dependency defect is reproduced with a minimal failing test and an RFC citation before a patch is proposed.</p>
-<p>A <code>replace</code> directive applies only when this repository is the main module, which is how the manager image, the installer and the Helm chart are all built. It is ignored when another module imports cmp-issuer as a library and by <code>go install</code> at a version, so neither of those routes carries the corrected library. Build from a checkout of this repository until the directive is gone. Dependabot does not propose updates for a replaced module either, so the pinned version is advanced by hand.</p>
+<p>Isolating the library was originally a hedge against a third-party dependency that could not be corrected on this project's schedule. That risk is gone now that the library is maintained here, and a different one takes its place: the library and cmp-issuer share an author, so a mistaken reading of a specification can be made on both sides of the interface at once. The independent re-validation of every response is what stands in for the second reader an outside dependency would otherwise have provided, which makes it more load bearing than before rather than less. It stays, and so does the rule that a defect is reproduced against the RFC rather than against the library's own behavior.</p>
+<p>Because the dependency is an ordinary requirement rather than a <code>replace</code>, every consumption route resolves the same corrected library: the manager image, the installer, the Helm chart, <code>go install</code> at a version and any module that imports cmp-issuer as a library. Dependabot tracks it like any other module.</p>
 
 
 
