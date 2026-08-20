@@ -289,6 +289,10 @@ func sendCMP(ctx context.Context, client *http.Client, endpoint string, requestD
 	}
 	mediaType, _, parseErr := mime.ParseMediaType(httpResponse.Header.Get("Content-Type"))
 	if parseErr != nil || mediaType != "application/pkixcmp" {
+		switch httpResponse.StatusCode {
+		case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests:
+			return nil, retryable("HTTP exchange", "systemUnavail", fmt.Errorf("server returned HTTP %d without a CMP body", httpResponse.StatusCode))
+		}
 		if httpResponse.StatusCode >= 500 {
 			return nil, retryable("HTTP exchange", "systemUnavail", fmt.Errorf("server returned HTTP %d without a CMP body", httpResponse.StatusCode))
 		}
@@ -321,26 +325,32 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 		return nil, security("verify response protection", "missingProtection", fmt.Errorf("response has no PKIProtection"))
 	}
 	sharedSecret := []byte(nil)
+	requiredProtection := pkicmp.ProtectionSignature
 	if request.Protection.Password != nil {
 		sharedSecret = request.Protection.Password.Secret
+		requiredProtection = pkicmp.ProtectionMAC
 	}
 	var responseSigner *x509.Certificate
-	verification, verificationErr := response.Verify(pkicmp.VerifyOptions{SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
-	if verificationErr == nil && !verification.MACVerified {
+	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
+	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
 		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust)
 	}
-	if verificationErr != nil && previousSigner != nil {
-		if _, previousErr := response.Verify(pkicmp.VerifyOptions{TrustedCert: previousSigner}); previousErr == nil {
+	if verificationErr != nil && requiredProtection == pkicmp.ProtectionSignature && previousSigner != nil {
+		if _, previousErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: previousSigner}); previousErr == nil {
 			responseSigner = previousSigner
 			verificationErr = nil
 		}
 	}
-	if verificationErr != nil {
+	if verificationErr != nil && requiredProtection == pkicmp.ProtectionSignature {
 		fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust)
 		if fallbackErr != nil {
 			return nil, security("verify response protection", "badMessageCheck", verificationErr)
 		}
 		responseSigner = fallbackSigner
+		verificationErr = nil
+	}
+	if verificationErr != nil {
+		return nil, security("verify response protection", "badMessageCheck", verificationErr)
 	}
 	if !bytes.Equal(response.Header.TransactionID, requestMessage.Header.TransactionID) {
 		return nil, security("verify transaction ID", "transactionIdMismatch", fmt.Errorf("response transaction ID does not match request"))
@@ -371,10 +381,10 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 // as a set accepts a name written in either direction while still requiring exactly the same
 // attributes and values, which is what identifies the authority.
 func senderMatchesRecipient(sender pkicmp.GeneralName, recipient pkix.Name) bool {
-	// RFC 4210 section 5.1.1 allows a NULL DN where a name is not known. There is nothing to compare,
-	// and authenticity still rests on the trust chain and the library's own sender binding.
+	// A configured recipient is an authority constraint, so a response without a sender name cannot
+	// prove that it came from the authority addressed by the request.
 	if len(sender.DirectoryName) == 0 {
-		return true
+		return false
 	}
 	configured := pkicmp.NewDirectoryName(recipient).DirectoryName
 	if len(configured) == 0 {
@@ -427,7 +437,7 @@ func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) (*
 		if _, err := certificate.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
 			continue
 		}
-		if _, err := message.Verify(pkicmp.VerifyOptions{TrustedCert: certificate}); err == nil {
+		if _, err := message.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: certificate}); err == nil {
 			return certificate, nil
 		}
 	}
@@ -721,7 +731,7 @@ func certificateHash(certificate *x509.Certificate) ([]byte, error) {
 		hash = crypto.SHA256
 	case x509.SHA384WithRSA, x509.ECDSAWithSHA384, x509.SHA384WithRSAPSS:
 		hash = crypto.SHA384
-	case x509.SHA512WithRSA, x509.ECDSAWithSHA512, x509.SHA512WithRSAPSS:
+	case x509.SHA512WithRSA, x509.ECDSAWithSHA512, x509.SHA512WithRSAPSS, x509.PureEd25519:
 		hash = crypto.SHA512
 	default:
 		return nil, fmt.Errorf("unsupported certificate signature algorithm")
