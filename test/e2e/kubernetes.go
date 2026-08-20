@@ -187,9 +187,30 @@ func setRequestCondition(namespace string, name string, decision string, message
 		"--subresource=status", "--type=merge", "-p", string(payload),
 	}
 	if _, err := utils.Run(exec.Command("kubectl", arguments...)); err != nil {
+		// cert-manager's own approver holds approval permission for the auto-approved issuers, so it
+		// can record the same decision between the read above and this patch. The webhook then refuses
+		// to let the decision be modified, which is the outcome the caller wanted rather than a
+		// failure, so the conditions are read again before the error is reported.
+		if recorded, readErr := hasRequestDecision(namespace, name, decision); readErr == nil && recorded {
+			return nil
+		}
 		return fmt.Errorf("apply %s decision to %q: %w", decision, name, err)
 	}
 	return nil
+}
+
+// hasRequestDecision reports whether a CertificateRequest already carries the given approval decision.
+func hasRequestDecision(namespace string, name string, decision string) (bool, error) {
+	conditions, err := resourceConditions("certificaterequest", namespace, name)
+	if err != nil {
+		return false, err
+	}
+	for _, condition := range conditions {
+		if condition.Type == decision && condition.Status == "True" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // issuedCertificate returns the certificate that a signer stored on a CertificateRequest.
