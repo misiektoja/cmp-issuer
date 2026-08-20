@@ -47,10 +47,10 @@ hostname.
 | CMP alias `cmpissuersig` | RA mode, requests protected with a certificate signature |
 | `/opt/keyfactor/cmp-issuer-e2e` | trust anchors, registration credential, alias names and the shared secret, which the specs read from the running container |
 
-Both aliases set `responseprotection` to `signature`, so the issuing authority signs every response
-including the answer to a request protected with a shared secret. The shared secret issuers in the
-specs therefore set `spec.protocol.macResponseProtection` to `AllowSignature`, which is the value a
-real deployment against such an alias needs, so the suite exercises that path rather than avoiding it.
+Both aliases keep the EJBCA default of `responseprotection` `signature`, so the issuing authority signs
+every response including the answer to a request protected with a shared secret. The issuers in the
+specs set no `spec.protocol.macResponseProtection`, so a passing run proves that a stock EJBCA alias
+works against a cmp-issuer left at its own defaults.
 
 Two authorities rather than one is deliberate. The authority that signs CMP responses is not the
 authority that signed the endpoint TLS certificate, so a run proves that the two trust decisions stay
