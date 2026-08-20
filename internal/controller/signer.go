@@ -25,10 +25,13 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 	"time"
 
 	issuerapi "github.com/cert-manager/issuer-lib/api/v1alpha1"
@@ -77,6 +80,7 @@ type Signer struct {
 	ProtocolClient           protocol.Client
 	EventRecorder            events.EventRecorder
 	ClusterResourceNamespace string
+	WatchNamespace           string
 	transactions             *transactionStore
 }
 
@@ -91,13 +95,17 @@ func (s *Signer) SetupWithManager(ctx context.Context, manager ctrl.Manager) err
 	if s.EventRecorder == nil {
 		s.EventRecorder = manager.GetEventRecorder(fieldOwner)
 	}
-	if s.ClusterResourceNamespace == "" {
+	if s.ClusterResourceNamespace == "" && s.WatchNamespace == "" {
 		return fmt.Errorf("cluster resource namespace is required")
 	}
 	if s.transactions == nil {
 		s.transactions = &transactionStore{reader: manager.GetAPIReader(), writer: manager.GetClient()}
 	}
-	return (&controllers.CombinedController{IssuerTypes: []issuerapi.Issuer{&cmpv1alpha1.CMPIssuer{}}, ClusterIssuerTypes: []issuerapi.Issuer{&cmpv1alpha1.CMPClusterIssuer{}}, FieldOwner: fieldOwner, MaxRetryDuration: 2 * time.Minute, Check: s.Check, Sign: s.Sign, EventRecorder: s.EventRecorder, SetCAOnCertificateRequest: false, DisableKubernetesCSRController: true}).SetupWithManager(ctx, manager)
+	combined := &controllers.CombinedController{IssuerTypes: []issuerapi.Issuer{&cmpv1alpha1.CMPIssuer{}}, FieldOwner: fieldOwner, MaxRetryDuration: 2 * time.Minute, Check: s.Check, Sign: s.Sign, EventRecorder: s.EventRecorder, SetCAOnCertificateRequest: false, DisableKubernetesCSRController: true}
+	if s.WatchNamespace == "" {
+		combined.ClusterIssuerTypes = []issuerapi.Issuer{&cmpv1alpha1.CMPClusterIssuer{}}
+	}
+	return combined.SetupWithManager(ctx, manager)
 }
 
 // Check validates local issuer configuration and credential material without inventing a network health request.
@@ -125,11 +133,6 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 		logEnrollmentFailure(ctx, err)
 		recordFailedEnrollment(ctx, err, enrollmentStarted)
 	}()
-	runtimeConfiguration, configurationErr := s.loadRuntimeConfiguration(ctx, issuer)
-	if configurationErr != nil {
-		return issuersigner.PEMBundle{}, issuersigner.IssuerError{Err: configurationErr}
-	}
-	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("endpoint", logging.Text(runtimeConfiguration.EnrollmentRequest.EndpointURL)))
 	details, err := request.GetCertificateDetails()
 	if err != nil {
 		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: fmt.Errorf("read CertificateRequest details: %w", err)}
@@ -138,39 +141,56 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	if err != nil {
 		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: err}
 	}
-	enrollmentRequest := runtimeConfiguration.EnrollmentRequest
-	enrollmentRequest.CSRDER = requestDER
-	limits := runtimeConfiguration.Transaction
 	csrDigest := csrDigestHex(requestDER)
 	transaction, err := s.transactions.load(ctx, request.GetNamespace(), request.GetName(), request.GetUID())
 	if err != nil {
 		return issuersigner.PEMBundle{}, err
 	}
 	resumed := transaction != nil
-	if !resumed {
-		// The transaction is recorded before the first message is sent, so that a controller restart
-		// resumes this transaction instead of starting a second enrollment for the same request.
-		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration), transactionDetail{CSRDigest: csrDigest, IssuerRef: issuerReference(issuer), Operation: cmpv1alpha1.TransactionOperationP10CR, ProtocolVersion: cmpProtocolVersion})
-		if err != nil {
-			return issuersigner.PEMBundle{}, err
-		}
-	}
-	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("transactionID", transactionIDLogValue(transaction.Spec.TransactionID)))
 	if resumed {
 		logResumedTransaction(ctx, transaction)
 		if transaction.Spec.CSRDigest != "" && transaction.Spec.CSRDigest != csrDigest {
-			return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction enrolls a different certificate signing request")}
+			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction enrolls a different certificate signing request")})
+		}
+		expectedIssuer := issuerReference(issuer)
+		if transaction.Spec.IssuerRef == nil || transaction.Spec.IssuerRef.Name != expectedIssuer.Name || transaction.Spec.IssuerRef.Kind != expectedIssuer.Kind || transaction.Spec.IssuerRef.UID != expectedIssuer.UID {
+			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction belongs to a different issuer identity")})
 		}
 		// The transaction outlives this reconcile, so issuance is timed from the record that started it.
 		if !transaction.CreationTimestamp.IsZero() {
 			enrollmentStarted = transaction.CreationTimestamp.Time
 		}
+		if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseIssued {
+			return recoverIssuedChain(ctx, transaction, requestDER)
+		}
+		if transaction.Spec.IssuerRef.Generation != expectedIssuer.Generation {
+			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("issuer spec changed during the recorded CMP transaction")})
+		}
+	}
+	runtimeConfiguration, configurationErr := s.loadRuntimeConfiguration(ctx, issuer)
+	if configurationErr != nil {
+		return issuersigner.PEMBundle{}, issuersigner.IssuerError{Err: configurationErr}
+	}
+	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("endpoint", logging.Text(runtimeConfiguration.EnrollmentRequest.EndpointURL)))
+	enrollmentRequest := runtimeConfiguration.EnrollmentRequest
+	enrollmentRequest.CSRDER = requestDER
+	limits := runtimeConfiguration.Transaction
+	if !resumed {
+		// The transaction is recorded before the first message is sent, so that a controller restart
+		// resumes this transaction instead of starting a second enrollment for the same request.
+		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration), transactionDetail{CSRDigest: csrDigest, IssuerRef: issuerReference(issuer), ConfigurationDigest: runtimeConfiguration.ConfigurationDigest, Operation: cmpv1alpha1.TransactionOperationP10CR, ProtocolVersion: cmpProtocolVersion})
+		if err != nil {
+			return issuersigner.PEMBundle{}, err
+		}
+	}
+	if resumed {
+		if transaction.Spec.ConfigurationDigest == "" || transaction.Spec.ConfigurationDigest != runtimeConfiguration.ConfigurationDigest {
+			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("issuer credentials changed during the recorded CMP transaction")})
+		}
 	} else {
 		log.FromContext(ctx).V(1).Info("Recorded CMP transaction before sending the first message", "operation", enrollmentLogValue(transaction), "deadline", timestampLogValue(transaction.Spec.Deadline.Time))
 	}
-	if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseIssued {
-		return recoverIssuedChain(ctx, transaction, requestDER)
-	}
+	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("transactionID", transactionIDLogValue(transaction.Spec.TransactionID)))
 	enrollmentRequest.TransactionID = transaction.Spec.TransactionID
 	if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseConfirming {
 		return s.resumeConfirmation(ctx, transaction, enrollmentRequest, limits, requestDER, enrollmentStarted)
@@ -238,7 +258,7 @@ func (s *Signer) confirm(ctx context.Context, transaction *cmpv1alpha1.CMPTransa
 		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
 	}
 	if result.PendingConfirmation != nil {
-		return issuersigner.PEMBundle{}, s.continueConfirming(ctx, transaction, chain, result.PendingConfirmation, limits)
+		return issuersigner.PEMBundle{}, s.continueConfirming(ctx, transaction, chain, result.PendingConfirmation, limits, len(pending.RequestNonce) > 0)
 	}
 	if err := s.transactions.recordIssued(ctx, transaction, chain); err != nil {
 		return issuersigner.PEMBundle{}, err
@@ -249,8 +269,10 @@ func (s *Signer) confirm(ctx context.Context, transaction *cmpv1alpha1.CMPTransa
 }
 
 // continueConfirming records the state for the next confirmation poll and asks for a later retry.
-func (s *Signer) continueConfirming(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, chain []*x509.Certificate, pending *protocol.PendingTransaction, limits cmpv1alpha1.TransactionSpec) error {
-	transaction.Status.Polls++
+func (s *Signer) continueConfirming(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, chain []*x509.Certificate, pending *protocol.PendingTransaction, limits cmpv1alpha1.TransactionSpec, polled bool) error {
+	if polled {
+		transaction.Status.Polls++
+	}
 	if err := s.transactions.recordConfirming(ctx, transaction, chain, pending); err != nil {
 		return err
 	}
@@ -319,7 +341,7 @@ func issuerReference(issuer issuerapi.Issuer) cmpv1alpha1.TransactionIssuerRefer
 	if _, isCluster := issuer.(*cmpv1alpha1.CMPClusterIssuer); isCluster {
 		kind = cmpv1alpha1.TransactionIssuerKindCluster
 	}
-	return cmpv1alpha1.TransactionIssuerReference{Name: issuer.GetName(), Kind: kind, UID: string(issuer.GetUID())}
+	return cmpv1alpha1.TransactionIssuerReference{Name: issuer.GetName(), Kind: kind, UID: string(issuer.GetUID()), Generation: issuer.GetGeneration()}
 }
 
 // exchange sends the enrollment request, or resumes a transaction the server answered with waiting.
@@ -381,9 +403,10 @@ func (s *Signer) failTransaction(ctx context.Context, transaction *cmpv1alpha1.C
 
 // runtimeConfiguration contains locally validated data for one issuer generation.
 type runtimeConfiguration struct {
-	EndpointScheme    string
-	EnrollmentRequest protocol.EnrollmentRequest
-	Transaction       cmpv1alpha1.TransactionSpec
+	EndpointScheme      string
+	EnrollmentRequest   protocol.EnrollmentRequest
+	Transaction         cmpv1alpha1.TransactionSpec
+	ConfigurationDigest string
 }
 
 // configurationError distinguishes immutable spec failures from retryable Secret state.
@@ -457,7 +480,34 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if sender != nil {
 		request.Sender = sender
 	}
-	return runtimeConfiguration{EndpointScheme: parsedEndpoint.Scheme, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction)}, nil
+	configurationDigest, err := runtimeConfigurationDigest(issuerReference(issuer), secrets)
+	if err != nil {
+		return runtimeConfiguration{}, permanentConfiguration("identify issuer configuration", err)
+	}
+	return runtimeConfiguration{EndpointScheme: parsedEndpoint.Scheme, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction), ConfigurationDigest: configurationDigest}, nil
+}
+
+// runtimeConfigurationDigest identifies the issuer generation and credential Secret versions used by a transaction.
+func runtimeConfigurationDigest(issuerRef cmpv1alpha1.TransactionIssuerReference, secrets map[string]*corev1.Secret) (string, error) {
+	type secretIdentity struct {
+		Name            string `json:"name"`
+		UID             string `json:"uid"`
+		ResourceVersion string `json:"resourceVersion"`
+	}
+	identities := make([]secretIdentity, 0, len(secrets))
+	for name, secret := range secrets {
+		identities = append(identities, secretIdentity{Name: name, UID: string(secret.UID), ResourceVersion: secret.ResourceVersion})
+	}
+	slices.SortFunc(identities, func(left secretIdentity, right secretIdentity) int { return strings.Compare(left.Name, right.Name) })
+	encoded, err := json.Marshal(struct {
+		Issuer  cmpv1alpha1.TransactionIssuerReference `json:"issuer"`
+		Secrets []secretIdentity                       `json:"secrets"`
+	}{Issuer: issuerRef, Secrets: identities})
+	if err != nil {
+		return "", fmt.Errorf("encode runtime configuration identity: %w", err)
+	}
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:]), nil
 }
 
 // transactionLimitsWithDefaults applies the documented polling defaults to an omitted transaction block.
@@ -742,7 +792,7 @@ func mapProtocolError(err error) error {
 	case protocol.ErrorKindPending:
 		return issuersigner.PendingError{Err: protocolError, RequeueAfter: protocolError.RequeueAfter}
 	case protocol.ErrorKindRetryable:
-		return protocolError
+		return issuersigner.PendingError{Err: protocolError, RequeueAfter: time.Second}
 	default:
 		return issuersigner.PermanentError{Err: fmt.Errorf("unknown protocol error classification: %w", protocolError)}
 	}
