@@ -85,7 +85,7 @@ EJBCA answers a repeat of an enrollment it already accepted with a protected err
 
 ## OpenSSL CMP mock
 
-CI runs delayed enrollment, delayed confirmation and pinned transaction flows against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or go-pkicmp. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
+CI runs delayed enrollment, delayed confirmation and pinned transaction flows against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
 
 The mock keeps one transaction per TCP connection. The test reaches it through a connection-pooling proxy because RFC 6712 does not require connection affinity on real servers. The mock returns a fixed certificate rather than signing the request, so it cannot show how a server treats a repeat; that behavior is recorded above from NCM and EJBCA.
 
