@@ -1809,11 +1809,11 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 </tr>
 <tr>
 <td><code>test-chart.yml</code></td>
-<td>Helm lint</td>
+<td>Helm lint and a complete chart install for chart and build changes</td>
 </tr>
 <tr>
 <td><code>test-e2e.yml</code></td>
-<td>Kind e2e suite, once per supported Kubernetes and cert-manager version, plus enrollment from a CMP server started in the cluster</td>
+<td>Kind e2e suite on <code>dev</code> and <code>main</code>, once per supported Kubernetes and cert-manager version, plus EJBCA enrollment</td>
 </tr>
 <tr>
 <td><code>ejbca-test-image.yml</code></td>
@@ -1821,15 +1821,15 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 </tr>
 <tr>
 <td><code>interop-ncm.yml</code></td>
-<td>Enrollment against a hosted Nokia NCM instance, started by hand</td>
+<td>Hosted Nokia NCM enrollment on <code>dev</code> and <code>main</code>, weekly and by hand</td>
 </tr>
 <tr>
 <td><code>supply-chain.yml</code></td>
-<td>govulncheck, gitleaks, SBOM, image scan</td>
+<td>govulncheck and gitleaks on pull requests, adding SBOM and image scan on trusted branches</td>
 </tr>
 <tr>
 <td><code>go-patch.yml</code></td>
-<td>Weekly check for a newer Go patch in the targeted release series, opening the bump as a pull request</td>
+<td>Weekly check for a newer Go patch in the targeted release series, opening the bump against <code>dev</code></td>
 </tr>
 <tr>
 <td><code>release.yml</code></td>
@@ -1841,6 +1841,12 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 </tr>
 </tbody>
 </table>
+<p>Pull requests target <code>dev</code> and run the fast unit, OpenSSL, lint and supply chain checks. The chart job
+runs only when its inputs change. The three-version Kind matrix and EJBCA are deliberately deferred
+until the change lands on <code>dev</code>, where failures can be fixed before promotion. Pushes to <code>main</code> repeat
+the trusted-branch checks for the stable code. NCM remains automatic on both trusted branches but never
+receives pull request code or fork credentials. Superseded runs are cancelled, except for NCM because
+an external enrollment should not be abandoned halfway through.</p>
 <h2 id="chart-repository">Chart repository<a class="headerlink" href="#chart-repository" title="Permanent link">&para;</a></h2>
 <p><code>release.yml</code> packages the chart and attaches it to a draft GitHub Release. Publishing that release
 triggers <code>publish-chart.yml</code>, which adds the new version to <code>charts/index.yaml</code> on the <code>gh-pages</code>
@@ -1852,9 +1858,9 @@ root of the same Pages site.</p>
 <p>The first run creates the <code>gh-pages</code> branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.</p>
 <h2 id="documentation-site">Documentation site<a class="headerlink" href="#documentation-site" title="Permanent link">&para;</a></h2>
-<p><code>docs.yml</code> runs the strict MkDocs build on every push and pull request. On the default branch it also
-publishes the rendered site to the root of the <code>gh-pages</code> branch, so the documentation and the chart
-repository share one Pages site.</p>
+<p><code>docs.yml</code> runs the strict MkDocs build for documentation-related changes on pull requests and pushes
+to <code>dev</code> and <code>main</code>. On the default branch it also publishes the rendered site to the root of the
+<code>gh-pages</code> branch, so the documentation and the chart repository share one Pages site.</p>
 <p>The publishing step replaces the previous documentation, so a page removed from <code>docs/</code> disappears from
 the site, but it leaves <code>charts/index.yaml</code> and <code>.nojekyll</code> alone. Both publishers take the <code>gh-pages</code>
 concurrency group, so a release that lands while a documentation change is publishing waits instead of

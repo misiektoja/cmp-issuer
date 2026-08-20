@@ -1905,6 +1905,10 @@ leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
 </thead>
 <tbody>
 <tr>
+<td><code>manager.enabled</code></td>
+<td>Install the controller and supporting resources, default <code>true</code>. Set <code>false</code> to render only enabled CRDs</td>
+</tr>
+<tr>
 <td><code>manager.image.repository</code> and <code>manager.image.tag</code></td>
 <td>Controller image and tag. Defaults to <code>ghcr.io/misiektoja/cmp-issuer</code> at the chart's <code>appVersion</code>. Set the repository to a <code>name@sha256:...</code> reference to pin a digest, in which case the tag is ignored</td>
 </tr>
@@ -1922,7 +1926,7 @@ leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
 </tr>
 <tr>
 <td><code>rbac.namespaced</code></td>
-<td>Scope RBAC to the release namespace instead of cluster-wide. Changing it on an existing release needs the existing bindings deleted first, since Kubernetes does not allow a <code>roleRef</code> to change</td>
+<td>Watch only the release namespace with Role-based RBAC. This disables <code>CMPClusterIssuer</code>. Changing it on an existing release needs the existing bindings deleted first, since Kubernetes does not allow a <code>roleRef</code> to change</td>
 </tr>
 <tr>
 <td><code>rbac.helpers.enabled</code></td>
@@ -1947,6 +1951,10 @@ leading <code>v</code>, because a Helm chart version has to be bare SemVer:</p>
 <tr>
 <td><code>credentialNamespaces</code></td>
 <td>Namespaces to pre-authorize for <code>CMPIssuer</code> credential reads, default empty</td>
+</tr>
+<tr>
+<td><code>serviceAccount.enabled</code> and <code>.name</code></td>
+<td>Create the default ServiceAccount or use the required existing name when creation is disabled</td>
 </tr>
 <tr>
 <td><code>logging.level</code>, <code>.stacktraceLevel</code>, <code>.encoder</code></td>

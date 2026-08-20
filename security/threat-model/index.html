@@ -1647,7 +1647,7 @@
 </tr>
 <tr>
 <td>Forged CMP response</td>
-<td>Validate transaction ID, nonces, response body, response protection and signer trust before accepting a certificate</td>
+<td>Require the configured protection mechanism then validate transaction ID, nonces, response body and signer trust before accepting a certificate</td>
 </tr>
 <tr>
 <td>Certificate substitution</td>
@@ -1655,7 +1655,7 @@
 </tr>
 <tr>
 <td>Impersonation by another authority under the same anchor</td>
-<td>Require every response to be sent by the authority configured as <code>spec.protocol.recipient</code>. Trust anchors establish that a responder is trusted, not which responder answered, so under a shared root any subordinate CA would otherwise satisfy protection verification. The comparison ignores attribute order, and a response that sends no sender name is accepted on its protection alone</td>
+<td>Require every response to name the authority configured as <code>spec.protocol.recipient</code>. Trust anchors establish that a responder is trusted, not which responder answered, so under a shared root any subordinate CA would otherwise satisfy protection verification. The comparison ignores attribute order. A response without a sender name is rejected because it cannot be bound to the configured authority</td>
 </tr>
 <tr>
 <td>P10CR response identifier ambiguity</td>
@@ -1679,7 +1679,7 @@
 </tr>
 <tr>
 <td>Duplicate enrollment after a restart</td>
-<td>Record the transaction identifier in a <code>CMPTransaction</code> before the first message is sent, resume the recorded transaction on the next reconcile and return the recorded chain when the certificate was already issued</td>
+<td>Record the transaction identifier plus issuer and credential configuration identity in a <code>CMPTransaction</code> before the first message is sent, resume only that bound transaction on the next reconcile and return the recorded chain when the certificate was already issued</td>
 </tr>
 <tr>
 <td>Ambiguous timeout on an unanswered enrollment</td>
@@ -1687,7 +1687,7 @@
 </tr>
 <tr>
 <td>Credential rotation mid-transaction</td>
-<td>Not addressed. Credentials are reloaded from the issuer on every reconcile, so a rotated shared secret invalidates the protection of an in-flight transaction and it fails within its configured <code>maximumDuration</code></td>
+<td>Record credential Secret versions before the first message and stop an unfinished transaction before more CMP traffic when any version changes</td>
 </tr>
 <tr>
 <td>Cross-namespace Secret reference</td>

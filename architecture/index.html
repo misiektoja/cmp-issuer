@@ -1667,16 +1667,17 @@
 <ol>
 <li>cert-manager creates a <code>CertificateRequest</code> with a signed PKCS #10 CSR.</li>
 <li>issuer-lib approves or denies the request. Unapproved or denied requests send <strong>no</strong> CMP traffic.</li>
-<li>The signer loads issuer credentials and CMP trust from Secrets authorized by RBAC.</li>
+<li>The signer loads any existing transaction and validates its CSR and issuer binding. An <code>Issued</code> transaction returns its recorded chain without reading credentials.</li>
+<li>For an unfinished or new transaction the signer loads issuer credentials and CMP trust from Secrets authorized by RBAC.</li>
 <li>For P10CR the signer forwards the CSR bytes. It never reads the workload private key.</li>
-<li>Before the first CMP message the signer creates a <code>CMPTransaction</code> owned by the <code>CertificateRequest</code> and records the protected enrollment message in it.</li>
+<li>Before the first CMP message the signer creates a <code>CMPTransaction</code> owned by the <code>CertificateRequest</code> and records the issuer identity, credential configuration identity and transaction identifier.</li>
 <li>Protected DER is exchanged until the server returns a certificate or a permanent error.</li>
-<li>The signer validates response protection, transaction ID, nonces, <code>certReqId</code>, issued public key and chain trust.</li>
+<li>The signer validates the configured protection mechanism, response sender, transaction ID, nonces, <code>certReqId</code>, issued public key and chain trust.</li>
 <li>The validated chain is recorded in the <code>CMPTransaction</code> before it is returned, then cert-manager stores the TLS Secret.</li>
 </ol>
 <h2 id="asynchronous-transactions">Asynchronous transactions<a class="headerlink" href="#asynchronous-transactions" title="Permanent link">&para;</a></h2>
 <p>When the server answers <code>waiting</code>, the signer enters a poll loop. Poll intervals honor the server request within <code>minimumPollInterval</code> and <code>maximumPollInterval</code>. The transaction fails after <code>maximumDuration</code> or <code>maximumPolls</code>.</p>
-<p>Transaction state in <code>CMPTransaction</code> includes the transaction identifier, deadline, enrolled CSR digest, issuer reference, phase, protected enrollment message, nonces, polled <code>certReqId</code>, validated response signer, poll count and the issued chain. A controller restart resumes from this state instead of starting a second enrollment.</p>
+<p>Transaction state in <code>CMPTransaction</code> includes the transaction identifier, deadline, enrolled CSR digest, issuer and credential configuration identity, phase, nonces, polled <code>certReqId</code>, validated response signer, poll count and the issued chain. A controller restart resumes from this state instead of starting a second enrollment. An issuer edit, issuer recreation or credential Secret rotation ends an unfinished transaction before more CMP traffic is sent.</p>
 <p>The validated chain is recorded before <code>certConf</code> is sent, so a server that delays <code>pkiConf</code> is polled from recorded state and a restart during confirmation resumes rather than discarding an issued certificate. See <a href="../guide/transaction-recovery/">Transaction recovery</a>.</p>
 <h2 id="trust-separation">Trust separation<a class="headerlink" href="#trust-separation" title="Permanent link">&para;</a></h2>
 <table>

@@ -1590,7 +1590,10 @@
 <span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-issuer-system</span>
 </code></pre></div>
 <p>Both routes create the same grant, so the boundary is unchanged either way: only the namespaces you named are readable, and a namespace added later still needs its own binding. The two bindings carry different names, so listing a namespace that already has a hand-applied binding leaves two identical grants in it. Delete the one you applied when you move a namespace into <code>credentialNamespaces</code>.</p>
-<p>Under <code>rbac.namespaced=true</code> the credential reader is a Role in the release namespace rather than a ClusterRole, so it cannot be bound anywhere else. A workload namespace then needs its own Role granting <code>get</code> on Secrets, plus a RoleBinding to the controller ServiceAccount.</p>
+<p>Under <code>rbac.namespaced=true</code> the manager watches only the release namespace, registers only
+<code>CMPIssuer</code> and uses a Role-based credential reader there. <code>CMPClusterIssuer</code> and <code>CMPIssuer</code>
+resources outside the release namespace are not reconciled. Use the default cluster-scoped mode when
+issuers live in more than one namespace.</p>
 <p>The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.</p>
 <p>P10CR does not require the workload private key. The controller does not interpret <code>cert-manager.io/private-key-secret-name</code> and it has no default Secret access in workload namespaces beyond explicitly authorized issuer credential namespaces.</p>
 

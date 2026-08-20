@@ -1705,6 +1705,8 @@ reader in, so a release installed anywhere reads its <code>CMPClusterIssuer</cod
 with no extra configuration. Set <code>manager.clusterResourceNamespace</code> to read them from somewhere else,
 and the chart adds a credential reader RoleBinding there as well. That case needs <code>rbac.namespaced</code> to
 be <code>false</code>, since a Role cannot be bound outside its own namespace.</p>
+<p><code>CMPClusterIssuer</code> reconciliation is disabled when <code>rbac.namespaced=true</code>. That mode watches only
+<code>CMPIssuer</code> resources in the Helm release namespace.</p>
 <p>The installer manifest installs into <code>cmp-issuer-system</code> and relies on the compiled-in default of the
 same name. Change both together if you retarget the manifest.</p>
 <p>Store PBM credentials, signature bootstrap material and CMP trust anchors in that namespace. Reference them by name only in the issuer spec.</p>

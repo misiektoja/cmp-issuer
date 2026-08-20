@@ -1364,17 +1364,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#credential-rotation-is-not-detected" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credential rotation is not detected
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#coarse-progress-reporting" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1618,17 +1607,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#credential-rotation-is-not-detected" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credential rotation is not detected
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#coarse-progress-reporting" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1722,11 +1700,9 @@
 <h1 id="known-limitations">Known limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h1>
 <p>Behavior to plan around in the current release. Each item states what is not covered and the failure it can produce.</p>
 <h2 id="transaction-durability">Transaction durability<a class="headerlink" href="#transaction-durability" title="Permanent link">&para;</a></h2>
-<p>cmp-issuer records the transaction identifier, the transaction detail and the issued chain in <code>CMPTransaction</code>, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.</p>
+<p>cmp-issuer records the transaction identifier, issuer and credential configuration identity and the issued chain in <code>CMPTransaction</code>, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.</p>
 <h3 id="a-lost-enrollment-response-cannot-be-recovered">A lost enrollment response cannot be recovered<a class="headerlink" href="#a-lost-enrollment-response-cannot-be-recovered" title="Permanent link">&para;</a></h3>
 <p>If the controller stops after sending an enrollment and the response never arrives, retrying under the recorded transaction identifier reliably prevents a second certificate but does not retrieve the first one. Neither tested server answers the repeat from its existing transaction: Nokia NCM 26.7 refuses it with <code>transactionIdInUse</code> and EJBCA CE 9.3.7 refuses it with <code>badRequest</code>. The <code>CertificateRequest</code> fails and cert-manager enrolls again under a new transaction identifier, which succeeds. The certificate the server issued for the lost response is orphaned and counts against any issuance quota or audit trail the certificate authority keeps.</p>
-<h3 id="credential-rotation-is-not-detected">Credential rotation is not detected<a class="headerlink" href="#credential-rotation-is-not-detected" title="Permanent link">&para;</a></h3>
-<p>Credential Secret versions are not recorded when a transaction begins. Rotating a PasswordBasedMac or signature Secret while a transaction is open changes the protection material without an explicit signal. The transaction fails when the server rejects the new protection or when <code>maximumDuration</code> elapses, not at the moment of rotation.</p>
 <h3 id="coarse-progress-reporting">Coarse progress reporting<a class="headerlink" href="#coarse-progress-reporting" title="Permanent link">&para;</a></h3>
 <p><code>CMPTransaction.status.phase</code> reports <code>Enrolling</code>, <code>Polling</code>, <code>Confirming</code> or <code>Issued</code>, so <code>kubectl get cmptransactions</code> shows less detail than the underlying message flow.</p>
 <h3 id="completed-transactions-are-retained">Completed transactions are retained<a class="headerlink" href="#completed-transactions-are-retained" title="Permanent link">&para;</a></h3>

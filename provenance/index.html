@@ -1758,7 +1758,11 @@
 </tr>
 </tbody>
 </table>
-<p>Every check runs on each push and on a weekly schedule so that vulnerabilities published after a change merged are still reported. Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.</p>
+<p>Pull requests run the inexpensive lint, vulnerable dependency and credential checks. Pushes to <code>dev</code>
+and <code>main</code> add the bill of materials and container scan. The weekly schedule repeats the complete supply
+chain set so vulnerabilities published after a change merged are still reported. CodeQL follows the
+trusted-branch and weekly schedule after the repository becomes public. Tool versions are pinned in the
+Makefile and GitHub Actions are pinned to commit digests.</p>
 <h2 id="dependency-policy">Dependency policy<a class="headerlink" href="#dependency-policy" title="Permanent link">&para;</a></h2>
 <p>Every protocol dependency is pinned. Any verbatim ASN.1 module or RFC code component added later is recorded here with its exact source and required notice.</p>
 <p>A protocol dependency is built from a fork only while a correction is pending upstream. The fork keeps the upstream module path and license, the exact version is pinned in <code>go.mod</code> and recorded in <code>THIRD_PARTY_NOTICES.md</code>, and the bill of materials attached to a release names the fork it was built from. See <a href="../adr/0001-cmp-library/">ADR 0001</a>.</p>

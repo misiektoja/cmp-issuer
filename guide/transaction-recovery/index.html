@@ -699,10 +699,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#credential-rotation-mid-transaction" class="md-nav__link">
+  <a href="#issuer-or-credential-changes-mid-transaction" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Credential rotation mid-transaction
+        Issuer or credential changes mid-transaction
       
     </span>
   </a>
@@ -1686,10 +1686,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#credential-rotation-mid-transaction" class="md-nav__link">
+  <a href="#issuer-or-credential-changes-mid-transaction" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Credential rotation mid-transaction
+        Issuer or credential changes mid-transaction
       
     </span>
   </a>
@@ -1800,7 +1800,11 @@
 </tr>
 <tr>
 <td><code>issuerRef</code></td>
-<td>Name, kind and UID of the issuer that served the transaction</td>
+<td>Name, kind, UID and generation of the issuer that served the transaction</td>
+</tr>
+<tr>
+<td><code>configurationDigest</code></td>
+<td>SHA-256 identity of that issuer generation and the credential Secret versions it loaded</td>
 </tr>
 <tr>
 <td><code>operation</code></td>
@@ -1882,7 +1886,7 @@
 </tr>
 <tr>
 <td><code>Issued</code></td>
-<td>Return the recorded chain without any CMP traffic</td>
+<td>Return the recorded chain without CMP traffic or credential Secret reads</td>
 </tr>
 </tbody>
 </table>
@@ -1923,8 +1927,12 @@
 <p>Reusing the recorded identifier rather than generating a fresh one is what makes this outcome reliable. A new identifier presents the retry to the server as an unrelated enrollment, which is accepted and yields a second certificate.</p>
 <h3 id="crash-between-issuance-and-storage">Crash between issuance and storage<a class="headerlink" href="#crash-between-issuance-and-storage" title="Permanent link">&para;</a></h3>
 <p>If the controller stops after the server issued the certificate but before cert-manager stored it, the recorded chain is returned on the next reconcile. No second enrollment is sent and no certificate is lost.</p>
-<h3 id="credential-rotation-mid-transaction">Credential rotation mid-transaction<a class="headerlink" href="#credential-rotation-mid-transaction" title="Permanent link">&para;</a></h3>
-<p>Rotated PBM or signature Secrets invalidate in-flight protection. The transaction fails within <code>maximumDuration</code>. ResourceVersions are not recorded.</p>
+<h3 id="issuer-or-credential-changes-mid-transaction">Issuer or credential changes mid-transaction<a class="headerlink" href="#issuer-or-credential-changes-mid-transaction" title="Permanent link">&para;</a></h3>
+<p>An unfinished transaction is bound to the issuer UID, issuer generation and credential Secret versions
+that protected its first request. Recreating or editing the issuer or rotating a credential or trust
+Secret ends that transaction before another CMP message is sent. cert-manager can then create a new
+request under the new configuration. A transaction already in <code>Issued</code> remains recoverable because its
+validated chain no longer depends on live credentials.</p>
 <h2 id="delayed-confirmation">Delayed confirmation<a class="headerlink" href="#delayed-confirmation" title="Permanent link">&para;</a></h2>
 <p>After CP succeeds the signer records the validated chain, then sends <code>certConf</code>. A server may answer <code>waiting</code> instead of <code>pkiConf</code>, which RFC 9483 section 4.4 allows for every operation. The transaction then enters <code>Confirming</code> and is polled with <code>pollReq</code> under the same <code>spec.transaction</code> limits as a delayed enrollment.</p>
 <p>Because the chain is recorded <strong>before</strong> <code>certConf</code> is sent, a restart at any point during confirmation resumes it from the recorded state. The certificate is never enrolled twice and never discarded because the acknowledgement was slow.</p>

@@ -1664,7 +1664,7 @@
 </tr>
 <tr>
 <td>Reject forged CMP responses</td>
-<td>Mandatory PKIProtection verification, transaction ID and nonce checks</td>
+<td>Pinned PKIProtection mechanism, configured sender identity, transaction ID and nonce checks</td>
 </tr>
 <tr>
 <td>Reject substituted certificates</td>
@@ -1680,7 +1680,7 @@
 </tr>
 <tr>
 <td>Survive a restart without re-enrolling</td>
-<td>Record the protected enrollment message before it is sent and the validated chain before it is returned, in a <code>CMPTransaction</code></td>
+<td>Record the transaction and configuration identity before the first send and the validated chain before it is returned in a <code>CMPTransaction</code></td>
 </tr>
 </tbody>
 </table>
@@ -1738,7 +1738,7 @@
 <ul>
 <li>The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>.</li>
 <li>CMP interoperability depends on server configuration.</li>
-<li>A <code>CMPTransaction</code> records the transaction identifier, nonces and the issued chain. It holds no key material, no credentials and no protected message, so it cannot be used to enroll. Grant read access to <code>cmptransactions</code> as narrowly as you grant it to <code>certificaterequests</code>.</li>
+<li>A <code>CMPTransaction</code> records the transaction identifier, nonces, issuer identity, credential Secret versions and the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to <code>cmptransactions</code> as narrowly as you grant it to <code>certificaterequests</code>.</li>
 <li>Transaction persistence gaps leave specific ambiguous failure modes open. See <a href="../../known-limitations/">Known limitations</a>.</li>
 </ul>
 <h2 id="supply-chain">Supply chain<a class="headerlink" href="#supply-chain" title="Permanent link">&para;</a></h2>

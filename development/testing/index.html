@@ -1843,7 +1843,9 @@ already follows, and nothing else enforces them.</p>
 </table>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>test-e2e<span class="w"> </span><span class="nv">KIND_NODE_IMAGE</span><span class="o">=</span>kindest/node:v1.34.0<span class="w"> </span><span class="nv">CERT_MANAGER_VERSION</span><span class="o">=</span>v1.19.6
 </code></pre></div>
-<p>CI runs the suite once per supported combination, so a change that only works on the newest Kubernetes or the newest cert-manager fails before release:</p>
+<p>CI runs the suite once per supported combination after a change lands on <code>dev</code> or <code>main</code>. Pull requests
+omit this expensive matrix, so a change that only works on the newest Kubernetes or cert-manager is
+reported on the development branch before release:</p>
 <table>
 <thead>
 <tr>
@@ -1902,12 +1904,18 @@ already follows, and nothing else enforces them.</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>ejbca-test-image
 </code></pre></div>
 <p><code>EJBCA_VERSION</code> in the <code>Makefile</code> selects the upstream release, and <code>EJBCA_IMAGE_REVISION</code> republishes the image after a configuration change. <code>test/e2e/ejbca/README.md</code> describes what the image contains and why the aliases are configured the way they are.</p>
-<p>CI runs these specs in their own job, and rebuilds the server image only when the upstream release it is built from is republished under a new digest.</p>
+<p>CI runs these specs in their own job after a change lands on <code>dev</code> or <code>main</code> and rebuilds the server
+image only when the upstream release it is built from is republished under a new digest. Pull requests
+omit the EJBCA job.</p>
 <h2 id="interoperability-against-real-cmp-servers">Interoperability against real CMP servers<a class="headerlink" href="#interoperability-against-real-cmp-servers" title="Permanent link">&para;</a></h2>
 <p>Enrollment against Nokia NCM is verified against a dedicated CMP server, because that product is not distributable as a test image. Outcomes are summarized in <a href="../../interoperability/tested-pkis/">Tested PKIs</a>.</p>
 <h3 id="enrolling-from-a-hosted-ncm-instance-in-ci">Enrolling from a hosted NCM instance in CI<a class="headerlink" href="#enrolling-from-a-hosted-ncm-instance-in-ci" title="Permanent link">&para;</a></h3>
 <p><code>interop-ncm.yml</code> performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a <code>CMPIssuer</code>, enrolls a <code>Certificate</code> and inspects the certificate that comes back.</p>
-<p>It is the only workflow that reaches a PKI outside the repository, so it never runs on a push or a pull request. Start it from the Actions tab, optionally choosing the Kubernetes and cert-manager versions, and enable the repeat enrollment when the server profile allows the same identity to enroll twice.</p>
+<p>It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
+pushes to <code>dev</code> and <code>main</code> and once a week, but never for pull requests. Start it from the Actions tab to
+choose different Kubernetes or cert-manager versions and to enable repeat enrollment when the server
+profile allows the same identity to enroll twice. Automatic runs use the default Kind node and
+cert-manager v1.20.3.</p>
 <h3 id="what-each-run-covers">What each run covers<a class="headerlink" href="#what-each-run-covers" title="Permanent link">&para;</a></h3>
 <p>One job runs per protection mechanism and transport, so a fully configured endpoint exercises four independent enrollments:</p>
 <table>
@@ -2038,13 +2046,16 @@ make<span class="w"> </span>sbom
 make<span class="w"> </span>go-patch-check
 make<span class="w"> </span>scan-image<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>&lt;image&gt;
 </code></pre></div>
-<p>CI runs these on push and on a weekly schedule.</p>
-<p><code>make go-patch-check</code> reports whether <code>go.mod</code> still names the newest Go patch in the release series it targets, and <code>make go-patch-update</code> moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. <code>go-patch.yml</code> runs the same check weekly and opens the bump as a pull request. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.</p>
+<p>Pull requests run lint, govulncheck and the credential scan. Pushes to <code>dev</code> and <code>main</code> additionally
+generate the SBOM and build and scan the container image. The weekly schedule repeats the full set so a
+newly disclosed vulnerability is found without a source change.</p>
+<p><code>make go-patch-check</code> reports whether <code>go.mod</code> still names the newest Go patch in the release series it targets and <code>make go-patch-update</code> moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. <code>go-patch.yml</code> runs the same check weekly and opens the bump as a pull request against <code>dev</code>. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.</p>
 <p><code>make lint</code> runs golangci-lint over the Go code and actionlint over <code>.github/workflows</code>. actionlint
 delegates <code>run:</code> blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
 install shellcheck locally to see the same findings CI does. <code>codeql.yml</code> additionally runs CodeQL
-static analysis over the Go code on every push to the default branch, on pull requests and weekly, and
-reports under Security, Code scanning.</p>
+static analysis over the Go code on pushes to <code>dev</code> and <code>main</code> and weekly. It skips without starting a
+runner while the repository is private, then reports under Security, Code scanning after the repository
+becomes public.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../development/">Development</a></li>
