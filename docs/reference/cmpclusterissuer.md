@@ -22,6 +22,9 @@ with no extra configuration. Set `manager.clusterResourceNamespace` to read them
 and the chart adds a credential reader RoleBinding there as well. That case needs `rbac.namespaced` to
 be `false`, since a Role cannot be bound outside its own namespace.
 
+`CMPClusterIssuer` reconciliation is disabled when `rbac.namespaced=true`. That mode watches only
+`CMPIssuer` resources in the Helm release namespace.
+
 The installer manifest installs into `cmp-issuer-system` and relies on the compiled-in default of the
 same name. Change both together if you retarget the manifest.
 
