@@ -30,7 +30,7 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | Ambiguous timeout on an unanswered enrollment | Pin the transaction identifier before the message reaches the network and retry under it. Both tested servers refuse the repeat under an authenticated error, Nokia NCM 26.7 with `transactionIdInUse` and EJBCA CE 9.3.7 with `badRequest`, and neither issues a second certificate. The request fails permanently and cert-manager enrolls again under a new transaction identifier |
 | Credential rotation mid-transaction | Record credential Secret versions before the first message and stop an unfinished transaction before more CMP traffic when any version changes |
 | Cross-namespace Secret reference | Secret references contain names and keys only. Namespace selection is fixed by issuer scope |
-| Malformed ASN.1 | Fail closed, fuzz parsers and keep the provisional parser behind project-owned interfaces |
+| Malformed ASN.1 | Fail closed, fuzz parsers and keep the parser behind project-owned interfaces |
 
 ## Future CRMF private-key boundary
 
@@ -38,4 +38,4 @@ IR and true KUR require workload private-key access for CRMF proof of possession
 
 ## Residual risks
 
-The CMP encoding layer is pre-v1 and lightly adopted. It remains a provisional security-sensitive dependency, so every response it parses is validated again by the project's own checks. The pinned library corrects sender binding on a signature-protected message and checks that an issued certificate certifies the requested key, neither of which the original upstream release does. See [ADR 0001](../adr/0001-cmp-library.md). CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.
+The CMP encoding layer is pre-v1 and lightly adopted, and it is maintained by this project's author rather than by an independent party. Every response it parses is therefore validated again by cmp-issuer's own checks, which is what stands in for the second reader a third-party dependency would otherwise have. It corrects sender binding on a signature-protected message and checks that an issued certificate certifies the requested key, neither of which the library it derives from does. See [ADR 0001](../adr/0001-cmp-library.md). CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.
