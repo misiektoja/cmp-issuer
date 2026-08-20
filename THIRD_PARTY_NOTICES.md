@@ -2,7 +2,7 @@
 
 cmp-issuer original code is Apache-2.0. The project links to separately licensed Go modules and uses separately licensed build tools.
 
-## Direct runtime dependencies under review
+## Direct runtime dependencies
 
 | Component | Pinned version | License | Use |
 | --- | --- | --- | --- |
