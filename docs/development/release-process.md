@@ -69,14 +69,21 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | `lint.yml` | golangci-lint and actionlint |
 | `codeql.yml` | CodeQL static analysis of the Go code |
 | `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
-| `test-chart.yml` | Helm lint |
-| `test-e2e.yml` | Kind e2e suite, once per supported Kubernetes and cert-manager version, plus enrollment from a CMP server started in the cluster |
+| `test-chart.yml` | Helm lint and a complete chart install for chart and build changes |
+| `test-e2e.yml` | Kind e2e suite on `dev` and `main`, once per supported Kubernetes and cert-manager version, plus EJBCA enrollment |
 | `ejbca-test-image.yml` | Publishes the preconfigured CMP server image, rebuilding it only when the upstream release moves |
-| `interop-ncm.yml` | Enrollment against a hosted Nokia NCM instance, started by hand |
-| `supply-chain.yml` | govulncheck, gitleaks, SBOM, image scan |
-| `go-patch.yml` | Weekly check for a newer Go patch in the targeted release series, opening the bump as a pull request |
+| `interop-ncm.yml` | Hosted Nokia NCM enrollment on `dev` and `main`, weekly and by hand |
+| `supply-chain.yml` | govulncheck and gitleaks on pull requests, adding SBOM and image scan on trusted branches |
+| `go-patch.yml` | Weekly check for a newer Go patch in the targeted release series, opening the bump against `dev` |
 | `release.yml` | Build and publish the release artifacts on a version tag |
 | `publish-chart.yml` | Add the released chart to the Helm repository index when the release is published |
+
+Pull requests target `dev` and run the fast unit, OpenSSL, lint and supply chain checks. The chart job
+runs only when its inputs change. The three-version Kind matrix and EJBCA are deliberately deferred
+until the change lands on `dev`, where failures can be fixed before promotion. Pushes to `main` repeat
+the trusted-branch checks for the stable code. NCM remains automatic on both trusted branches but never
+receives pull request code or fork credentials. Superseded runs are cancelled, except for NCM because
+an external enrollment should not be abandoned halfway through.
 
 ## Chart repository
 
@@ -94,9 +101,9 @@ pointed at that branch before the repository URL resolves.
 
 ## Documentation site
 
-`docs.yml` runs the strict MkDocs build on every push and pull request. On the default branch it also
-publishes the rendered site to the root of the `gh-pages` branch, so the documentation and the chart
-repository share one Pages site.
+`docs.yml` runs the strict MkDocs build for documentation-related changes on pull requests and pushes
+to `dev` and `main`. On the default branch it also publishes the rendered site to the root of the
+`gh-pages` branch, so the documentation and the chart repository share one Pages site.
 
 The publishing step replaces the previous documentation, so a page removed from `docs/` disappears from
 the site, but it leaves `charts/index.yaml` and `.nojekyll` alone. Both publishers take the `gh-pages`
