@@ -1,4 +1,4 @@
-{{- if include "cmp-issuer.metricsCertEnabled" . }}
+{{- if and (include "cmp-issuer.managerEnabled" .) (include "cmp-issuer.metricsCertEnabled" .) }}
 {{- if not .Values.metrics.tls.certManager.issuerRef }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
