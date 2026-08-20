@@ -39,7 +39,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsaarni/go-pkicmp/pkicmp"
+	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
 )
 
 // Names used by the response sender comparison tests, modelled on a CA whose subject carries a UID.

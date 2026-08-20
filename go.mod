@@ -5,10 +5,10 @@ go 1.26.7
 require (
 	github.com/cert-manager/cert-manager v1.21.1
 	github.com/cert-manager/issuer-lib v0.12.0
+	github.com/misiektoja/go-pkicmp-ng v0.0.0-20260820223730-7b790fd80fa6
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.40.0
 	github.com/prometheus/client_golang v1.24.1
-	github.com/tsaarni/go-pkicmp v0.0.1
 	k8s.io/api v0.36.3
 	k8s.io/apimachinery v0.36.3
 	k8s.io/client-go v0.36.3
@@ -113,5 +113,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/tsaarni/go-pkicmp => github.com/misiektoja/go-pkicmp-ng v0.0.0-20260817124344-a18451f3cf35

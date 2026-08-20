@@ -29,7 +29,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tsaarni/go-pkicmp/pkicmp"
+	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
 )
 
 // freshNonce returns a server sender nonce of the length RFC 9483 section 3.5 requires.

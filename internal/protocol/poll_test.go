@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsaarni/go-pkicmp/pkicmp"
+	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
 )
 
 // asyncOptions selects the deferred behavior of the asynchronous mock CMP server.

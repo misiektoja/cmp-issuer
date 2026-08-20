@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsaarni/go-pkicmp/server"
+	"github.com/misiektoja/go-pkicmp-ng/server"
 )
 
 // deferredCA is a certificate authority that answers waiting until the configured number of polls
