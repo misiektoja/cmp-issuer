@@ -57,6 +57,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Accept `-1` or `0` by default |
+| `macResponseProtection` | Implemented, Interoperability tested | `Strict` by default, so a `PasswordBasedMac` request needs a MAC-protected answer. `AllowSignature` also accepts a signed answer that chains to the CMP trust anchor and names the recipient |
 | Endpoint reachability in issuer readiness | Planned | Readiness reflects configuration, not whether the server answers |
 | Requested validity period from `Certificate.spec.duration` | Planned | Needs CRMF, since a PKCS #10 request carries no validity |
 | Chain placement options for the issued Secret | Planned | Choose whether `tls.crt` carries the chain and what `ca.crt` holds |
