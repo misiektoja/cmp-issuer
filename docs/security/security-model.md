@@ -8,11 +8,11 @@ This page summarizes how cmp-issuer enforces security goals. Detailed analysis l
 | --- | --- |
 | Protect credentials | Namespace-bounded Secret RBAC, no secret values in logs or Events |
 | Protect workload keys | P10CR never reads private-key Secrets |
-| Reject forged CMP responses | Mandatory PKIProtection verification, transaction ID and nonce checks |
+| Reject forged CMP responses | Pinned PKIProtection mechanism, configured sender identity, transaction ID and nonce checks |
 | Reject substituted certificates | CSR public-key match and CMP trust chain validation |
 | Limit blast radius | Bounded timeouts, response size, poll counts and transaction duration |
 | Fail closed on ambiguity | No partial TLS Secret on verification failure |
-| Survive a restart without re-enrolling | Record the protected enrollment message before it is sent and the validated chain before it is returned, in a `CMPTransaction` |
+| Survive a restart without re-enrolling | Record the transaction and configuration identity before the first send and the validated chain before it is returned in a `CMPTransaction` |
 
 ## Trust boundaries
 
@@ -52,7 +52,7 @@ flowchart TB
 
 * The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. See [ADR 0001](../adr/0001-cmp-library.md).
 * CMP interoperability depends on server configuration.
-* A `CMPTransaction` records the transaction identifier, nonces and the issued chain. It holds no key material, no credentials and no protected message, so it cannot be used to enroll. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests`.
+* A `CMPTransaction` records the transaction identifier, nonces, issuer identity, credential Secret versions and the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests`.
 * Transaction persistence gaps leave specific ambiguous failure modes open. See [Known limitations](../known-limitations.md).
 
 ## Supply chain
