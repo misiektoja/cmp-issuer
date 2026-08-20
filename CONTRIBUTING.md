@@ -8,6 +8,9 @@ Read [docs/provenance.md](docs/provenance.md) and [docs/security/threat-model.md
 
 Never commit credentials, private keys, protected CMP messages, full CSRs or non-public PKI documentation. Keep scratch files and local test state out of commits.
 
+Open pull requests against `dev`. Pull requests run the lightweight checks, while the full Kubernetes,
+EJBCA and hosted NCM coverage runs automatically after an accepted change lands on `dev`.
+
 ## Development checks
 
 Run these before submitting a change:
