@@ -34,6 +34,7 @@ import (
 	"time"
 
 	issuersigner "github.com/cert-manager/issuer-lib/controllers/signer"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -71,7 +72,7 @@ func newAsyncFixture(t *testing.T, queue []fakeExchange) *asyncFixture {
 	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
 	protocolClient := &fakeProtocolClient{queue: queue}
 	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
-	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 3}, Spec: validSpec("https://example.test/cmp")}
 	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
 	return &asyncFixture{signer: signer, issuer: issuer, request: request, protocol: protocolClient, kube: kubeClient, leaf: leaf}
 }
@@ -214,6 +215,12 @@ func TestSignRecordsTransactionDetail(t *testing.T) {
 	if stored.Spec.IssuerRef == nil || stored.Spec.IssuerRef.Name != testIssuerName || stored.Spec.IssuerRef.Kind != cmpv1alpha1.TransactionIssuerKindNamespaced {
 		t.Fatalf("expected the issuer reference to be recorded, got %v", stored.Spec.IssuerRef)
 	}
+	if stored.Spec.IssuerRef.UID != string(fixture.issuer.UID) || stored.Spec.IssuerRef.Generation != fixture.issuer.Generation {
+		t.Fatalf("expected issuer identity and generation to be recorded, got %v", stored.Spec.IssuerRef)
+	}
+	if len(stored.Spec.ConfigurationDigest) != sha256.Size*2 {
+		t.Fatalf("expected the credential configuration digest to be recorded, got %q", stored.Spec.ConfigurationDigest)
+	}
 	if stored.Spec.Operation != cmpv1alpha1.TransactionOperationP10CR {
 		t.Fatalf("expected the CMP operation to be recorded, got %q", stored.Spec.Operation)
 	}
@@ -231,9 +238,7 @@ func TestSignReusesThePinnedTransactionAfterInterruption(t *testing.T) {
 		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: "HTTP exchange", Failure: "systemUnavail", Err: errors.New("connection reset")}},
 		{result: waitingResult(0, "nonce", 0)},
 	})
-	if _, err := fixture.sign(t); err == nil {
-		t.Fatal("expected the transport failure to surface")
-	}
+	requirePending(t, mustFail(fixture.sign(t)), time.Second)
 	recorded := fixture.transaction(t)
 	if len(recorded.Spec.TransactionID) == 0 {
 		t.Fatal("expected the transaction identifier to be pinned before the message was sent")
@@ -341,6 +346,7 @@ func TestSignRecordsTheChainBeforeConfirming(t *testing.T) {
 // server delayed is confirmed on a later reconcile instead of being enrolled again or discarded.
 func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
 	fixture := newAsyncFixture(t, nil)
+	fixture.issuer.Spec.Transaction.MaximumPolls = 1
 	issued := issuedCertificateFor(t, fixture.request.details.CSR)
 	fixture.protocol.queue = []fakeExchange{
 		{result: confirmingResult(issued, "confirm-nonce")},
@@ -355,6 +361,9 @@ func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
 	}
 	if len(recorded.Status.IssuedChain) != 1 {
 		t.Fatalf("expected the chain to be recorded before confirmation, got %d certificates", len(recorded.Status.IssuedChain))
+	}
+	if recorded.Status.Polls != 0 {
+		t.Fatalf("expected certConf not to consume the pollReq budget, got %d polls", recorded.Status.Polls)
 	}
 
 	bundle, err := fixture.sign(t)
@@ -372,6 +381,92 @@ func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
 	}
 	if fixture.transaction(t).Status.Phase != cmpv1alpha1.TransactionPhaseIssued {
 		t.Fatal("expected the resumed transaction to reach the issued phase")
+	}
+}
+
+// TestSignRejectsTransactionFromRecreatedIssuer verifies a reused issuer name cannot resume an old transaction.
+func TestSignRejectsTransactionFromRecreatedIssuer(t *testing.T) {
+	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the first exchange to report waiting")
+	}
+	fixture.issuer.UID = types.UID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	_, err := fixture.sign(t)
+	var permanent issuersigner.PermanentError
+	if !errors.As(err, &permanent) {
+		t.Fatalf("expected a permanent issuer identity mismatch, got %v", err)
+	}
+	if fixture.protocol.polls != 0 {
+		t.Fatal("expected no CMP poll after issuer recreation")
+	}
+}
+
+// TestSignRejectsIssuerSpecChangeDuringTransaction verifies a new issuer generation cannot resume old state.
+func TestSignRejectsIssuerSpecChangeDuringTransaction(t *testing.T) {
+	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the first exchange to report waiting")
+	}
+	fixture.issuer.Generation++
+	fixture.issuer.Spec.Endpoint.URL = "https://different.example.test/cmp"
+	_, err := fixture.sign(t)
+	var permanent issuersigner.PermanentError
+	if !errors.As(err, &permanent) {
+		t.Fatalf("expected a permanent issuer generation mismatch, got %v", err)
+	}
+	if fixture.protocol.polls != 0 {
+		t.Fatal("expected no CMP poll after issuer spec change")
+	}
+}
+
+// TestSignRejectsCredentialRotationDuringTransaction verifies an open transaction cannot change protection material.
+func TestSignRejectsCredentialRotationDuringTransaction(t *testing.T) {
+	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+	if _, err := fixture.sign(t); err == nil {
+		t.Fatal("expected the first exchange to report waiting")
+	}
+	secret := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: testIssuerNamespace, Name: testAuthSecretName}
+	if err := fixture.kube.Get(context.Background(), key, secret); err != nil {
+		t.Fatalf("read credential Secret: %v", err)
+	}
+	secret.Data["secret"] = []byte("rotated-shared-secret")
+	if err := fixture.kube.Update(context.Background(), secret); err != nil {
+		t.Fatalf("rotate credential Secret: %v", err)
+	}
+	_, err := fixture.sign(t)
+	var permanent issuersigner.PermanentError
+	if !errors.As(err, &permanent) {
+		t.Fatalf("expected a permanent credential continuity failure, got %v", err)
+	}
+	if fixture.protocol.polls != 0 {
+		t.Fatal("expected no CMP poll with rotated credentials")
+	}
+}
+
+// TestSignRecoversIssuedChainWithoutCredentials verifies durable issuance does not depend on live Secrets.
+func TestSignRecoversIssuedChainWithoutCredentials(t *testing.T) {
+	fixture := newAsyncFixture(t, nil)
+	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	fixture.protocol.queue = []fakeExchange{{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}}
+	want, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("complete enrollment: %v", err)
+	}
+	for _, name := range []string{testAuthSecretName, testTrustSecretName} {
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testIssuerNamespace}}
+		if err := fixture.kube.Delete(context.Background(), secret); err != nil {
+			t.Fatalf("delete fixture Secret %s: %v", name, err)
+		}
+	}
+	fixture.issuer.Generation++
+	fixture.issuer.Spec.Endpoint.URL = "not a valid endpoint"
+	got, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("recover issued chain without credentials: %v", err)
+	}
+	if !bytes.Equal(got.ChainPEM, want.ChainPEM) {
+		t.Fatal("expected the recovered chain to match the issued chain")
 	}
 }
 
