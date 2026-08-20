@@ -48,13 +48,13 @@ from any of them.
 
 Every response is therefore also required to be sent by the authority named in `spec.protocol.recipient`.
 A response naming a different authority is rejected with `wrongAuthority` and no certificate is
-accepted, whichever protection mechanism was used.
+accepted, whichever protection mechanism was used. A response must also use the same protection
+mechanism as the request. A signature cannot replace PasswordBasedMac or the reverse.
 
 The comparison requires the same attributes and values, and ignores their order. Certificate tools
 disagree about whether to print a distinguished name in encoded order or in the reverse order RFC 4514
 defines, so a recipient copied from either kind of output is accepted. A response that omits its sender
-name entirely, which RFC 4210 section 5.1.1 permits, carries nothing to compare and is accepted on its
-protection alone.
+name carries nothing to bind to the configured authority and is rejected.
 
 If a server legitimately answers under a different name than the one it is addressed by, set
 `spec.protocol.recipient` to the name the server puts in its responses.
