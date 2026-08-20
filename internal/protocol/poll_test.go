@@ -89,7 +89,8 @@ func newAsyncCMPServer(t *testing.T, pki testPKI, password []byte, options async
 			t.Errorf("parse request: %v", err)
 			return
 		}
-		if _, err := message.Verify(pkicmp.VerifyOptions{SharedSecret: password, SenderKID: message.Header.SenderKID}); err != nil {
+		verification, err := message.Verify(pkicmp.VerifyOptions{SharedSecret: password, SenderKID: message.Header.SenderKID})
+		if err != nil {
 			t.Errorf("verify request protection: %v", err)
 			return
 		}
@@ -135,7 +136,12 @@ func newAsyncCMPServer(t *testing.T, pki testPKI, password []byte, options async
 			t.Errorf("unexpected request body %s", message.Body.Type)
 			return
 		}
-		credentials, err := pkicmp.NewSignatureCredentials(pki.CAKey, pki.CACertificate)
+		var credentials pkicmp.Credentials
+		if verification.MACVerified {
+			credentials, err = pkicmp.NewMACCredentials(password, verification.ProtectionParams)
+		} else {
+			credentials, err = pkicmp.NewSignatureCredentials(pki.CAKey, pki.CACertificate)
+		}
 		if err != nil {
 			t.Errorf("create response credentials: %v", err)
 			return
