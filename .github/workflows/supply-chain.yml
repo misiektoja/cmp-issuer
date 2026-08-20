@@ -2,13 +2,19 @@ name: Supply chain
 
 on:
   push:
+    branches: [dev, main]
   pull_request:
+    branches: [dev, main]
   workflow_dispatch:
   schedule:
     # A weekly run catches vulnerabilities that are published after a change merged.
     - cron: "17 5 * * 1"
 
 permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   govulncheck:
@@ -52,6 +58,7 @@ jobs:
         run: make gitleaks
 
   sbom:
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
     name: Software bill of materials
@@ -80,6 +87,7 @@ jobs:
           if-no-files-found: error
 
   image-scan:
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
     name: Container image vulnerabilities
