@@ -1,3 +1,4 @@
+{{- if include "cmp-issuer.managerEnabled" . }}
 apiVersion: rbac.authorization.k8s.io/v1
 {{- if .Values.rbac.namespaced }}
 kind: Role
@@ -37,7 +38,9 @@ rules:
 - apiGroups:
   - certmanager.misiektoja.github.io
   resources:
+  {{- if not .Values.rbac.namespaced }}
   - cmpclusterissuers
+  {{- end }}
   - cmpissuers
   verbs:
   - get
@@ -46,7 +49,9 @@ rules:
 - apiGroups:
   - certmanager.misiektoja.github.io
   resources:
+  {{- if not .Values.rbac.namespaced }}
   - cmpclusterissuers/status
+  {{- end }}
   - cmpissuers/status
   - cmptransactions/status
   verbs:
@@ -65,3 +70,4 @@ rules:
   - patch
   - update
   - watch
+{{- end }}
