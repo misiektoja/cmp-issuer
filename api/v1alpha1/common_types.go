@@ -31,6 +31,10 @@ const (
 	P10CRResponseCertReqIDStandard int64 = -1
 	// P10CRResponseCertReqIDLegacyZero pins the response identifier returned by servers that reuse the CRMF index.
 	P10CRResponseCertReqIDLegacyZero int64 = 0
+	// MACResponseProtectionStrict requires a PasswordBasedMac request to be answered with MAC-based protection.
+	MACResponseProtectionStrict = "Strict"
+	// MACResponseProtectionAllowSignature also accepts a signature-protected answer that chains to a CMP trust anchor.
+	MACResponseProtectionAllowSignature = "AllowSignature"
 	// GrantedModificationsReject rejects certificates issued with modified identity fields.
 	GrantedModificationsReject = "Reject"
 	// GrantedModificationsAccept accepts validated certificates with server modifications.
@@ -102,6 +106,16 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=-1;0
 	// +optional
 	P10CRResponseCertReqID *int64 `json:"p10crResponseCertReqId,omitempty"`
+	// MACResponseProtection selects which response protection answers a PasswordBasedMac request.
+	// Strict requires MAC-based protection throughout, so the shared secret authenticates every
+	// message of the operation. AllowSignature also accepts a signature-protected response whose
+	// signer chains to cmpTrust and whose sender names spec.protocol.recipient, which is what servers
+	// configured to sign every response send. RFC 9483 section 5 permits that substitution and EJBCA
+	// does it whenever a CMP alias sets responseprotection to signature.
+	// +kubebuilder:default=Strict
+	// +kubebuilder:validation:Enum=Strict;AllowSignature
+	// +optional
+	MACResponseProtection string `json:"macResponseProtection,omitempty"`
 	// CertProfile is an optional server-side certificate profile identifier.
 	// +kubebuilder:validation:MaxLength=256
 	// +optional
