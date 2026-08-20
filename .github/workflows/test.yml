@@ -2,9 +2,15 @@ name: Tests
 
 on:
   push:
+    branches: [dev, main]
   pull_request:
+    branches: [dev, main]
 
 permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
