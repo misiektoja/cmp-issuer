@@ -46,10 +46,11 @@ const (
 // transactionDetail describes the request a transaction enrolls, recorded when the transaction is
 // created so that an in-flight or completed transaction is diagnosable on its own.
 type transactionDetail struct {
-	CSRDigest       string
-	IssuerRef       cmpv1alpha1.TransactionIssuerReference
-	Operation       string
-	ProtocolVersion int32
+	CSRDigest           string
+	IssuerRef           cmpv1alpha1.TransactionIssuerReference
+	ConfigurationDigest string
+	Operation           string
+	ProtocolVersion     int32
 }
 
 // transactionStore persists CMP transaction state so an asynchronous enrollment survives a restart.
@@ -105,6 +106,7 @@ func (t *transactionStore) create(ctx context.Context, namespace string, name st
 			Deadline:               metav1.NewTime(deadline),
 			CSRDigest:              detail.CSRDigest,
 			IssuerRef:              &issuerRef,
+			ConfigurationDigest:    detail.ConfigurationDigest,
 			Operation:              detail.Operation,
 			ProtocolVersion:        detail.ProtocolVersion,
 		},
