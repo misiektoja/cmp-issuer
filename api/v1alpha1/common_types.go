@@ -107,12 +107,15 @@ type ProtocolSpec struct {
 	// +optional
 	P10CRResponseCertReqID *int64 `json:"p10crResponseCertReqId,omitempty"`
 	// MACResponseProtection selects which response protection answers a PasswordBasedMac request.
-	// Strict requires MAC-based protection throughout, so the shared secret authenticates every
-	// message of the operation. AllowSignature also accepts a signature-protected response whose
-	// signer chains to cmpTrust and whose sender names spec.protocol.recipient, which is what servers
-	// configured to sign every response send. RFC 9483 section 5 permits that substitution and EJBCA
-	// does it whenever a CMP alias sets responseprotection to signature.
-	// +kubebuilder:default=Strict
+	// AllowSignature, the default, accepts either MAC-based protection or a signature whose signer
+	// chains to cmpTrust and whose sender names spec.protocol.recipient, which is the same authority
+	// check a Signature issuer already relies on for every response. RFC 9483 section 5 permits that
+	// substitution and many servers send it, including any EJBCA CMP alias left at its own default of
+	// responseprotection signature. Strict requires MAC-based protection throughout, so the shared
+	// secret authenticates every message of the operation rather than only the request. Set it where
+	// the trust anchor is shared with authorities that must not be able to answer, or to conform to a
+	// profile that requires one protection type for a whole operation.
+	// +kubebuilder:default=AllowSignature
 	// +kubebuilder:validation:Enum=Strict;AllowSignature
 	// +optional
 	MACResponseProtection string `json:"macResponseProtection,omitempty"`
