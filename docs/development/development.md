@@ -95,16 +95,16 @@ The API is `v1alpha1` and may change before a stable release.
 
 ## Protocol layer
 
-CMP encoding and protection sit behind project-owned interfaces. go-pkicmp types must not appear in CRDs or public packages. See [ADR 0001](../adr/0001-cmp-library.md).
+CMP encoding and protection sit behind project-owned interfaces. Library types must not appear in CRDs or public packages. See [ADR 0001](../adr/0001-cmp-library.md).
 
-`go.mod` carries a `replace` directive that redirects go-pkicmp to a fork holding verification-path corrections that are pending upstream. Keep it until those corrections are published. Advance the pin by hand, because Dependabot does not propose updates for a replaced module:
+The library is [go-pkicmp-ng](https://github.com/misiektoja/go-pkicmp-ng), required like any other module, so no `replace` directive is involved and every build route resolves the same version. Advance the pin with:
 
 ```sh
-go mod edit -replace=github.com/tsaarni/go-pkicmp=github.com/misiektoja/go-pkicmp-ng@cmp-hardening
+go get github.com/misiektoja/go-pkicmp-ng@<version>
 go mod tidy
 ```
 
-Removing the directive later is the reverse, `go mod edit -dropreplace` followed by `go get` of the released version. Either way rerun `make test` and one enrollment against a real CMP server, since the library sits directly in the verification path.
+Rerun `make test` and one enrollment against a real CMP server afterwards, since the library sits directly in the verification path.
 
 ## License
 
