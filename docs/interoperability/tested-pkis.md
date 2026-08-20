@@ -57,7 +57,7 @@ The NCM CMP listener applies a per-host request limit that is independent of CMP
 
 ### Continuously verified
 
-Enrollment against EJBCA runs in CI on every change, against a server started in the test cluster. Each run issues real certificates through cert-manager `Certificate` resources over three combinations: a shared secret over HTTP, the same over HTTPS, and a certificate signature over HTTP. The endpoint certificate is verified against a pinned authority that did not sign the CMP responses, so a run also confirms that the CMP trust and the transport trust are decided separately.
+Enrollment against EJBCA runs in CI after changes land on `dev` or `main`, against a server started in the test cluster. Pull requests omit this expensive job. Each run issues real certificates through cert-manager `Certificate` resources over three combinations: a shared secret over HTTP, the same over HTTPS and a certificate signature over HTTP. The endpoint certificate is verified against a pinned authority that did not sign the CMP responses, so a run also confirms that the CMP trust and the transport trust are decided separately.
 
 ### RA mode
 
