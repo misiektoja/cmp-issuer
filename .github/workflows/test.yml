@@ -29,14 +29,26 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # The log is written outside the working tree so that it cannot be mistaken for an uncommitted
+      # file by the generated artifact check below.
       - name: Verify CMP interoperability against the OpenSSL mock server
         run: |
           openssl version
-          go test ./internal/protocol/ -run OpenSSL -v -count=1 > openssl-interop.log 2>&1 || { cat openssl-interop.log; exit 1; }
-          cat openssl-interop.log
-          if grep -q -- "--- SKIP" openssl-interop.log; then echo "The OpenSSL CMP mock server is unavailable on this runner, so the interoperability coverage silently disappeared"; exit 1; fi
+          log="$RUNNER_TEMP/openssl-interop.log"
+          go test ./internal/protocol/ -run OpenSSL -v -count=1 > "$log" 2>&1 || { cat "$log"; exit 1; }
+          cat "$log"
+          if grep -q -- "--- SKIP" "$log"; then echo "The OpenSSL CMP mock server is unavailable on this runner, so the interoperability coverage silently disappeared"; exit 1; fi
 
-      - name: Running Tests
+      # go mod tidy and the generation targets rewrite tracked files, so running them without this
+      # check lets CI repair a stale go.mod, CRD, RBAC rule or deepcopy file and report success on a
+      # tree that no longer matches the commit.
+      - name: Verify the generated artifacts are committed
         run: |
           go mod tidy
-          make test
+          make manifests generate fmt
+          if ! git diff --exit-code; then echo "go.mod, go.sum or a generated artifact is stale. Run 'go mod tidy' and 'make manifests generate fmt' locally and commit the result." >&2; exit 1; fi
+          untracked=$(git ls-files --others --exclude-standard)
+          if [ -n "$untracked" ]; then echo "Generation produced files that are not committed:" >&2; echo "$untracked" >&2; exit 1; fi
+
+      - name: Running Tests
+        run: make test
