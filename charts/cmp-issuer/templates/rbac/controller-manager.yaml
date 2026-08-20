@@ -1,4 +1,4 @@
-{{- if ne .Values.serviceAccount.enabled false }}
+{{- if and (include "cmp-issuer.managerEnabled" .) (ne .Values.serviceAccount.enabled false) }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
