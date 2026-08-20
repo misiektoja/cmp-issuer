@@ -61,7 +61,11 @@ Enrollment against EJBCA runs in CI after changes land on `dev` or `main`, again
 
 ### RA mode
 
-In RA mode EJBCA registers the end entity from the request itself, using `ra.namegenerationscheme` `DN` with `ra.namegenerationparameters` `CN` to take the name from the request subject. A repeated enrollment of the same subject is answered with a new certificate rather than refused, so RA mode avoids the client mode constraint below. Response protection is still signed by the issuing CA, which is what `spec.cmpTrust.caSecretRef` pins.
+In RA mode EJBCA registers the end entity from the request itself, using `ra.namegenerationscheme` `DN` with `ra.namegenerationparameters` `CN` to take the name from the request subject. A repeated enrollment of the same subject is answered with a new certificate rather than refused, so RA mode avoids the client mode constraint below.
+
+### Response protection
+
+An EJBCA CMP alias decides how it protects its answers with `responseprotection`. Under `signature`, which is the setting the tested aliases use, the issuing CA signs every response including the answer to a request protected with a shared secret. cmp-issuer requires a `PasswordBasedMac` request to be answered with MAC-based protection unless the issuer sets `spec.protocol.macResponseProtection` to `AllowSignature`, so a shared secret issuer pointed at such an alias needs that value. The signer must still chain to `spec.cmpTrust.caSecretRef` and its sender must still name `spec.protocol.recipient`. An alias set to `responseprotection` `pbe` answers a shared secret request with MAC-based protection and works under the `Strict` default.
 
 ### Client mode constraints
 
