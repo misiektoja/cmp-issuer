@@ -1,4 +1,4 @@
-{{- if .Values.certManagerApproval.create }}
+{{- if and (include "cmp-issuer.managerEnabled" .) .Values.certManagerApproval.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -12,5 +12,7 @@ rules:
   - approve
   resourceNames:
   - cmpissuers.certmanager.misiektoja.github.io/*
+  {{- if not .Values.rbac.namespaced }}
   - cmpclusterissuers.certmanager.misiektoja.github.io/*
+  {{- end }}
 {{- end }}
