@@ -60,6 +60,27 @@ spec:
 These must match the server's PBM profile. cmp-issuer does not negotiate weaker algorithms, and PBMAC1
 is planned rather than implemented.
 
+### Response protection
+
+By default a `PasswordBasedMac` request must be answered with MAC-based protection, so the shared
+secret authenticates every message of the operation and a signature cannot take its place.
+
+Some servers sign every response regardless of how the request was protected. EJBCA does this whenever
+a CMP alias sets `responseprotection` to `signature`. RFC 9483 section 5 permits that substitution, so
+it is a configuration difference rather than a defect. Accept it with:
+
+```yaml
+spec:
+  protocol:
+    macResponseProtection: AllowSignature
+```
+
+This relaxes only which mechanism is accepted. The signer must still chain to
+`spec.cmpTrust.caSecretRef` and the response sender must still name `spec.protocol.recipient`, so a
+certificate issued under the same anchor by a different authority is still rejected. Leave the value at
+its `Strict` default whenever the server can be configured to protect its answers with the shared
+secret instead.
+
 ### Server setup
 
 The reference and secret must exist on the CMP server before enrollment. cmp-issuer does not register
