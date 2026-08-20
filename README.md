@@ -20,7 +20,7 @@ CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
 PasswordBasedMac and certificate-signature P10CR have both completed protected cert-manager `Certificate`
 enrollments against two independent CMP servers: [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org).
-Enrollment against EJBCA, over HTTP and over HTTPS, runs on every change in CI.
+Enrollment against EJBCA, over HTTP and over HTTPS, runs after changes land on `dev` or `main`.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
@@ -177,9 +177,10 @@ to the controller-runtime and Go defaults, counting enrollments, durations and c
 issuer, with renewals separated from first enrollments. See
 [Metrics](https://misiektoja.github.io/cmp-issuer/operations/metrics/).
 
-**Verification.** Every push runs unit, protocol, controller and envtest suites, a Kind-based controller
-suite, OpenSSL CMP mock interoperability, Helm chart validation, vulnerability scanning and a credential
-scan. Results against real CMP servers are in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
+**Verification.** Pull requests run unit, protocol, controller, envtest, OpenSSL and lint checks, with
+full chart validation only when chart or build inputs change. Pushes to `dev` and `main` add the
+three-version Kind matrix, EJBCA and hosted Nokia NCM interoperability, vulnerability scanning, an SBOM
+and a credential scan. Results against real CMP servers are in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
 
 ## Documentation
 
