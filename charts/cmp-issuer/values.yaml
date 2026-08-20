@@ -9,7 +9,8 @@
 ## Configure the controller manager deployment
 ##
 manager:
-  ## Set to false to skip manager installation
+  ## Set to false for a CRD-only install. All manager supporting resources, including RBAC, the
+  ## ServiceAccount, metrics and approval grants are omitted.
   ##
   enabled: true
 
@@ -127,7 +128,7 @@ manager:
 rbac:
   ## RBAC resource scope
   ## - false (default): ClusterRole/ClusterRoleBinding (all namespaces)
-  ## - true: Role/RoleBinding (release namespace only)
+  ## - true: Role/RoleBinding, watch only the release namespace and disable CMPClusterIssuer
   ##
   namespaced: false
 
@@ -136,8 +137,9 @@ rbac:
   helpers:
     ## Install convenience admin/editor/viewer roles for the CRDs. They grant access to CMPIssuer and
     ## CMPClusterIssuer resources and bind to nobody until you create a binding, so they are inert
-    ## until used. On by default so that a chart install and the installer manifest grant the same set
-    ## of roles. Set to false to leave the delegation roles out entirely.
+    ## until used. CMPClusterIssuer roles are omitted in namespaced mode. On by default so that a chart
+    ## install and the installer manifest grant the same set of roles. Set to false to leave the
+    ## delegation roles out entirely.
     ##
     enabled: true
 
@@ -261,4 +263,3 @@ prometheus:
 ##
 networkPolicy:
   enabled: false
-
