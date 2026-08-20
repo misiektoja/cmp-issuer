@@ -330,24 +330,30 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 		sharedSecret = request.Protection.Password.Secret
 		requiredProtection = pkicmp.ProtectionMAC
 	}
+	// A MAC-protected request is answered with MAC-based protection unless the issuer opts in, because
+	// the shared secret is the only thing that authenticates the peer of such an operation and a
+	// signature would otherwise let any certificate under the trust anchor answer in its place. RFC 9483
+	// section 5 does allow a PKI management entity to replace MAC-based protection with signature-based
+	// protection, which is what a server sends when it is configured to sign every response, so the
+	// opt-in accepts a signer that chains to the configured anchor. The sender check below still
+	// requires that signer to name the recipient the request addressed.
+	signatureAccepted := requiredProtection == pkicmp.ProtectionSignature || request.AllowSignedMACResponse
 	var responseSigner *x509.Certificate
 	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
 		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust)
 	}
-	if verificationErr != nil && requiredProtection == pkicmp.ProtectionSignature && previousSigner != nil {
+	if verificationErr != nil && signatureAccepted && previousSigner != nil {
 		if _, previousErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: previousSigner}); previousErr == nil {
 			responseSigner = previousSigner
 			verificationErr = nil
 		}
 	}
-	if verificationErr != nil && requiredProtection == pkicmp.ProtectionSignature {
-		fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust)
-		if fallbackErr != nil {
-			return nil, security("verify response protection", "badMessageCheck", verificationErr)
+	if verificationErr != nil && signatureAccepted {
+		if fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust); fallbackErr == nil {
+			responseSigner = fallbackSigner
+			verificationErr = nil
 		}
-		responseSigner = fallbackSigner
-		verificationErr = nil
 	}
 	if verificationErr != nil {
 		return nil, security("verify response protection", "badMessageCheck", verificationErr)
