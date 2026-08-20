@@ -1,10 +1,25 @@
 # ADR 0001: isolate the CMP encoding library behind project interfaces
 
-* Status: accepted
+* Status: accepted, context revised after the library moved under this project's maintenance
 
 ## Context
 
-cmp-issuer needs CMPv2 P10CR, CP, certConf and pkiConf support with PasswordBasedMac and signature protection. Implementing all ASN.1 from scratch would expand the security review substantially. The go-pkicmp family of libraries implements the needed primitives but is pre-v1, lightly adopted, partly incomplete and has had little independent review.
+cmp-issuer needs CMPv2 P10CR, CP, certConf and pkiConf support with PasswordBasedMac and signature
+protection. Implementing all ASN.1 from scratch would expand the security review substantially, so the
+project depends on a library for the encoding and protection layer.
+
+The library it started from, `github.com/tsaarni/go-pkicmp`, implemented the needed primitives but was
+pre-v1, lightly adopted, partly incomplete and had seen little review outside its own author. That is what
+made isolation behind project-owned interfaces the condition of using it at all: the project had to be
+able to validate every response independently and to replace the dependency without changing its own
+API.
+
+Reviewing it against the RFCs produced corrections the published release did not have, including two
+in the verification path this project calls directly. They were offered upstream and remain unmerged,
+so the dependency is now `github.com/misiektoja/go-pkicmp-ng`, a derivative maintained by this
+project's author. The library is still pre-v1 and still lightly adopted. What changed is who can fix
+it and who reads it: the correction path is no longer blocked, and the second reader that an outside
+dependency provided is gone. The Consequences section records what follows from that.
 
 ## Decision
 
