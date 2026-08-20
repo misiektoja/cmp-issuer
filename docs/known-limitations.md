@@ -35,7 +35,7 @@ See [Support matrix](support-matrix.md).
 
 ## Dependencies
 
-The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. It remains security sensitive, so responses are validated independently of it. See [ADR 0001](adr/0001-cmp-library.md).
+The CMP encoding layer is a pre-v1 library kept behind project-owned interfaces and maintained by this project's author. It remains security sensitive, so responses are validated independently of it. See [ADR 0001](adr/0001-cmp-library.md).
 
 ## API stability
 
