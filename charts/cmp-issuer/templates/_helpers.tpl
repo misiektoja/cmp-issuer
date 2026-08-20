@@ -6,6 +6,15 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
+Whether the controller manager and all resources that support it are installed.
+*/}}
+{{- define "cmp-issuer.managerEnabled" -}}
+{{- if or (not (hasKey .Values.manager "enabled")) .Values.manager.enabled }}
+{{- true }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
@@ -51,12 +60,12 @@ Dynamically calculates safe truncation to ensure total name length <= 63 chars.
 
 {{/*
 ServiceAccount name to use.
-If serviceAccount.enabled is false and serviceAccount.name is set, use that name.
-Otherwise, use the standard resourceName helper with "controller-manager" suffix.
+If serviceAccount.enabled is false, require and use serviceAccount.name.
+Otherwise use the standard resourceName helper with "controller-manager" suffix.
 */}}
 {{- define "cmp-issuer.serviceAccountName" -}}
-{{- if and (not (.Values.serviceAccount.enabled | default true)) .Values.serviceAccount.name }}
-{{- .Values.serviceAccount.name }}
+{{- if eq .Values.serviceAccount.enabled false }}
+{{- required "serviceAccount.name is required when serviceAccount.enabled is false" .Values.serviceAccount.name }}
 {{- else }}
 {{- include "cmp-issuer.resourceName" (dict "suffix" "controller-manager" "context" .) }}
 {{- end }}
