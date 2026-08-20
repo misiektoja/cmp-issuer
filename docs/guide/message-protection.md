@@ -62,24 +62,29 @@ is planned rather than implemented.
 
 ### Response protection
 
-By default a `PasswordBasedMac` request must be answered with MAC-based protection, so the shared
-secret authenticates every message of the operation and a signature cannot take its place.
+Many servers sign every response regardless of how the request was protected. EJBCA does this on any
+CMP alias left at its own default of `responseprotection` `signature`. RFC 9483 section 5 permits that
+substitution, so `spec.protocol.macResponseProtection` defaults to `AllowSignature` and both a
+MAC-protected and a signed response are accepted.
 
-Some servers sign every response regardless of how the request was protected. EJBCA does this whenever
-a CMP alias sets `responseprotection` to `signature`. RFC 9483 section 5 permits that substitution, so
-it is a configuration difference rather than a defect. Accept it with:
+Accepting a signature does not weaken the response to an unauthenticated one. The signer must chain to
+`spec.cmpTrust.caSecretRef` and the response sender must name `spec.protocol.recipient`, which is the
+same authority check a `Signature` issuer already relies on for every response it receives.
+
+Require MAC-based protection throughout with:
 
 ```yaml
 spec:
   protocol:
-    macResponseProtection: AllowSignature
+    macResponseProtection: Strict
 ```
 
-This relaxes only which mechanism is accepted. The signer must still chain to
-`spec.cmpTrust.caSecretRef` and the response sender must still name `spec.protocol.recipient`, so a
-certificate issued under the same anchor by a different authority is still rejected. Leave the value at
-its `Strict` default whenever the server can be configured to protect its answers with the shared
-secret instead.
+Then the shared secret authenticates the response as well as the request, and a signature is rejected
+however well it verifies. Set this where the CMP trust anchor is shared with authorities that must not
+be able to answer for the recipient, or to conform to a profile that requires one protection type for a
+whole PKI management operation. Confirm the server protects its answers with the shared secret before
+turning it on, since a server that signs them will have issued the certificate before the response is
+rejected.
 
 ### Server setup
 
