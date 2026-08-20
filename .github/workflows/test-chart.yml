@@ -68,6 +68,31 @@ jobs:
       - name: Check the release status
         run: make helm-status
 
+      # Default values alone would have passed while namespaced RBAC, plain HTTP metrics and the
+      # cert-manager metrics certificate were each broken, so every mode that changes what the
+      # manager is started with or which permissions it is granted is installed here as well. The
+      # release is removed between modes because a RoleBinding roleRef is immutable, so an upgrade
+      # into namespaced RBAC fails for a reason that says nothing about the chart. Each install waits
+      # for the Deployment to become available, which is what catches a manager that exits at flag
+      # parsing or blocks on a certificate nothing issues.
+      - name: Install the chart with namespaced RBAC
+        run: |
+          make helm-uninstall
+          make helm-deploy HELM_EXTRA_ARGS="--set rbac.namespaced=true"
+          make helm-status
+
+      - name: Install the chart with plain HTTP metrics
+        run: |
+          make helm-uninstall
+          make helm-deploy HELM_EXTRA_ARGS="--set metrics.secure=false"
+          make helm-status
+
+      - name: Install the chart with a cert-manager metrics certificate
+        run: |
+          make helm-uninstall
+          make helm-deploy HELM_EXTRA_ARGS="--set metrics.tls.certManager.enabled=true"
+          make helm-status
+
       - name: Remove the Kind cluster
         if: always()
         run: make cleanup-test-e2e
