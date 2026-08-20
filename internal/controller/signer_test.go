@@ -354,14 +354,14 @@ func TestSignLeavesResponseCertReqIDUnpinnedByDefault(t *testing.T) {
 	}
 }
 
-// TestSignForwardsMACResponseProtection verifies only the explicit opt-in relaxes MAC response protection.
+// TestSignForwardsMACResponseProtection verifies only an explicit Strict tightens MAC response protection.
 func TestSignForwardsMACResponseProtection(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure string
 		allowed   bool
 	}{
-		{name: "unset", configure: "", allowed: false},
+		{name: "unset", configure: "", allowed: true},
 		{name: "strict", configure: cmpv1alpha1.MACResponseProtectionStrict, allowed: false},
 		{name: "allow signature", configure: cmpv1alpha1.MACResponseProtectionAllowSignature, allowed: true},
 	}
