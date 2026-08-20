@@ -8,15 +8,13 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/misiektoja/cmp-issuer/badge)](https://scorecard.dev/viewer/?uri=github.com/misiektoja/cmp-issuer)
 
 cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
-servers. Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2
-and stored in the usual TLS Secret, so workloads that already consume cert-manager Secrets need no
-change.
+servers.
 
-It implements CMPv2 enrollment with a PKCS #10 request in P10CR and a CP response, and renews the same
-way. CMP message protection is mandatory. HTTP and HTTPS are both supported. PasswordBasedMac and
-certificate-signature P10CR have completed protected cert-manager `Certificate` enrollments against
-Nokia NCM 26.7 and EJBCA Community Edition 9.3.7. Enrollment against EJBCA, over HTTP and over HTTPS,
-runs after changes land on `dev` or `main`.
+Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.
+
+CMP message protection is mandatory. HTTP and HTTPS are both supported.
+
+Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or certificate-based signature protection for CMP P10CR requests.
 
 ## Start here
 

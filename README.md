@@ -8,19 +8,16 @@
 [![Tests](https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml)
 [![E2E Tests](https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml)
 [![Supply chain](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/misiektoja/cmp-issuer/badge)](https://scorecard.dev/viewer/?uri=github.com/misiektoja/cmp-issuer)
 
 cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
 servers.
 
-Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2
-and written to the usual TLS Secret, so workloads that already consume cert-manager Secrets need no
-change.
+Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-PasswordBasedMac and certificate-signature P10CR have both completed protected cert-manager `Certificate`
-enrollments against two independent CMP servers: [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org).
-Enrollment against EJBCA, over HTTP and over HTTPS, runs after changes land on `dev` or `main`.
+Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or certificate-based signature protection for CMP P10CR requests.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
@@ -36,13 +33,12 @@ Enrollment against EJBCA, over HTTP and over HTTPS, runs after changes land on `
 
 ## Prerequisites
 
-* A [Kubernetes](https://kubernetes.io) cluster, verified on v1.34-1.36
+* A [Kubernetes](https://kubernetes.io) cluster v1.31 or newer, verified on v1.34-1.36
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support, verified on
   v1.19-1.21
 * [Helm](https://helm.sh/docs/intro/install/) v3
 * Kubernetes container runtime like Docker, containerd or CRI-O
-* A CMP server, plus its endpoint URL, recipient DN, a credential and the CA certificate that signs its
-  CMP responses
+* A CMP server (so far tested with [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org))
 
 ## Install
 

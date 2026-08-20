@@ -3,19 +3,17 @@
 A vendor-neutral [cert-manager](https://cert-manager.io/) external issuer for Certificate Management
 Protocol (CMP) servers.
 
-Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2 and
-written to the usual TLS Secret, so workloads that already consume cert-manager Secrets need no change.
-CMP message protection is mandatory, and the controller never reads the workload private key.
+Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.
 
 Full documentation is at
 [misiektoja.github.io/cmp-issuer](https://misiektoja.github.io/cmp-issuer/).
 
 ## Prerequisites
 
-* Kubernetes v1.31 or newer. Verified on v1.34, v1.35 and v1.36
-* [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support. Verified on
-  v1.19, v1.20 and v1.21
+* Kubernetes v1.31 or newer. Verified on v1.34-1.36
+* [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support. Verified on v1.19-1.21
 * Helm v3
+* Kubernetes container runtime like Docker, containerd or CRI-O
 * A CMP server, plus its endpoint URL, recipient DN, a credential and the CA certificate that signs its
   CMP responses
 
