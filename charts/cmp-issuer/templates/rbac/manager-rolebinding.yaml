@@ -1,3 +1,4 @@
+{{- if include "cmp-issuer.managerEnabled" . }}
 apiVersion: rbac.authorization.k8s.io/v1
 {{- if .Values.rbac.namespaced }}
 kind: RoleBinding
@@ -26,3 +27,4 @@ subjects:
 - kind: ServiceAccount
   name: {{ include "cmp-issuer.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+{{- end }}
