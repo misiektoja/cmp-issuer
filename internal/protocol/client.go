@@ -77,6 +77,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 		return EnrollmentResult{}, err
 	}
 	httpClient := newHTTPClient(request)
+	defer httpClient.CloseIdleConnections()
 	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize, operationEnrollment)
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -155,6 +156,7 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 		return EnrollmentResult{}, permanent("encode pollReq", "badDataFormat", err)
 	}
 	httpClient := newHTTPClient(request)
+	defer httpClient.CloseIdleConnections()
 	responseDER, err := sendCMP(ctx, httpClient, request.EndpointURL, requestDER, request.MaxResponseSize, operationPoll)
 	if err != nil {
 		return EnrollmentResult{}, err
@@ -265,6 +267,10 @@ func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 
 // newHTTPClient constructs a bounded transport that disables redirects.
 func newHTTPClient(request EnrollmentRequest) *http.Client {
+	// The timeout and the TLS trust are read from the issuer configuration for this call, so the
+	// transport cannot be shared and every caller closes idle connections when it returns. Without
+	// that, each enrollment, poll and confirmation leaves a pooled socket and its reader goroutine
+	// alive for the idle timeout below even though no later call can reuse either.
 	dialer := &net.Dialer{Timeout: request.Timeout, KeepAlive: 30 * time.Second}
 	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: dialer.DialContext, ForceAttemptHTTP2: false, MaxIdleConns: 16, MaxIdleConnsPerHost: 4, IdleConnTimeout: 30 * time.Second, TLSHandshakeTimeout: request.Timeout, ResponseHeaderTimeout: request.Timeout, ExpectContinueTimeout: time.Second, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots}}
 	return &http.Client{Transport: transport, Timeout: request.Timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
@@ -620,7 +626,9 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	if len(confirmationNonce) == 0 {
 		confirmationNonce = append([]byte(nil), message.Header.SenderNonce...)
 	}
-	response, err := exchangeProtected(ctx, newHTTPClient(request), request, credentials, message, confirm.ResponseSigner, confirm.RequestNonce, operation)
+	httpClient := newHTTPClient(request)
+	defer httpClient.CloseIdleConnections()
+	response, err := exchangeProtected(ctx, httpClient, request, credentials, message, confirm.ResponseSigner, confirm.RequestNonce, operation)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
