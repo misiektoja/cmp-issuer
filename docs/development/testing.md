@@ -70,7 +70,9 @@ Two variables select the versions, so one suite covers the whole supported range
 make test-e2e KIND_NODE_IMAGE=kindest/node:v1.34.0 CERT_MANAGER_VERSION=v1.19.6
 ```
 
-CI runs the suite once per supported combination, so a change that only works on the newest Kubernetes or the newest cert-manager fails before release:
+CI runs the suite once per supported combination after a change lands on `dev` or `main`. Pull requests
+omit this expensive matrix, so a change that only works on the newest Kubernetes or cert-manager is
+reported on the development branch before release:
 
 | Kubernetes | cert-manager |
 | --- | --- |
@@ -105,7 +107,9 @@ make ejbca-test-image
 
 `EJBCA_VERSION` in the `Makefile` selects the upstream release, and `EJBCA_IMAGE_REVISION` republishes the image after a configuration change. `test/e2e/ejbca/README.md` describes what the image contains and why the aliases are configured the way they are.
 
-CI runs these specs in their own job, and rebuilds the server image only when the upstream release it is built from is republished under a new digest.
+CI runs these specs in their own job after a change lands on `dev` or `main` and rebuilds the server
+image only when the upstream release it is built from is republished under a new digest. Pull requests
+omit the EJBCA job.
 
 ## Interoperability against real CMP servers
 
@@ -115,7 +119,11 @@ Enrollment against Nokia NCM is verified against a dedicated CMP server, because
 
 `interop-ncm.yml` performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a `CMPIssuer`, enrolls a `Certificate` and inspects the certificate that comes back.
 
-It is the only workflow that reaches a PKI outside the repository, so it never runs on a push or a pull request. Start it from the Actions tab, optionally choosing the Kubernetes and cert-manager versions, and enable the repeat enrollment when the server profile allows the same identity to enroll twice.
+It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
+pushes to `dev` and `main` and once a week, but never for pull requests. Start it from the Actions tab to
+choose different Kubernetes or cert-manager versions and to enable repeat enrollment when the server
+profile allows the same identity to enroll twice. Automatic runs use the default Kind node and
+cert-manager v1.20.3.
 
 ### What each run covers
 
@@ -171,15 +179,18 @@ make go-patch-check
 make scan-image IMG=<image>
 ```
 
-CI runs these on push and on a weekly schedule.
+Pull requests run lint, govulncheck and the credential scan. Pushes to `dev` and `main` additionally
+generate the SBOM and build and scan the container image. The weekly schedule repeats the full set so a
+newly disclosed vulnerability is found without a source change.
 
-`make go-patch-check` reports whether `go.mod` still names the newest Go patch in the release series it targets, and `make go-patch-update` moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. `go-patch.yml` runs the same check weekly and opens the bump as a pull request. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.
+`make go-patch-check` reports whether `go.mod` still names the newest Go patch in the release series it targets and `make go-patch-update` moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. `go-patch.yml` runs the same check weekly and opens the bump as a pull request against `dev`. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.
 
 `make lint` runs golangci-lint over the Go code and actionlint over `.github/workflows`. actionlint
 delegates `run:` blocks to shellcheck when it is on PATH, which it is on the GitHub-hosted runners, so
 install shellcheck locally to see the same findings CI does. `codeql.yml` additionally runs CodeQL
-static analysis over the Go code on every push to the default branch, on pull requests and weekly, and
-reports under Security, Code scanning.
+static analysis over the Go code on pushes to `dev` and `main` and weekly. It skips without starting a
+runner while the repository is private, then reports under Security, Code scanning after the repository
+becomes public.
 
 ## Related pages
 
