@@ -6,6 +6,8 @@
 version: v2.12.2
 plugins:
   # logcheck validates structured logging calls and parameters (e.g., balanced key-value pairs)
+  # Pinned rather than tracked, so that a fresh CI run builds the linter from the same reviewed
+  # source as the last one instead of whatever was published since.
   - module: "sigs.k8s.io/logtools"
     import: "sigs.k8s.io/logtools/logcheck/gclplugin"
-    version: latest
+    version: v0.10.1
