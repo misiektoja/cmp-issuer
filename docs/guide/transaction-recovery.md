@@ -21,7 +21,8 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | `transactionID` | CMP transaction identifier for every message |
 | `deadline` | Absolute transaction expiry |
 | `csrDigest` | SHA-256 of the enrolled CSR, in lowercase hexadecimal |
-| `issuerRef` | Name, kind and UID of the issuer that served the transaction |
+| `issuerRef` | Name, kind, UID and generation of the issuer that served the transaction |
+| `configurationDigest` | SHA-256 identity of that issuer generation and the credential Secret versions it loaded |
 | `operation` | CMP operation, currently `P10CR` |
 | `protocolVersion` | CMP protocol version of every message |
 
@@ -53,7 +54,7 @@ On restart the signer loads the existing `CMPTransaction` and resumes it rather 
 | `Enrolling` | Send the enrollment again under the transaction identifier already recorded |
 | `Confirming` | Continue confirming the recorded chain, which is already durable |
 | `Polling` | Send the next `pollReq` with the recorded nonces and `certReqId` |
-| `Issued` | Return the recorded chain without any CMP traffic |
+| `Issued` | Return the recorded chain without CMP traffic or credential Secret reads |
 
 A transaction that fails permanently is deleted. A transaction that reached `Issued` is kept and is garbage collected with its `CertificateRequest`, so a completed enrollment stays visible in `kubectl get cmptransactions`.
 
@@ -93,9 +94,13 @@ Reusing the recorded identifier rather than generating a fresh one is what makes
 
 If the controller stops after the server issued the certificate but before cert-manager stored it, the recorded chain is returned on the next reconcile. No second enrollment is sent and no certificate is lost.
 
-### Credential rotation mid-transaction
+### Issuer or credential changes mid-transaction
 
-Rotated PBM or signature Secrets invalidate in-flight protection. The transaction fails within `maximumDuration`. ResourceVersions are not recorded.
+An unfinished transaction is bound to the issuer UID, issuer generation and credential Secret versions
+that protected its first request. Recreating or editing the issuer or rotating a credential or trust
+Secret ends that transaction before another CMP message is sent. cert-manager can then create a new
+request under the new configuration. A transaction already in `Issued` remains recoverable because its
+validated chain no longer depends on live credentials.
 
 ## Delayed confirmation
 
