@@ -476,7 +476,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		pinned := *spec.Protocol.P10CRResponseCertReqID
 		responseCertReqID = &pinned
 	}
-	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, AllowSignedMACResponse: spec.Protocol.MACResponseProtection == cmpv1alpha1.MACResponseProtectionAllowSignature, ResponseCertReqID: responseCertReqID, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
+	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, AllowSignedMACResponse: spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict, ResponseCertReqID: responseCertReqID, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
 	if sender != nil {
 		request.Sender = sender
 	}
@@ -606,8 +606,8 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	if spec.P10CRResponseCertReqID != nil && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDStandard && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDLegacyZero {
 		return fmt.Errorf("p10cr response certReqId must be -1 or 0")
 	}
-	// An empty value is the unset field of an issuer created before this setting existed, which the
-	// stricter of the two behaviors is the safe reading of.
+	// An empty value is an issuer written before the field existed, and it reads as the default the
+	// schema applies to every new object.
 	if spec.MACResponseProtection != "" && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionAllowSignature {
 		return fmt.Errorf("macResponseProtection must be Strict or AllowSignature")
 	}
