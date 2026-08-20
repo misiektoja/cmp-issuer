@@ -77,7 +77,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `manager.enabled` | `true` | Install the controller. Set to `false` for a CRD-only install |
+| `manager.enabled` | `true` | Install the controller and its supporting resources. Set to `false` to render only enabled CRDs |
 | `manager.replicas` | `1` | Controller replicas. Leader election is enabled by default |
 | `manager.image.repository` | `ghcr.io/misiektoja/cmp-issuer` | Controller image, or a digest reference |
 | `manager.image.tag` | `Chart.appVersion` | Image tag |
@@ -97,7 +97,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `certManagerApproval.namespace` | `cert-manager` | Namespace cert-manager is installed in |
 | `crd.enabled` | `true` | Install the CRDs with the chart |
 | `crd.keep` | `true` | Keep the CRDs on `helm uninstall`, so removing the release cannot delete your issuers and transactions |
-| `rbac.namespaced` | `false` | Use Role and RoleBinding in the release namespace instead of cluster-scoped |
+| `rbac.namespaced` | `false` | Watch only the release namespace with Role and RoleBinding. `CMPClusterIssuer` is disabled in this mode |
 | `rbac.helpers.enabled` | `true` | Install convenience admin, editor and viewer roles for the CRDs, the same ones the installer manifest creates |
 | `serviceAccount.enabled` | `true` | Create the controller ServiceAccount |
 | `serviceAccount.name` | unset | Existing ServiceAccount to use when `enabled` is `false` |
@@ -114,6 +114,10 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `nameOverride`, `fullnameOverride` | unset | Override the generated resource names |
 
 `values.yaml` carries a comment on every key, including the ones commented out above.
+
+When `serviceAccount.enabled=false`, `serviceAccount.name` is required and the Deployment uses that
+exact ServiceAccount. Namespaced RBAC mode serves only `CMPIssuer` resources in the Helm release
+namespace. Use the default mode for `CMPClusterIssuer` or issuers in multiple namespaces.
 
 ## Upgrading
 
