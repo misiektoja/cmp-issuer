@@ -47,6 +47,7 @@ const (
 	testAuthorityCN     = "ManagementCA"
 	testAuthorityO      = "Example Container Quickstart"
 	testBadMessageCheck = "badMessageCheck"
+	testWrongAuthority  = "wrongAuthority"
 )
 
 // testPKI contains ephemeral credentials used by one protocol test.
@@ -326,6 +327,42 @@ func TestEnrollP10CRRejectsMACSubstitution(t *testing.T) {
 	}
 }
 
+// TestEnrollP10CRAcceptsSignedMACResponseWhenAllowed verifies the opt-in for servers that sign every response.
+func TestEnrollP10CRAcceptsSignedMACResponseWhenAllowed(t *testing.T) {
+	pki := newTestPKI(t)
+	password := []byte("test-shared-secret")
+	server, _ := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: -1, ForceSignature: true})
+	defer server.Close()
+	request := baseEnrollmentRequest(t, pki, server.URL)
+	request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
+	request.AllowSignedMACResponse = true
+	// The whole operation is driven to pkiConf, because a server that signs its cp signs the rest of
+	// the exchange too and the retained signer is what carries that across the confirmation.
+	result, err := enrollAndConfirm(t, request)
+	if err != nil {
+		t.Fatalf("expected a signed response to a MAC-protected request to be accepted, got %v", err)
+	}
+	if len(result.Chain) == 0 {
+		t.Fatal("expected an issued chain")
+	}
+}
+
+// TestEnrollP10CRRejectsSignedMACResponseFromAnotherAuthorityWhenAllowed verifies the opt-in keeps recipient binding.
+func TestEnrollP10CRRejectsSignedMACResponseFromAnotherAuthorityWhenAllowed(t *testing.T) {
+	pki := newTestPKI(t)
+	password := []byte("test-shared-secret")
+	server, _ := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: -1, ForceSignature: true, ImpostorAuthority: true})
+	defer server.Close()
+	request := baseEnrollmentRequest(t, pki, server.URL)
+	request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
+	request.AllowSignedMACResponse = true
+	_, err := NewClient().EnrollP10CR(context.Background(), request)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testWrongAuthority {
+		t.Fatalf("expected a subordinate authority under the same anchor to be rejected, got %v", err)
+	}
+}
+
 // baseEnrollmentRequest creates common trusted P10CR test input without a pinned response identifier.
 // The transaction identifier is pinned because confirming an issued certificate is a separate call
 // that has to name the transaction it completes.
@@ -476,7 +513,7 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 		{name: "transaction", options: mockOptions{CertReqID: -1, WrongTransactionID: true}, failure: "transactionIdMismatch"},
 		{name: "nonce", options: mockOptions{CertReqID: -1, WrongNonce: true}, failure: "nonceMismatch"},
 		{name: "protection mechanism substitution", options: mockOptions{CertReqID: -1, ForceSignature: true}, failure: testBadMessageCheck},
-		{name: "absent sender", options: mockOptions{CertReqID: -1, NullSender: true}, failure: "wrongAuthority"},
+		{name: "absent sender", options: mockOptions{CertReqID: -1, NullSender: true}, failure: testWrongAuthority},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -507,7 +544,7 @@ func TestEnrollP10CRRejectsSignatureFromAnotherTrustedAuthority(t *testing.T) {
 	request.Protection.Signature = &SignatureProtection{PrivateKey: pki.BootstrapKey, Certificate: pki.BootstrapCertificate, Chain: []*x509.Certificate{pki.CACertificate}}
 	_, err := NewClient().EnrollP10CR(context.Background(), request)
 	var typed *Error
-	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != "wrongAuthority" {
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testWrongAuthority {
 		t.Fatalf("expected wrongAuthority security failure, got %v", err)
 	}
 }
