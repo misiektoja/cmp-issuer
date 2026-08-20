@@ -83,12 +83,15 @@ type EnrollmentRequest struct {
 	Recipient         pkix.Name
 	ImplicitConfirm   bool
 	RejectGrantedMods bool
-	ResponseCertReqID *int64
-	TransactionID     []byte
-	CSRDER            []byte
-	Protection        Protection
-	CMPTrust          *x509.CertPool
-	TLSRoots          *x509.CertPool
+	// AllowSignedMACResponse accepts a signature-protected answer to a MAC-protected request when the
+	// signer chains to CMPTrust. It is ignored when the request is signature-protected already.
+	AllowSignedMACResponse bool
+	ResponseCertReqID      *int64
+	TransactionID          []byte
+	CSRDER                 []byte
+	Protection             Protection
+	CMPTrust               *x509.CertPool
+	TLSRoots               *x509.CertPool
 }
 
 // PollRequest resumes a transaction whose enrollment response was waiting.
