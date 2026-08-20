@@ -619,6 +619,11 @@ helm-lint: helm ## Validate that the chart renders and passes the Helm linter.
 	@test ! -d charts/chart || { echo "charts/chart exists, so a kubebuilder Helm plugin run scaffolded a second chart beside $(HELM_CHART_DIR). Move any regenerated templates into $(HELM_CHART_DIR) and delete charts/chart." >&2; exit 1; }
 	$(HELM) lint $(HELM_CHART_DIR) --kube-version $(HELM_KUBE_VERSION)
 	$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) > /dev/null
+	@test "$$($(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) --set manager.enabled=false | awk '/^kind:/{print $$2}' | sort -u)" = "CustomResourceDefinition"
+	@$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) --set rbac.namespaced=true --show-only templates/manager/manager.yaml | grep -q -- "--watch-namespace=$(HELM_NAMESPACE)"
+	@test -z "$$($(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) --set rbac.namespaced=true --show-only templates/rbac/manager-role.yaml | grep cmpclusterissuers)"
+	@test -z "$$($(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) --set rbac.namespaced=true --show-only templates/rbac/cert-manager-approver.yaml | grep cmpclusterissuers)"
+	@$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) --namespace $(HELM_NAMESPACE) --kube-version $(HELM_KUBE_VERSION) --set serviceAccount.enabled=false --set serviceAccount.name=existing --show-only templates/manager/manager.yaml | grep -q "serviceAccountName: existing"
 
 .PHONY: helm-deploy
 helm-deploy: helm ## Deploy manager to the K8s cluster via Helm. Specify an image with IMG.
