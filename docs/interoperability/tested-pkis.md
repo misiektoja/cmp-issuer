@@ -65,7 +65,7 @@ In RA mode EJBCA registers the end entity from the request itself, using `ra.nam
 
 ### Response protection
 
-An EJBCA CMP alias decides how it protects its answers with `responseprotection`. Under `signature`, which is the setting the tested aliases use, the issuing CA signs every response including the answer to a request protected with a shared secret. cmp-issuer requires a `PasswordBasedMac` request to be answered with MAC-based protection unless the issuer sets `spec.protocol.macResponseProtection` to `AllowSignature`, so a shared secret issuer pointed at such an alias needs that value. The signer must still chain to `spec.cmpTrust.caSecretRef` and its sender must still name `spec.protocol.recipient`. An alias set to `responseprotection` `pbe` answers a shared secret request with MAC-based protection and works under the `Strict` default.
+An EJBCA CMP alias decides how it protects its answers with `responseprotection`. Its own default is `signature`, which the tested aliases keep, so the issuing CA signs every response including the answer to a request protected with a shared secret. This works with no extra configuration, because `spec.protocol.macResponseProtection` defaults to `AllowSignature`. The signer still has to chain to `spec.cmpTrust.caSecretRef` and its sender still has to name `spec.protocol.recipient`. Setting `macResponseProtection` to `Strict` against such an alias fails every enrollment after the certificate has already been issued, so pair it with `responseprotection` `pbe`, which answers a shared secret request with MAC-based protection.
 
 ### Client mode constraints
 
