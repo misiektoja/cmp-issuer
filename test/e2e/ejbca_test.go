@@ -66,6 +66,9 @@ const (
 	ejbcaPasswordHTTPSIssuer = "cmp-issuer-e2e-ejbca-password-https"
 	// ejbcaSignatureHTTPIssuer enrolls with a certificate signature over plain HTTP.
 	ejbcaSignatureHTTPIssuer = "cmp-issuer-e2e-ejbca-signature-http"
+	// allowSignedMACResponse accepts the signed answer this server sends to a shared secret request,
+	// which is what every alias configured with responseprotection signature returns.
+	allowSignedMACResponse = "AllowSignature"
 	// ejbcaReadyTimeout bounds the start of the CMP server, which deploys an application server.
 	ejbcaReadyTimeout = 10 * time.Minute
 	// ejbcaEnrollmentTimeout bounds one enrollment through cert-manager.
@@ -145,11 +148,12 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 			{
 				name: ejbcaPasswordHTTPIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
 				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				macResponseProtection: allowSignedMACResponse,
 			},
 			{
 				name: ejbcaPasswordHTTPSIssuer, url: configuration.endpointURL("https", configuration.passwordAlias),
 				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
-				transport: transport,
+				transport: transport, macResponseProtection: allowSignedMACResponse,
 			},
 			{
 				name: ejbcaSignatureHTTPIssuer, url: configuration.endpointURL("http", configuration.signatureAlias),
