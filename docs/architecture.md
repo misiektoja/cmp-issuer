@@ -21,7 +21,7 @@ flowchart LR
 | **CRDs** | `CMPIssuer`, `CMPClusterIssuer` and `CMPTransaction` define issuer policy and in-flight transaction state |
 | **issuer-lib** | Approval, denial, retry classification, Ready conditions and Events |
 | **Signer** | Maps a `CertificateRequest` to a CMP enrollment, validates responses and writes the issued chain |
-| **Protocol adapter** | Project-owned interfaces over go-pkicmp; no go-pkicmp types in public APIs |
+| **Protocol adapter** | Project-owned interfaces over go-pkicmp-ng; no library types in public APIs |
 | **HTTP client** | Bounded timeouts, response size, no redirects, optional TLS trust separate from CMP trust |
 
 The Kubernetes CSR controller bundled with issuer-lib is **disabled**. cmp-issuer signs only through CMP.
