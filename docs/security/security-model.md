@@ -50,7 +50,7 @@ flowchart TB
 
 ## Residual risks
 
-* The CMP encoding layer is a pre-v1 dependency kept behind project-owned interfaces. See [ADR 0001](../adr/0001-cmp-library.md).
+* The CMP encoding layer is a pre-v1 library kept behind project-owned interfaces, maintained by this project's author and validated independently of its own checks. See [ADR 0001](../adr/0001-cmp-library.md).
 * CMP interoperability depends on server configuration.
 * A `CMPTransaction` records the transaction identifier, nonces, issuer identity, credential Secret versions and the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests`.
 * Transaction persistence gaps leave specific ambiguous failure modes open. See [Known limitations](../known-limitations.md).
