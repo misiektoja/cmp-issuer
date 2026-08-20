@@ -242,6 +242,19 @@ spec:
                     enum:
                     - P10CR
                     type: string
+                  macResponseProtection:
+                    default: Strict
+                    description: |-
+                      MACResponseProtection selects which response protection answers a PasswordBasedMac request.
+                      Strict requires MAC-based protection throughout, so the shared secret authenticates every
+                      message of the operation. AllowSignature also accepts a signature-protected response whose
+                      signer chains to cmpTrust and whose sender names spec.protocol.recipient, which is what servers
+                      configured to sign every response send. RFC 9483 section 5 permits that substitution and EJBCA
+                      does it whenever a CMP alias sets responseprotection to signature.
+                    enum:
+                    - Strict
+                    - AllowSignature
+                    type: string
                   p10crResponseCertReqId:
                     description: |-
                       P10CRResponseCertReqID pins the exact certReqId required in CP and echoed in certConf.
