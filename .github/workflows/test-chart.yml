@@ -31,7 +31,7 @@ jobs:
   test-chart:
     permissions:
       contents: read
-    name: Run on Ubuntu
+    name: Chart install and upgrade
     runs-on: ubuntu-latest
     env:
       IMG: controller:latest
