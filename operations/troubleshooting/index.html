@@ -2073,6 +2073,10 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>Wrong CMP trust anchors or unexpected signer</td>
 </tr>
 <tr>
+<td><code>message is signature-protected but MAC-based protection is required</code></td>
+<td><code>spec.protocol.macResponseProtection</code> is <code>Strict</code> and the server signs its answer to a <code>PasswordBasedMac</code> request. Remove the value to fall back to the <code>AllowSignature</code> default, or configure the server to protect the answer with the shared secret</td>
+</tr>
+<tr>
 <td>Response sender does not name the configured recipient</td>
 <td>The server answers under a different name than <code>spec.protocol.recipient</code>. Set the recipient to the name the server puts in its responses. Attribute order does not matter, so only a genuine difference in attributes or values causes this</td>
 </tr>

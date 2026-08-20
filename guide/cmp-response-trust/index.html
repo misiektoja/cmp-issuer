@@ -1706,8 +1706,12 @@ subordinate CA chains to the same anchor, so protection verification on its own 
 from any of them.</p>
 <p>Every response is therefore also required to be sent by the authority named in <code>spec.protocol.recipient</code>.
 A response naming a different authority is rejected with <code>wrongAuthority</code> and no certificate is
-accepted, whichever protection mechanism was used. A response must also use the same protection
-mechanism as the request. A signature cannot replace PasswordBasedMac or the reverse.</p>
+accepted, whichever protection mechanism was used.</p>
+<p>A MAC can never replace a signature. A signature replaces PasswordBasedMac by default, because many
+servers sign every response, and the signer still has to chain to <code>spec.cmpTrust.caSecretRef</code> and name
+the recipient, so the two rules above still apply to it. Set
+<code>spec.protocol.macResponseProtection</code> to <code>Strict</code> to require MAC-based protection throughout instead.
+See <a href="../message-protection/">message protection</a>.</p>
 <p>The comparison requires the same attributes and values, and ignores their order. Certificate tools
 disagree about whether to print a distinguished name in encoded order or in the reverse order RFC 4514
 defines, so a recipient copied from either kind of output is accepted. A response that omits its sender

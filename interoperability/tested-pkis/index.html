@@ -1007,6 +1007,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#response-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#client-mode-constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1808,6 +1819,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#response-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#client-mode-constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1967,7 +1989,9 @@
 <h3 id="continuously-verified">Continuously verified<a class="headerlink" href="#continuously-verified" title="Permanent link">&para;</a></h3>
 <p>Enrollment against EJBCA runs in CI after changes land on <code>dev</code> or <code>main</code>, against a server started in the test cluster. Pull requests omit this expensive job. Each run issues real certificates through cert-manager <code>Certificate</code> resources over three combinations: a shared secret over HTTP, the same over HTTPS and a certificate signature over HTTP. The endpoint certificate is verified against a pinned authority that did not sign the CMP responses, so a run also confirms that the CMP trust and the transport trust are decided separately.</p>
 <h3 id="ra-mode">RA mode<a class="headerlink" href="#ra-mode" title="Permanent link">&para;</a></h3>
-<p>In RA mode EJBCA registers the end entity from the request itself, using <code>ra.namegenerationscheme</code> <code>DN</code> with <code>ra.namegenerationparameters</code> <code>CN</code> to take the name from the request subject. A repeated enrollment of the same subject is answered with a new certificate rather than refused, so RA mode avoids the client mode constraint below. Response protection is still signed by the issuing CA, which is what <code>spec.cmpTrust.caSecretRef</code> pins.</p>
+<p>In RA mode EJBCA registers the end entity from the request itself, using <code>ra.namegenerationscheme</code> <code>DN</code> with <code>ra.namegenerationparameters</code> <code>CN</code> to take the name from the request subject. A repeated enrollment of the same subject is answered with a new certificate rather than refused, so RA mode avoids the client mode constraint below.</p>
+<h3 id="response-protection">Response protection<a class="headerlink" href="#response-protection" title="Permanent link">&para;</a></h3>
+<p>An EJBCA CMP alias decides how it protects its answers with <code>responseprotection</code>. Its own default is <code>signature</code>, which the tested aliases keep, so the issuing CA signs every response including the answer to a request protected with a shared secret. This works with no extra configuration, because <code>spec.protocol.macResponseProtection</code> defaults to <code>AllowSignature</code>. The signer still has to chain to <code>spec.cmpTrust.caSecretRef</code> and its sender still has to name <code>spec.protocol.recipient</code>. Setting <code>macResponseProtection</code> to <code>Strict</code> against such an alias fails every enrollment after the certificate has already been issued, so pair it with <code>responseprotection</code> <code>pbe</code>, which answers a shared secret request with MAC-based protection.</p>
 <h3 id="client-mode-constraints">Client mode constraints<a class="headerlink" href="#client-mode-constraints" title="Permanent link">&para;</a></h3>
 <p><strong>End entity must exist and returns to a used state.</strong> Client mode treats the enrollment code as one-time. After issuance the end entity moves to <code>GENERATED</code> and refuses another request until an administrator sets it back to <code>NEW</code> or the profile allows multiple requests.</p>
 <p><strong>Certificate authentication enrolls only the authenticating identity.</strong> With <code>EndEntityCertificate</code> in client mode EJBCA requires the requested subject DN to match the registered end entity. Signature protection therefore issues for the bootstrap identity.</p>

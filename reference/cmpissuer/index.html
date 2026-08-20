@@ -1943,6 +1943,12 @@
 <td>Pin <code>-1</code> or <code>0</code> when the server behavior is known</td>
 </tr>
 <tr>
+<td><code>macResponseProtection</code></td>
+<td>no</td>
+<td><code>AllowSignature</code></td>
+<td><code>AllowSignature</code> accepts either MAC-based protection or a signed response whose signer chains to <code>cmpTrust</code> and whose sender is <code>recipient</code>. <code>Strict</code> requires MAC-based protection throughout, so the shared secret authenticates the response as well as the request</td>
+</tr>
+<tr>
 <td><code>certProfile</code></td>
 <td>no</td>
 <td></td>

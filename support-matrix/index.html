@@ -1873,6 +1873,11 @@
 <td>Accept <code>-1</code> or <code>0</code> by default</td>
 </tr>
 <tr>
+<td><code>macResponseProtection</code></td>
+<td>Implemented, Interoperability tested</td>
+<td><code>AllowSignature</code> by default, so a signed answer to a <code>PasswordBasedMac</code> request is accepted when it chains to the CMP trust anchor and names the recipient. <code>Strict</code> requires MAC-based protection throughout</td>
+</tr>
+<tr>
 <td>Endpoint reachability in issuer readiness</td>
 <td>Planned</td>
 <td>Readiness reflects configuration, not whether the server answers</td>

@@ -582,6 +582,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#response-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#server-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1720,6 +1731,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#response-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#server-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1963,6 +1985,25 @@ credential differs.</p>
 </table>
 <p>These must match the server's PBM profile. cmp-issuer does not negotiate weaker algorithms, and PBMAC1
 is planned rather than implemented.</p>
+<h3 id="response-protection">Response protection<a class="headerlink" href="#response-protection" title="Permanent link">&para;</a></h3>
+<p>Many servers sign every response regardless of how the request was protected. EJBCA does this on any
+CMP alias left at its own default of <code>responseprotection</code> <code>signature</code>. RFC 9483 section 5 permits that
+substitution, so <code>spec.protocol.macResponseProtection</code> defaults to <code>AllowSignature</code> and both a
+MAC-protected and a signed response are accepted.</p>
+<p>Accepting a signature does not weaken the response to an unauthenticated one. The signer must chain to
+<code>spec.cmpTrust.caSecretRef</code> and the response sender must name <code>spec.protocol.recipient</code>, which is the
+same authority check a <code>Signature</code> issuer already relies on for every response it receives.</p>
+<p>Require MAC-based protection throughout with:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">macResponseProtection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Strict</span>
+</code></pre></div>
+<p>Then the shared secret authenticates the response as well as the request, and a signature is rejected
+however well it verifies. Set this where the CMP trust anchor is shared with authorities that must not
+be able to answer for the recipient, or to conform to a profile that requires one protection type for a
+whole PKI management operation. Confirm the server protects its answers with the shared secret before
+turning it on, since a server that signs them will have issued the certificate before the response is
+rejected.</p>
 <h3 id="server-setup">Server setup<a class="headerlink" href="#server-setup" title="Permanent link">&para;</a></h3>
 <p>The reference and secret must exist on the CMP server before enrollment. cmp-issuer does not register
 credentials over CMP.</p>
