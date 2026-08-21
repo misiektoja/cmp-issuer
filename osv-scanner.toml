@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+reason = "The module graph needs golang.org/x/crypto/cryptobyte through go-pkicmp-ng, but cmp-issuer does not need or import the affected and unmaintained golang.org/x/crypto/openpgp package. govulncheck reports no reachable vulnerable symbols and the advisory has no fixed version."
