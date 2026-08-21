@@ -83,9 +83,9 @@ reported on the development branch before release:
 
 | Kubernetes | cert-manager |
 | --- | --- |
-| 1.36, the default of the pinned Kind release | v1.21.1 |
-| 1.35 | v1.20.3 |
-| 1.34 | v1.19.6 |
+| v1.36, the default of the pinned Kind release | v1.21.1 |
+| v1.35 | v1.20.3 |
+| v1.34 | v1.19.6 |
 
 The two older rows pin a digest, taken from the node images published for the Kind release pinned as `KIND_VERSION` in the `Makefile`, so they have to be updated with it. The newest row pins no image and follows the Kind default.
 
