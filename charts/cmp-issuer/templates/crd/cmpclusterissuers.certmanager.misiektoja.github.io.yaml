@@ -116,6 +116,10 @@ spec:
                     description: PasswordBasedMac configures shared-secret CMP protection.
                     properties:
                       algorithm:
+                        default:
+                          iterationCount: 1024
+                          mac: HMACSHA256
+                          owf: SHA256
                         description: Algorithm configures PasswordBasedMac parameters
                           without downgrade behavior.
                         properties:
