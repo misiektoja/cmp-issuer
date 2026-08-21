@@ -416,8 +416,6 @@ release-bundle: require-version ## Assemble the air-gapped install bundle from t
 		printf '%s\n' \
 			"cmp-issuer $(VERSION) air-gapped bundle" \
 			"" \
-			"Every file here carries $(VERSION), so one copied out of the bundle still names the release it came from." \
-			"" \
 			"Contents:"; \
 		printf '  %-36s %s\n' \
 			"images/$(notdir $(IMAGE_ARCHIVE))" "OCI archive of the manager image, $$(cat $(IMAGE_PLATFORMS))" \
