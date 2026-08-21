@@ -1,6 +1,6 @@
 apiVersion: v2
 name: cmp-issuer
-description: A vendor-neutral cert-manager external issuer for Certificate Management Protocol servers
+description: Cert-manager external issuer for Certificate Management Protocol (CMP) servers
 type: application
 
 ## version is the chart version and has to be bare SemVer, so it is the release tag without the leading
