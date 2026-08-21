@@ -45,6 +45,11 @@ them do not carry the release tag verbatim:
 * `make sbom` run without `VERSION`, as `make supply-chain` and the supply chain workflow do, names the
   bill of materials after the commit it describes instead, since there is no release to name.
 
+The GitHub release description is the `RELEASE_NOTES.md` section for the version being tagged. It is
+extracted before the image is pushed, so a heading that is missing or no longer matches the tag fails
+the run while retagging still costs nothing. The release is created as a draft, so the description can
+still be edited before anyone sees it.
+
 ## Build identity
 
 The same `VERSION` is stamped into the binary, so a running manager names the release it came from
@@ -114,8 +119,14 @@ racing.
 
 1. `make test`, `make lint`, `make docs-build`, `make helm-lint`
 2. `make test-e2e` when controller or e2e specs changed, and `make test-e2e-ejbca` when enrollment changed
-3. Update `RELEASE_NOTES.md` with user-facing entries
-4. Tag and push only when authorized to publish
+3. Update `RELEASE_NOTES.md` with user-facing entries under a `## [<chart version>]` heading carrying the
+   release date, since the release workflow publishes that section as the GitHub release description
+4. Refresh `artifacthub.io/changes` in `charts/cmp-issuer/Chart.yaml`, along with any other
+   `artifacthub.io` annotation the release changes. Chart metadata is frozen once the version is
+   published, so a correction needs a new chart version
+5. Point `config/manager/kustomization.yaml` at the image the release will publish, which is what a
+   clone applies when it has not run `make build-installer`
+6. Tag and push only when authorized to publish
 
 ## Supply chain verification
 
