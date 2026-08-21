@@ -9,19 +9,18 @@
 # in one place. Uploading them needs code scanning to be available, which is the case for a public
 # repository, so the job skips without starting a runner while the repository is private.
 #
-# The weekly schedule is what the published badge reads, so it runs even when nothing has changed. It
-# also runs on a push to the default branch, because most of what Scorecard measures is repository
-# configuration that a merge can change.
+# CodeQL runs on every push to the default branch and on a weekly schedule. Scorecard follows a
+# successful CodeQL run so its SAST check sees the completed analysis instead of racing it. Repository
+# configuration changes still trigger Scorecard directly because they do not create a CodeQL run.
 name: Scorecard
 
 on:
   branch_protection_rule:
-  push:
+  workflow_run:
+    workflows: [CodeQL]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
-  schedule:
-    # Weekly, ahead of the CodeQL run on the same morning.
-    - cron: "11 5 * * 1"
 
 permissions: {}
 
@@ -31,7 +30,9 @@ concurrency:
 
 jobs:
   analyze:
-    if: github.event.repository.private == false
+    if: >-
+      github.event.repository.private == false &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     name: Supply chain score
     runs-on: ubuntu-latest
     timeout-minutes: 30
