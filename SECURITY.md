@@ -12,7 +12,8 @@ The maintainer will acknowledge the report and coordinate disclosure once a fix 
 
 ## Supported versions
 
-The project has no released version yet. Security fixes apply to the current default branch until a release policy is published.
+Security fixes are made on the default branch and shipped in the next release: the [GitHub releases](https://github.com/misiektoja/cmp-issuer/releases), the Helm chart repository at `https://misiektoja.github.io/cmp-issuer/charts` and the manager image on the GitHub Container Registry. Only the latest released version is supported. Earlier versions receive no backports.
+
 
 ## Security posture
 
