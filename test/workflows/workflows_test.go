@@ -235,6 +235,22 @@ func TestReleaseWorkflowBindsManualDispatchToTag(t *testing.T) {
 	if resolveAt < 0 || checkoutAt < 0 || resolveAt > checkoutAt {
 		t.Errorf("%s: release version must be resolved before checkout", path)
 	}
+	// A release published by hand from the GitHub UI creates the tag, which starts this workflow. The
+	// refusal has to come before the image is pushed, since a push cannot be withdrawn and leaves a
+	// published release with no assets beside an image that is real.
+	publishedGuardAt := strings.Index(workflow, "- name: Refuse to rebuild a release that is already published")
+	pushAt := strings.Index(workflow, "- name: Build and push the multi architecture image")
+	if publishedGuardAt < 0 || pushAt < 0 || publishedGuardAt > pushAt {
+		t.Errorf("%s: an already published release must be refused before the image is pushed", path)
+	}
+	// Running before checkout leaves gh no git remote to infer the repository from, so without GH_REPO
+	// every lookup fails and the check passes anything through.
+	if publishedGuardAt >= 0 && !strings.Contains(workflow[publishedGuardAt:], "GH_REPO:") {
+		t.Errorf("%s: the release lookup does not name the repository and cannot run before checkout", path)
+	}
+	if loginAt := strings.Index(workflow, "- name: Log in to the container registry"); loginAt >= 0 && publishedGuardAt > loginAt {
+		t.Errorf("%s: an already published release must be refused before the registry login", path)
+	}
 	unsafeReleaseCreate := `gh release create "$VERSION" --draft --notes-file dist/release-body.md ` +
 		`--title "$VERSION" || true`
 	if strings.Contains(workflow, unsafeReleaseCreate) {
