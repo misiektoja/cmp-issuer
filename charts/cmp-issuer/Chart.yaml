@@ -38,5 +38,50 @@ keywords:
   - x509
   - issuer
 
+## Artifact Hub reads these when it indexes the chart, and they are frozen once the version is
+## published, so a correction needs a new chart version. Images and maintainers are deliberately not
+## repeated here, since Artifact Hub takes those from the rendered templates and from the maintainers
+## field above. artifacthub.io/changes describes this release alone and is rewritten for the next one.
 annotations:
-  kubebuilder.io/generated-by: kubebuilder
+  artifacthub.io/category: security
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://misiektoja.github.io/cmp-issuer/
+    - name: Source
+      url: https://github.com/misiektoja/cmp-issuer
+    - name: Release notes
+      url: https://github.com/misiektoja/cmp-issuer/blob/main/RELEASE_NOTES.md
+    - name: Security policy
+      url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
+    - name: Issues
+      url: https://github.com/misiektoja/cmp-issuer/issues
+  artifacthub.io/crds: |
+    - kind: CMPIssuer
+      version: v1alpha1
+      name: cmpissuers.certmanager.misiektoja.github.io
+      displayName: CMP Issuer
+      description: Namespaced issuer that enrolls cert-manager certificates from one CMP server
+    - kind: CMPClusterIssuer
+      version: v1alpha1
+      name: cmpclusterissuers.certmanager.misiektoja.github.io
+      displayName: CMP Cluster Issuer
+      description: Cluster-wide issuer that reads its credentials from the controller namespace
+    - kind: CMPTransaction
+      version: v1alpha1
+      name: cmptransactions.certmanager.misiektoja.github.io
+      displayName: CMP Transaction
+      description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
+  artifacthub.io/changes: |
+    - kind: added
+      description: CMPv2 enrollment and renewal for cert-manager through CMPIssuer and CMPClusterIssuer
+    - kind: added
+      description: Mandatory CMP message protection with PasswordBasedMac or a certificate signature
+    - kind: added
+      description: Asynchronous enrollment polled to completion and resumable across a controller restart
+    - kind: added
+      description: Credential Secret reads bounded to the namespaces named in credentialNamespaces
+    - kind: added
+      description: Prometheus metrics for enrollment counts, durations and classified failures
+    - kind: added
+      description: Helm chart, self-contained installer manifest and air-gapped bundle install routes
