@@ -104,9 +104,7 @@ manifest, the bill of materials, the licence and notices, and an `INSTALL.txt` r
 commands below. The bill of materials travels with the bundle so a cluster with no route to the release
 page can still answer what the image was built from.
 
-It unpacks into `cmp-issuer-<version>-airgap/`, and every file inside carries the version too, so two
-releases can be unpacked side by side and a file copied out of either one still names the release it
-came from:
+It unpacks into `cmp-issuer-<version>-airgap/`:
 
 ```text
 cmp-issuer-<version>-airgap/
