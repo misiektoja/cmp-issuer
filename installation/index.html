@@ -1985,9 +1985,7 @@ cluster needs: the manager image as a multi-architecture OCI archive, the packag
 manifest, the bill of materials, the licence and notices, and an <code>INSTALL.txt</code> repeating the two
 commands below. The bill of materials travels with the bundle so a cluster with no route to the release
 page can still answer what the image was built from.</p>
-<p>It unpacks into <code>cmp-issuer-&lt;version&gt;-airgap/</code>, and every file inside carries the version too, so two
-releases can be unpacked side by side and a file copied out of either one still names the release it
-came from:</p>
+<p>It unpacks into <code>cmp-issuer-&lt;version&gt;-airgap/</code>:</p>
 <div class="highlight"><pre><span></span><code>cmp-issuer-&lt;version&gt;-airgap/
   images/cmp-issuer-&lt;version&gt;-image.tar    manager image as an OCI archive
   charts/cmp-issuer-&lt;chart version&gt;.tgz    packaged Helm chart
