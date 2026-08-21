@@ -45,6 +45,47 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "image=${REGISTRY}/${GITHUB_REPOSITORY}:${version}" >> "$GITHUB_OUTPUT"
 
+      - name: Refuse to rebuild a release that is already published
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This step runs before checkout, so there is no git remote for gh to infer the repository
+          # from and it would fail with "failed to run git" on every run. Naming the repository keeps
+          # that failure from being read as an absent release, which would disable the check below.
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.release.outputs.version }}
+        # This runs before checkout, before the registry login and before anything is pushed, because a
+        # release published by hand from the GitHub UI creates the tag and so starts this workflow. The
+        # publication step at the end reaches the same verdict, but only after the image and its
+        # provenance attestation are already live in the registry and cannot be withdrawn, which leaves
+        # a published release carrying no assets next to an image that is real. Failing here costs the
+        # ten seconds spent resolving the version.
+        run: |
+          # Only a release that is genuinely absent may be treated as absent. Any other gh failure,
+          # such as an authentication or an API error, stops the run rather than being taken for one.
+          if lookup="$(gh release view "$VERSION" --json isDraft --jq .isDraft 2>&1)"; then
+            case "$lookup" in
+              true) state=draft ;;
+              false) state=published ;;
+              *) echo "Unexpected release state for ${VERSION}: ${lookup}" >&2; exit 1 ;;
+            esac
+          elif printf '%s\n' "$lookup" | grep -q 'release not found'; then
+            state=missing
+          else
+            echo "Could not determine whether ${VERSION} is already released: ${lookup}" >&2
+            exit 1
+          fi
+          if [ "$state" = published ]; then
+            echo "Release ${VERSION} is already published and cannot be rebuilt." >&2
+            echo "Releases are built by pushing the tag, not by creating the release in the GitHub UI." >&2
+            echo "This workflow creates the release as a draft for you to review and publish." >&2
+            echo "To recover, delete the release and its tag, then push the tag again:" >&2
+            echo "  gh release delete ${VERSION} --cleanup-tag --yes" >&2
+            echo "  git push origin ${VERSION}" >&2
+            exit 1
+          fi
+          echo "state=${state}" >> "$GITHUB_OUTPUT"
+
       - name: Clone the code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -149,16 +190,16 @@ jobs:
       - name: Publish the release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_STATE: ${{ steps.existing.outputs.state }}
           VERSION: ${{ steps.release.outputs.version }}
+        # The state was settled before the build started, so the published case is already gone by the
+        # time this runs. Reusing that verdict rather than asking again keeps one definition of what a
+        # rebuild is allowed to do, and a release that appeared while the build was running is caught
+        # by --verify-tag and by the create call failing rather than being quietly overwritten.
         run: |
-          release_state="$(gh release view "$VERSION" --json isDraft --jq .isDraft 2>/dev/null || true)"
-          case "$release_state" in
-            true)
+          case "$RELEASE_STATE" in
+            draft)
               gh release edit "$VERSION" --draft --notes-file dist/release-body.md --title "$VERSION" --verify-tag
-              ;;
-            false)
-              echo "Release ${VERSION} is already published and cannot be rebuilt" >&2
-              exit 1
               ;;
             *)
               gh release create "$VERSION" --draft --notes-file dist/release-body.md --title "$VERSION" --verify-tag
