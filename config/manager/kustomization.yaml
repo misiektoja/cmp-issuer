@@ -3,6 +3,8 @@ resources:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
+# make build-installer overwrites this with the image the release publishes, so the value here only
+# applies to building or applying config/default straight from a clone.
 - name: controller
-  newName: example.com/cmp-issuer
-  newTag: v0.0.1
+  newName: ghcr.io/misiektoja/cmp-issuer
+  newTag: v0.1.0
