@@ -15,7 +15,7 @@ Each release publishes:
 | Artifact | Description |
 | --- | --- |
 | Container image | Multi-arch `linux/amd64` and `linux/arm64` on GitHub Container Registry |
-| Provenance attestation | SLSA-style build attestation for the image digest |
+| Provenance attestation | Signed Sigstore bundle for the image digest, pushed to GHCR and attached as `cmp-issuer-<version>-provenance.sigstore.json` |
 | Installer manifest | `dist/cmp-issuer-<version>-install.yaml` from Kustomize |
 | Helm chart | `dist/cmp-issuer-<chart version>.tgz`, packaged from `charts/cmp-issuer` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer-<version>-sbom.cdx.json` |
@@ -73,6 +73,7 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | `test.yml` | Unit tests and OpenSSL interoperability |
 | `lint.yml` | golangci-lint and actionlint |
 | `codeql.yml` | CodeQL static analysis of the Go code |
+| `scorecard.yml` | OpenSSF repository and supply chain checks, run after successful CodeQL analysis on `main` |
 | `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
 | `test-chart.yml` | Helm lint and a complete chart install for chart and build changes |
 | `test-e2e.yml` | Kind e2e suite on `dev` and `main`, once per supported Kubernetes and cert-manager version, plus EJBCA enrollment |
@@ -132,7 +133,7 @@ racing.
 
 Consumers can verify:
 
-* Image digest against the provenance attestation
+* Image digest against the provenance attestation in GHCR or the signed Sigstore bundle attached to the release
 * Module vulnerabilities with published SBOM and govulncheck results
 * Absence of leaked credentials via gitleaks history scan
 
