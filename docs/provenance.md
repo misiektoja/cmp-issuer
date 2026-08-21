@@ -25,7 +25,7 @@ Kubebuilder v4.15.0 generated the initial Go project layout. Kubernetes API deep
 
 ## Release artifacts
 
-A release publishes a multi-architecture manager image for `linux/amd64` and `linux/arm64` to the GitHub Container Registry. A build provenance attestation is generated for the published image digest and pushed alongside it, so a consumer can verify which workflow, commit and repository produced the image.
+A release publishes a multi-architecture manager image for `linux/amd64` and `linux/arm64` to the GitHub Container Registry. A signed build provenance attestation is generated for the published image digest and pushed alongside it, so a consumer can verify which workflow, commit and repository produced the image. The same Sigstore bundle is attached to the GitHub Release as `cmp-issuer-<version>-provenance.sigstore.json`, so verification does not depend on discovering the registry attachment.
 
 Each release also carries the installer manifest, the packaged Helm chart and a CycloneDX bill of materials generated from the Go module graph with license information. The air-gapped bundle carries the same bill of materials, so a cluster with no route to the release page can still audit what the image was built from.
 
@@ -40,6 +40,7 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 | Bill of materials | cyclonedx-gomod | Module graph with resolved licenses |
 | Container vulnerabilities | Trivy | Base image packages and the compiled manager binary, fixed findings only |
 | Static analysis | CodeQL | Go code, built with the toolchain named in `go.mod`, reported under code scanning |
+| Repository posture | OpenSSF Scorecard | Branch protection, workflow safety, dependency pinning and release provenance, reported after CodeQL completes on `main` |
 | Workflow definitions | actionlint | Trigger, expression and shell errors in the GitHub Actions workflows |
 | Workflow supply chain | `test/workflows` | Commit-SHA action pinning, least-privilege token scopes and no interpolated shell |
 | Toolchain currency | `go-patch.yml` | Newest Go patch in the release series `go.mod` targets |
@@ -48,8 +49,15 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 Pull requests run the inexpensive lint, vulnerable dependency and credential checks. Pushes to `dev`
 and `main` add the bill of materials and container scan. The weekly schedule repeats the complete supply
 chain set so vulnerabilities published after a change merged are still reported. CodeQL follows the
-trusted-branch and weekly schedule after the repository becomes public. Tool versions are pinned in the
-Makefile and GitHub Actions are pinned to commit digests.
+trusted-branch and weekly schedule after the repository becomes public. Scorecard follows each successful
+CodeQL run on `main`, so its SAST result is based on a completed analysis rather than a concurrent one.
+Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.
+
+The OSV module scan ignores `GO-2026-5932` through the reason recorded in `osv-scanner.toml`. The module
+graph needs `golang.org/x/crypto/cryptobyte` through `go-pkicmp-ng`, but it does not need or import the
+affected `golang.org/x/crypto/openpgp` package. The advisory has no fixed version and govulncheck reports
+no reachable vulnerable symbols, so the exception removes a module-level false positive without
+suppressing other advisories for `golang.org/x/crypto`.
 
 ## Dependency policy
 
