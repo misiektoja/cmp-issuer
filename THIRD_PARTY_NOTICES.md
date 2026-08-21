@@ -6,7 +6,7 @@ cmp-issuer original code is Apache-2.0. The project links to separately licensed
 
 | Component | Pinned version | License | Use |
 | --- | --- | --- | --- |
-| github.com/misiektoja/go-pkicmp-ng | `v0.0.0-20260820223730-7b790fd80fa6` | Apache-2.0 | CMP ASN.1 types, protection and parsing behind project-owned interfaces |
+| github.com/misiektoja/go-pkicmp-ng | `v0.0.2` | Apache-2.0 | CMP ASN.1 types, protection and parsing behind project-owned interfaces |
 | github.com/cert-manager/issuer-lib | v0.12.0 | Apache-2.0 | External issuer reconciliation, approval gates, status and retry contracts |
 | github.com/cert-manager/cert-manager | v1.21.1 | Apache-2.0 | cert-manager API types and annotation keys, used to read the certificate revision that separates a renewal from a first enrollment |
 | github.com/prometheus/client_golang | v1.23.2 | Apache-2.0 | Counter and histogram types for the enrollment metrics, registered on the controller-runtime metrics registry |
