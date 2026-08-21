@@ -1,0 +1,77 @@
+apiVersion: v1
+entries:
+  cmp-issuer:
+  - annotations:
+      artifacthub.io/category: security
+      artifacthub.io/changes: |
+        - kind: added
+          description: CMPv2 enrollment and renewal for cert-manager through CMPIssuer and CMPClusterIssuer
+        - kind: added
+          description: Mandatory CMP message protection with PasswordBasedMac or a certificate signature
+        - kind: added
+          description: Asynchronous enrollment polled to completion and resumable across a controller restart
+        - kind: added
+          description: Credential Secret reads bounded to the namespaces named in credentialNamespaces
+        - kind: added
+          description: Prometheus metrics for enrollment counts, durations and classified failures
+        - kind: added
+          description: Helm chart, self-contained installer manifest and air-gapped bundle install routes
+      artifacthub.io/crds: |
+        - kind: CMPIssuer
+          version: v1alpha1
+          name: cmpissuers.certmanager.misiektoja.github.io
+          displayName: CMP Issuer
+          description: Namespaced issuer that enrolls cert-manager certificates from one CMP server
+        - kind: CMPClusterIssuer
+          version: v1alpha1
+          name: cmpclusterissuers.certmanager.misiektoja.github.io
+          displayName: CMP Cluster Issuer
+          description: Cluster-wide issuer that reads its credentials from the controller namespace
+        - kind: CMPTransaction
+          version: v1alpha1
+          name: cmptransactions.certmanager.misiektoja.github.io
+          displayName: CMP Transaction
+          description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://misiektoja.github.io/cmp-issuer/
+        - name: Source
+          url: https://github.com/misiektoja/cmp-issuer
+        - name: Release notes
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/RELEASE_NOTES.md
+        - name: Security policy
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
+        - name: Issues
+          url: https://github.com/misiektoja/cmp-issuer/issues
+    apiVersion: v2
+    appVersion: v0.1.0
+    created: "2026-08-21T23:42:13.26045631Z"
+    description: Cert-manager external issuer for Certificate Management Protocol
+      (CMP) servers
+    digest: 7fecf2614244e51b7beba1a02f47f753173355e84d268bb21723a8448a1f2322
+    home: https://misiektoja.github.io/cmp-issuer/
+    icon: https://raw.githubusercontent.com/misiektoja/cmp-issuer/main/docs/assets/logo.svg
+    keywords:
+    - kubernetes
+    - operator
+    - cert-manager
+    - cmp
+    - cmpv2
+    - rfc4210
+    - pki
+    - certificates
+    - x509
+    - issuer
+    kubeVersion: '>= 1.31.0-0'
+    maintainers:
+    - name: misiektoja
+      url: https://github.com/misiektoja
+    name: cmp-issuer
+    sources:
+    - https://github.com/misiektoja/cmp-issuer
+    type: application
+    urls:
+    - https://github.com/misiektoja/cmp-issuer/releases/download/v0.1.0/cmp-issuer-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-08-21T23:42:13.259540228Z"
