@@ -248,7 +248,8 @@ func TestReleaseWorkflowBindsManualDispatchToTag(t *testing.T) {
 	if publishedGuardAt >= 0 && !strings.Contains(workflow[publishedGuardAt:], "GH_REPO:") {
 		t.Errorf("%s: the release lookup does not name the repository and cannot run before checkout", path)
 	}
-	if loginAt := strings.Index(workflow, "- name: Log in to the container registry"); loginAt >= 0 && publishedGuardAt > loginAt {
+	loginAt := strings.Index(workflow, "- name: Log in to the container registry")
+	if loginAt >= 0 && publishedGuardAt > loginAt {
 		t.Errorf("%s: an already published release must be refused before the registry login", path)
 	}
 	unsafeReleaseCreate := `gh release create "$VERSION" --draft --notes-file dist/release-body.md ` +
