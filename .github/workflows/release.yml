@@ -110,11 +110,18 @@ jobs:
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Attest the build provenance of the image
+        id: provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
           subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
+
+      - name: Stage the signed provenance for the release
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: cp "$PROVENANCE_BUNDLE" "dist/cmp-issuer-${VERSION}-provenance.sigstore.json"
 
       - name: Build the installer manifest
         env:
@@ -160,4 +167,4 @@ jobs:
           # Every asset is named after the release rather than matched by a glob, so a stale file left
           # in dist by an earlier run of this workflow cannot be attached to this one. The chart is the
           # exception to the v prefix, because a Helm chart version has to be bare SemVer.
-          gh release upload "$VERSION" "dist/cmp-issuer-${VERSION}-install.yaml" "dist/cmp-issuer-${VERSION}-sbom.cdx.json" "dist/cmp-issuer-${VERSION#v}.tgz" "dist/cmp-issuer-${VERSION}-airgap.tar.gz" --clobber
+          gh release upload "$VERSION" "dist/cmp-issuer-${VERSION}-install.yaml" "dist/cmp-issuer-${VERSION}-sbom.cdx.json" "dist/cmp-issuer-${VERSION}-provenance.sigstore.json" "dist/cmp-issuer-${VERSION#v}.tgz" "dist/cmp-issuer-${VERSION}-airgap.tar.gz" --clobber
