@@ -1,5 +1,5 @@
 # Publishes the manager image and the release artifacts.
-# The workflow is inert until a version tag is pushed or it is dispatched by hand.
+# The workflow is inert until a version tag is pushed or it is dispatched by hand for an existing tag.
 name: Release
 
 on:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish, for example v0.1.0"
+        description: "Existing version tag to publish, for example v0.1.0"
         required: true
         type: string
 
@@ -31,16 +31,6 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Clone the code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
       - name: Resolve the release version
         id: release
         env:
@@ -48,8 +38,35 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         run: |
           version="${DISPATCH_VERSION:-$REF_NAME}"
+          if ! printf '%s\n' "$version" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "Release version must be a stable SemVer tag such as v0.1.0, got ${version}" >&2
+            exit 1
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "image=${REGISTRY}/${GITHUB_REPOSITORY}:${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ steps.release.outputs.version }}
+
+      - name: Verify the release tag belongs to the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          tag_commit="$(git rev-list -n 1 "$VERSION")"
+          if ! git merge-base --is-ancestor "$tag_commit" "origin/${DEFAULT_BRANCH}"; then
+            echo "Release tag ${VERSION} is not reachable from ${DEFAULT_BRANCH}" >&2
+            exit 1
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
 
       - name: Build the release description from the release notes
         env:
@@ -127,7 +144,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          gh release create "$VERSION" --draft --notes-file dist/release-body.md --title "$VERSION" || true
+          release_state="$(gh release view "$VERSION" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          case "$release_state" in
+            true)
+              gh release edit "$VERSION" --draft --notes-file dist/release-body.md --title "$VERSION" --verify-tag
+              ;;
+            false)
+              echo "Release ${VERSION} is already published and cannot be rebuilt" >&2
+              exit 1
+              ;;
+            *)
+              gh release create "$VERSION" --draft --notes-file dist/release-body.md --title "$VERSION" --verify-tag
+              ;;
+          esac
           # Every asset is named after the release rather than matched by a glob, so a stale file left
           # in dist by an earlier run of this workflow cannot be attached to this one. The chart is the
           # exception to the v prefix, because a Helm chart version has to be bare SemVer.
