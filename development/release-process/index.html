@@ -1730,7 +1730,7 @@
 </tr>
 <tr>
 <td>Provenance attestation</td>
-<td>SLSA-style build attestation for the image digest</td>
+<td>Signed Sigstore bundle for the image digest, pushed to GHCR and attached as <code>cmp-issuer-&lt;version&gt;-provenance.sigstore.json</code></td>
 </tr>
 <tr>
 <td>Installer manifest</td>
@@ -1806,6 +1806,10 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 <tr>
 <td><code>codeql.yml</code></td>
 <td>CodeQL static analysis of the Go code</td>
+</tr>
+<tr>
+<td><code>scorecard.yml</code></td>
+<td>OpenSSF repository and supply chain checks, run after successful CodeQL analysis on <code>main</code></td>
 </tr>
 <tr>
 <td><code>docs.yml</code></td>
@@ -1885,7 +1889,7 @@ racing.</p>
 <h2 id="supply-chain-verification">Supply chain verification<a class="headerlink" href="#supply-chain-verification" title="Permanent link">&para;</a></h2>
 <p>Consumers can verify:</p>
 <ul>
-<li>Image digest against the provenance attestation</li>
+<li>Image digest against the provenance attestation in GHCR or the signed Sigstore bundle attached to the release</li>
 <li>Module vulnerabilities with published SBOM and govulncheck results</li>
 <li>Absence of leaked credentials via gitleaks history scan</li>
 </ul>
