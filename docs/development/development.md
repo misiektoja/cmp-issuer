@@ -97,10 +97,10 @@ The API is `v1alpha1` and may change before a stable release.
 
 CMP encoding and protection sit behind project-owned interfaces. Library types must not appear in CRDs or public packages. See [ADR 0001](../adr/0001-cmp-library.md).
 
-The library is [go-pkicmp-ng](https://github.com/misiektoja/go-pkicmp-ng), required like any other module, so no `replace` directive is involved and every build route resolves the same version. Advance the pin with:
+The library is [go-pkicmp-ng](https://github.com/misiektoja/go-pkicmp-ng), required like any other module, so no `replace` directive is involved and every build route resolves the same version. Pin a released tag rather than a commit, so `go.mod` names a published version instead of a pseudo-version. Advance the pin with:
 
 ```sh
-go get github.com/misiektoja/go-pkicmp-ng@<version>
+go get github.com/misiektoja/go-pkicmp-ng@vX.Y.Z
 go mod tidy
 ```
 
