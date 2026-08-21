@@ -39,6 +39,16 @@ const (
 	GrantedModificationsReject = "Reject"
 	// GrantedModificationsAccept accepts validated certificates with server modifications.
 	GrantedModificationsAccept = "Accept"
+	// PasswordBasedMacOWFSHA256 is the only one-way function the PasswordBasedMac suite accepts.
+	PasswordBasedMacOWFSHA256 = "SHA256"
+	// PasswordBasedMacMACHMACSHA256 is the only message authentication algorithm the suite accepts.
+	PasswordBasedMacMACHMACSHA256 = "HMACSHA256"
+	// PasswordBasedMacIterationCountDefault is the iteration count applied when the algorithm block is omitted.
+	PasswordBasedMacIterationCountDefault int32 = 1024
+	// PasswordBasedMacIterationCountMinimum is the lowest iteration count the suite accepts.
+	PasswordBasedMacIterationCountMinimum int32 = 100
+	// PasswordBasedMacIterationCountMaximum is the highest iteration count the suite accepts.
+	PasswordBasedMacIterationCountMaximum int32 = 1048575
 )
 
 // CMPIssuerSpec defines the desired CMP endpoint, protection and transaction policy.
@@ -167,6 +177,7 @@ type PasswordBasedMacSpec struct {
 	// +required
 	SecretKey string `json:"secretKey"`
 	// Algorithm configures PasswordBasedMac parameters without downgrade behavior.
+	// +kubebuilder:default={owf:SHA256,mac:HMACSHA256,iterationCount:1024}
 	// +optional
 	Algorithm PasswordBasedMacAlgorithmSpec `json:"algorithm,omitempty"`
 }
