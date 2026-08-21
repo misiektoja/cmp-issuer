@@ -4,8 +4,10 @@
 # minor updates. Major updates stay separate, because they need their own validation run: an issuer-lib
 # bump is a behavioral change to the signing contract.
 #
-# go-pkicmp is not covered here at all. It is redirected by a `replace` directive in go.mod, which
-# Dependabot does not update, so its pin is advanced by hand. See docs/adr/0001-cmp-library.md.
+# go-pkicmp-ng is an ordinary requirement pinned to a released version, so it rides in the
+# go-minor-and-patch group with everything else. Review its bump on its own merits rather than as part
+# of the group: it sits directly in the CMP verification path, so it needs an enrollment against a real
+# server and not unit tests alone. See docs/adr/0001-cmp-library.md.
 version: 2
 
 updates:
