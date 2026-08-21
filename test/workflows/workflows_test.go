@@ -177,7 +177,35 @@ func TestWorkflowsDeclareTopLevelPermissions(t *testing.T) {
 	}
 }
 
-// TestReleaseWorkflowBindsManualDispatchToTag keeps release artifacts tied to an existing tag on the default branch
+// TestScorecardFollowsSuccessfulCodeQL keeps the published SAST result behind the analysis it measures.
+func TestScorecardFollowsSuccessfulCodeQL(t *testing.T) {
+	path := filepath.Join(workflowDir, "scorecard.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	workflow := string(content)
+	required := []struct {
+		text   string
+		reason string
+	}{
+		{"workflow_run:", "Scorecard does not follow another workflow"},
+		{"workflows: [CodeQL]", "Scorecard does not follow CodeQL"},
+		{"types: [completed]", "Scorecard can start before CodeQL completes"},
+		{"branches: [main]", "Scorecard follows CodeQL outside the default branch"},
+		{"github.event.workflow_run.conclusion == 'success'", "Scorecard publishes after a failed CodeQL run"},
+	}
+	for _, check := range required {
+		if !strings.Contains(workflow, check.text) {
+			t.Errorf("%s: %s", path, check.reason)
+		}
+	}
+	if strings.Contains(workflow, "\n  push:\n") {
+		t.Errorf("%s: Scorecard still races CodeQL on a direct push trigger", path)
+	}
+}
+
+// TestReleaseWorkflowBindsManualDispatchToTag keeps release artifacts tied to an existing tag on the default branch.
 func TestReleaseWorkflowBindsManualDispatchToTag(t *testing.T) {
 	path := filepath.Join(workflowDir, "release.yml")
 	content, err := os.ReadFile(path)
@@ -193,6 +221,9 @@ func TestReleaseWorkflowBindsManualDispatchToTag(t *testing.T) {
 		{"fetch-depth: 0", "checkout does not fetch the default branch history needed for the ancestry check"},
 		{"git merge-base --is-ancestor", "the release tag is not checked against the default branch"},
 		{"--verify-tag", "release publication can create a missing tag"},
+		{"id: provenance", "the provenance bundle cannot be referenced by later release steps"},
+		{"steps.provenance.outputs.bundle-path", "the signed provenance bundle is not staged"},
+		{"cmp-issuer-${VERSION}-provenance.sigstore.json", "the signed provenance bundle is not a release asset"},
 	}
 	for _, check := range required {
 		if !strings.Contains(workflow, check.text) {
