@@ -51,6 +51,24 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "image=${REGISTRY}/${GITHUB_REPOSITORY}:${version}" >> "$GITHUB_OUTPUT"
 
+      - name: Build the release description from the release notes
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        # The GitHub release body is the section RELEASE_NOTES.md already carries for this version,
+        # rather than the pull request list --generate-notes assembles. This runs before the image is
+        # published so a missing or renamed section fails the release while retagging is still cheap.
+        run: |
+          mkdir -p dist
+          awk -v want="## [${VERSION#v}]" '
+            index($0, want) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' RELEASE_NOTES.md | sed '/./,$!d' > dist/release-body.md
+          if ! grep -q '[^[:space:]]' dist/release-body.md; then
+            echo "RELEASE_NOTES.md carries no ## [${VERSION#v}] section to publish as the release description" >&2
+            exit 1
+          fi
+
       - name: Log in to the container registry
         env:
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,7 +127,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          gh release create "$VERSION" --draft --generate-notes --title "$VERSION" || true
+          gh release create "$VERSION" --draft --notes-file dist/release-body.md --title "$VERSION" || true
           # Every asset is named after the release rather than matched by a glob, so a stale file left
           # in dist by an earlier run of this workflow cannot be attached to this one. The chart is the
           # exception to the v prefix, because a Helm chart version has to be bare SemVer.
