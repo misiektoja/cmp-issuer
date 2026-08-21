@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.1.0] - TBD
+## [0.1.0] - 21 Aug 2026
 
 First release of cmp-issuer, a vendor-neutral cert-manager external issuer that speaks CMPv2 directly to a certificate authority. Point a cert-manager `Certificate` at a `CMPIssuer` or `CMPClusterIssuer` and cert-manager generates the private key and the PKCS #10 request, cmp-issuer enrolls it over CMP as a **P10CR** and the issued certificate is written to the usual TLS Secret, so workloads that already consume cert-manager Secrets need no change. **Renewal takes the same path**, a fresh P10CR rather than a CMP Key Update Request. Every CMP message is authenticated in both directions, with a shared secret or a certificate signature, over HTTP or HTTPS. Authorities that queue requests or require manual approval are polled to completion. An enrollment interrupted by a controller restart resumes under its original transaction instead of starting a second one. Issuance was verified end to end against **Nokia NCM 26.7** and **EJBCA Community Edition 9.3.7**. Runs on Kubernetes v1.34 to v1.36 with cert-manager v1.19 to v1.21. Licensed under Apache-2.0.
 
