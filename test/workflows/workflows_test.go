@@ -176,3 +176,37 @@ func TestWorkflowsDeclareTopLevelPermissions(t *testing.T) {
 		}
 	}
 }
+
+// TestReleaseWorkflowBindsManualDispatchToTag keeps release artifacts tied to an existing tag on the default branch
+func TestReleaseWorkflowBindsManualDispatchToTag(t *testing.T) {
+	path := filepath.Join(workflowDir, "release.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	workflow := string(content)
+	required := []struct {
+		text   string
+		reason string
+	}{
+		{`ref: ${{ steps.release.outputs.version }}`, "checkout does not target the resolved release tag"},
+		{"fetch-depth: 0", "checkout does not fetch the default branch history needed for the ancestry check"},
+		{"git merge-base --is-ancestor", "the release tag is not checked against the default branch"},
+		{"--verify-tag", "release publication can create a missing tag"},
+	}
+	for _, check := range required {
+		if !strings.Contains(workflow, check.text) {
+			t.Errorf("%s: %s", path, check.reason)
+		}
+	}
+	resolveAt := strings.Index(workflow, "- name: Resolve the release version")
+	checkoutAt := strings.Index(workflow, "- name: Clone the code")
+	if resolveAt < 0 || checkoutAt < 0 || resolveAt > checkoutAt {
+		t.Errorf("%s: release version must be resolved before checkout", path)
+	}
+	unsafeReleaseCreate := `gh release create "$VERSION" --draft --notes-file dist/release-body.md ` +
+		`--title "$VERSION" || true`
+	if strings.Contains(workflow, unsafeReleaseCreate) {
+		t.Errorf("%s: release creation errors are ignored", path)
+	}
+}
