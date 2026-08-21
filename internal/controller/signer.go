@@ -625,7 +625,8 @@ func validateProtection(spec cmpv1alpha1.ProtectionSpec) error {
 		if password.ReferenceKey == "" || password.SecretKey == "" || password.ReferenceKey == password.SecretKey {
 			return fmt.Errorf("passwordBasedMac reference and secret must use separate Secret keys")
 		}
-		if password.Algorithm.OWF != "SHA256" || password.Algorithm.MAC != "HMACSHA256" || password.Algorithm.IterationCount < 100 || password.Algorithm.IterationCount > 1048575 {
+		if password.Algorithm.OWF != cmpv1alpha1.PasswordBasedMacOWFSHA256 || password.Algorithm.MAC != cmpv1alpha1.PasswordBasedMacMACHMACSHA256 ||
+			password.Algorithm.IterationCount < cmpv1alpha1.PasswordBasedMacIterationCountMinimum || password.Algorithm.IterationCount > cmpv1alpha1.PasswordBasedMacIterationCountMaximum {
 			return fmt.Errorf("unsupported passwordBasedMac algorithm parameters")
 		}
 	case cmpv1alpha1.ProtectionTypeSignature:
