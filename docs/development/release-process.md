@@ -8,6 +8,35 @@ This page describes how a release is built, published and indexed.
 
 Check the latest published GitHub Release on the default branch before choosing the next version.
 
+## Publishing a release
+
+A release is started by pushing a version tag that is reachable from the default branch, and by nothing
+else:
+
+```bash
+git push origin v0.1.0
+```
+
+`release.yml` builds every artifact, then creates the GitHub Release **as a draft**. Review that draft
+and publish it by hand. Publishing it is what indexes the chart, because `publish-chart.yml` triggers on
+a published release.
+
+**Never draft a new release from the GitHub UI.** Doing so creates the tag, which starts `release.yml`
+against a release that is already published. The workflow refuses before it checks out the code or logs
+in to the registry, so nothing is pushed and recovery is cheap, but the release and its tag have to be
+removed before the tag can be pushed properly:
+
+```bash
+gh release delete v0.1.0 --cleanup-tag --yes
+```
+
+Publishing the draft that `release.yml` leaves for you is a different action and is the correct final
+step. The hazard is only in drafting a new release yourself.
+
+To rebuild a release whose draft has not been published yet, re-run the workflow or dispatch it with the
+same tag. It refreshes the description and replaces the assets. A release that is already published is
+never rebuilt, since its image and provenance attestation are in the registry and cannot be withdrawn.
+
 ## Release artifacts
 
 Each release publishes:
@@ -127,7 +156,8 @@ racing.
    published, so a correction needs a new chart version
 5. Point `config/manager/kustomization.yaml` at the image the release will publish, which is what a
    clone applies when it has not run `make build-installer`
-6. Tag and push only when authorized to publish
+6. Tag and push only when authorized to publish, and never create the release from the GitHub UI. See
+   [Publishing a release](#publishing-a-release)
 
 ## Supply chain verification
 
