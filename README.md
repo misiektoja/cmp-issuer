@@ -8,7 +8,7 @@
 [![Tests](https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/test.yml)
 [![E2E Tests](https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/test-e2e.yml)
 [![Supply chain](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml/badge.svg?branch=main)](https://github.com/misiektoja/cmp-issuer/actions/workflows/supply-chain.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/misiektoja/cmp-issuer/badge)](https://scorecard.dev/viewer/?uri=github.com/misiektoja/cmp-issuer)
+[![OpenSSF Scorecard](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.scorecard.dev%2Fprojects%2Fgithub.com%2Fmisiektoja%2Fcmp-issuer%3Fbadge_cache%3D20260822&query=%24.score&label=openssf%20scorecard&style=flat-square)](https://scorecard.dev/viewer/?uri=github.com/misiektoja/cmp-issuer)
 
 cmp-issuer is a vendor-neutral cert-manager external issuer for Certificate Management Protocol (CMP)
 servers.
