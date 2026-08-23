@@ -25,6 +25,7 @@ Key directories:
 | `docs/` | MkDocs site |
 | `test/e2e/` | Kind-based controller tests |
 | `test/e2e/ejbca/` | Preconfigured CMP server image that the enrollment tests start |
+| `test/repository/` | Repository metadata and whitespace contracts |
 | `test/workflows/` | Supply chain checks over the GitHub Actions workflow definitions |
 
 ## Common commands
@@ -47,6 +48,19 @@ make clean           # Remove build, test and documentation outputs
 After editing `*_types.go` run `make manifests generate`. After editing Go sources run `make lint-fix test`.
 
 `make lint` lints the GitHub Actions workflows as well, so a mistyped trigger or a bad expression is reported before a push rather than by a workflow run that has already started. `lint-fix` and `lint-config` stay Go-only. actionlint runs shellcheck over `run:` blocks when shellcheck is on PATH, which it is on the GitHub-hosted runners, so install it locally to see the same findings CI does.
+
+## Editor settings and local hooks
+
+[`.editorconfig`](https://github.com/misiektoja/cmp-issuer/blob/main/.editorconfig) records the measured repository style: UTF-8 and LF throughout, tabs for Go and Make recipes plus two-space indentation for YAML, TOML, shell and the other structured text files. It also preserves meaningful Markdown trailing spaces and the verbatim `LICENSE` text.
+
+The optional [pre-commit configuration](https://github.com/misiektoja/cmp-issuer/blob/main/.pre-commit-config.yaml) checks those whitespace rules, YAML, TOML, merge markers, file size and private keys. It deliberately uses no Go hook, so enabling it does not download or build a second Go toolchain:
+
+```bash
+pre-commit install
+pre-commit run --all-files
+```
+
+`make lint` remains the authoritative local equivalent of the CI lint job.
 
 ## Local controller
 
