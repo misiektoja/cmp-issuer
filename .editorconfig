@@ -1,0 +1,38 @@
+# EditorConfig keeps the measured repository style consistent across editors: https://editorconfig.org
+# These rules describe the files already in this repository.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# gofmt uses tabs for indentation and an eight-column tab width
+[*.go]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+
+# Go module requirements are tab-indented too
+[go.mod]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+
+# Make recipes require tabs
+[Makefile]
+indent_style = tab
+indent_size = tab
+
+# Two trailing spaces are a line break in Markdown, so leave them alone
+[*.md]
+trim_trailing_whitespace = false
+
+# Verbatim upstream text that must never be reformatted
+[LICENSE]
+insert_final_newline = unset
+trim_trailing_whitespace = unset
