@@ -258,3 +258,46 @@ func TestReleaseWorkflowBindsManualDispatchToTag(t *testing.T) {
 		t.Errorf("%s: release creation errors are ignored", path)
 	}
 }
+
+// TestReleaseWorkflowPublishesChecksumsAndArtifactProvenance keeps every downloadable payload verifiable.
+func TestReleaseWorkflowPublishesChecksumsAndArtifactProvenance(t *testing.T) {
+	path := filepath.Join(workflowDir, "release.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	workflow := string(content)
+	required := []struct {
+		text   string
+		reason string
+	}{
+		{"make release-checksums", "the release does not build source archives and checksums"},
+		{"_SHA256SUMS.txt", "the checksum manifest is not uploaded"},
+		{"subject-path:", "release artifacts have no provenance subjects"},
+		{"-source.zip", "the source ZIP is not uploaded or attested"},
+		{"-source.tar.gz", "the source tar archive is not uploaded or attested"},
+	}
+	for _, check := range required {
+		if !strings.Contains(workflow, check.text) {
+			t.Errorf("%s: %s", path, check.reason)
+		}
+	}
+	if strings.Count(workflow, "actions/attest-build-provenance@") < 2 {
+		t.Errorf("%s: image and release artifacts do not each receive provenance", path)
+	}
+	makefile, err := os.ReadFile("../../Makefile")
+	if err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
+	for _, command := range []string{"git archive --format=zip", "git archive --format=tar.gz", "sha256sum"} {
+		if !strings.Contains(string(makefile), command) {
+			t.Errorf("Makefile: release-checksums is missing %q", command)
+		}
+	}
+	checksumsAt := strings.Index(workflow, "- name: Build complete source archives and release checksums")
+	attestationAt := strings.Index(workflow, "- name: Attest the release artifacts' build provenance")
+	uploadAt := strings.Index(workflow, "- name: Publish the release assets")
+	if checksumsAt < 0 || attestationAt < checksumsAt || uploadAt < attestationAt {
+		t.Errorf("%s: archives, checksums, attestation and upload are not ordered safely", path)
+	}
+}
