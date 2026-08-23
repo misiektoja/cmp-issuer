@@ -45,10 +45,16 @@ Each release publishes:
 | --- | --- |
 | Container image | Multi-arch `linux/amd64` and `linux/arm64` on GitHub Container Registry |
 | Provenance attestation | Signed Sigstore bundle for the image digest, pushed to GHCR and attached as `cmp-issuer-<version>-provenance.sigstore.json` |
+| Source archives | Complete repository as `cmp-issuer-<version>-source.zip` and `cmp-issuer-<version>-source.tar.gz`, including tests, documentation and CI configuration |
 | Installer manifest | `dist/cmp-issuer-<version>-install.yaml` from Kustomize |
 | Helm chart | `dist/cmp-issuer-<chart version>.tgz`, packaged from `charts/cmp-issuer` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer-<version>-sbom.cdx.json` |
 | Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz`, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the bill of materials, the notices and an `INSTALL.txt` |
+| Checksums | SHA-256 manifest at `cmp-issuer-<version>_SHA256SUMS.txt` covering every attached payload |
+
+GitHub build provenance attestations cover the installer, chart, SBOM, air-gapped bundle, both source
+archives and the checksum manifest. Verify one with `gh attestation verify <file> --repo
+misiektoja/cmp-issuer`. The image has its separate registry attestation and attached Sigstore bundle.
 
 The image is pushed and exported to the OCI archive by a single `make docker-release` build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
@@ -63,6 +69,10 @@ releases can share a file name and a file copied out of `dist` still says which 
 ```bash
 make docker-archive IMG=ghcr.io/misiektoja/cmp-issuer:v0.1.0 VERSION=v0.1.0
 ```
+
+After the other payloads have been built, `make release-checksums VERSION=<version>` creates both
+complete source archives and the checksum manifest. The release workflow runs it before requesting
+artifact provenance and uploading the exact release-named files.
 
 The names come from one block at the top of the supply chain section of the `Makefile`, so a new
 artifact is named alongside the existing ones rather than inline in the target that writes it. Two of
@@ -164,6 +174,7 @@ racing.
 Consumers can verify:
 
 * Image digest against the provenance attestation in GHCR or the signed Sigstore bundle attached to the release
+* Release payloads against `cmp-issuer-<version>_SHA256SUMS.txt` and their GitHub build provenance attestations
 * Module vulnerabilities with published SBOM and govulncheck results
 * Absence of leaked credentials via gitleaks history scan
 
