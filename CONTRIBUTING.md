@@ -4,7 +4,7 @@ cmp-issuer is a cert-manager external issuer for CMP servers. Bug reports, inter
 
 ## Before contributing
 
-Read [docs/provenance.md](docs/provenance.md) and [docs/security/threat-model.md](docs/security/threat-model.md). Contribute only code you have the right to license under Apache-2.0, and record any source that materially influenced protocol code in the provenance page.
+Read [docs/provenance.md](docs/provenance.md) and [docs/security/threat-model.md](docs/security/threat-model.md). [SUPPORT.md](SUPPORT.md) lists where usage questions and bug reports belong. Contribute only code you have the right to license under Apache-2.0, and record any source that materially influenced protocol code in the provenance page.
 
 Never commit credentials, private keys, protected CMP messages, full CSRs or non-public PKI documentation. Keep scratch files and local test state out of commits.
 
@@ -26,3 +26,16 @@ make docs-build
 Protocol changes need negative tests and an RFC citation. Interoperability claims need sanitized evidence naming the product and version.
 
 Every change must comply with the Developer Certificate of Origin 1.1. Use `git commit -s` only when you intend to provide that certification.
+
+## Code style and local hooks
+
+[.editorconfig](.editorconfig) records the whitespace rules the repository already follows: UTF-8, LF line endings, a final newline, no trailing whitespace, tabs for Go and Make recipes plus two-space indentation for the structured configuration and shell files. Markdown keeps meaningful trailing spaces and `LICENSE` remains verbatim. Most editors apply these settings automatically, while a few need a plugin.
+
+Optional local hooks enforce the same whitespace rules, validate YAML and TOML and reject private keys without installing a Go toolchain:
+
+```bash
+pre-commit install
+pre-commit run --all-files
+```
+
+Install [pre-commit](https://pre-commit.com/) first. CI remains authoritative for golangci-lint, actionlint and the full gitleaks history scan.
