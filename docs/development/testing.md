@@ -37,6 +37,12 @@ interpolates a `${{ }}` expression into a `run:` block instead of passing the va
 that adds a workflow with no top-level `permissions` key. These are the conventions every workflow here
 already follows, and nothing else enforces them.
 
+`test/repository` checks the repository itself: governance and support files, citation identity and its
+released version, EditorConfig settings, tracked-file whitespace, Git line-ending and binary rules plus
+the toolchain-free pre-commit hooks. The workflow suite separately requires release source archives,
+checksums and signed build provenance. These checks keep metadata changes reviewable through the same
+`make test` command as the Go behavior.
+
 ## OpenSSL CMP interoperability
 
 CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
