@@ -1,0 +1,24 @@
+# Optional local hooks catch repository hygiene problems before a commit is written.
+# After installing pre-commit, enable them with `pre-commit install` and check the whole repository
+# with `pre-commit run --all-files`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # The whitespace rules .editorconfig declares and the test suite enforces
+      - id: trailing-whitespace
+        # Two trailing spaces are a Markdown line break and LICENSE is verbatim upstream text
+        exclude: '\.md$|^LICENSE$'
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+        # Helm templates contain Go template expressions rather than standalone YAML
+        exclude: '^charts/cmp-issuer/templates/.*\.ya?ml$'
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      # A private key must never reach a commit. The full gitleaks history scan stays in CI,
+      # where it needs no Go toolchain on a contributor's machine
+      - id: detect-private-key
