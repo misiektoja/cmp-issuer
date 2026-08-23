@@ -31,6 +31,11 @@ Each release also carries the installer manifest, the packaged Helm chart and a 
 
 An air-gapped bundle is attached too, carrying the same image as an OCI archive next to the chart and the installer. It is exported by the build that pushes the image, not rebuilt afterwards, so the digest inside the archive is the digest the attestation covers. See [installing without registry access](installation.md#install-without-registry-access).
 
+Release-named ZIP and tar archives contain the complete source repository, including tests,
+documentation and CI configuration. A SHA-256 manifest covers every attached payload. GitHub build
+provenance attestations cover the installer, chart, SBOM, air-gapped bundle, source archives and
+checksum manifest, so each can be tied back to the tagged workflow run independently of the image.
+
 ## Supply chain checks
 
 | Check | Tool | Scope |
@@ -43,6 +48,7 @@ An air-gapped bundle is attached too, carrying the same image as an OCI archive 
 | Repository posture | OpenSSF Scorecard | Branch protection, workflow safety, dependency pinning and release provenance, reported after CodeQL completes on `main` |
 | Workflow definitions | actionlint | Trigger, expression and shell errors in the GitHub Actions workflows |
 | Workflow supply chain | `test/workflows` | Commit-SHA action pinning, least-privilege token scopes and no interpolated shell |
+| Repository metadata | `test/repository` | Governance files, citation release binding, editor rules, tracked text hygiene and local hook policy |
 | Toolchain currency | `go-patch.yml` | Newest Go patch in the release series `go.mod` targets |
 | Documentation | MkDocs strict mode | Broken links, unresolved anchors and omitted files |
 
