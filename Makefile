@@ -228,9 +228,16 @@ IMAGE_PLATFORMS ?= dist/cmp-issuer-$(VERSION)-image-platforms.txt
 INSTALLER_MANIFEST ?= dist/cmp-issuer-$(VERSION)-install.yaml
 ## Packaged Helm chart, written by helm package rather than by a target here
 CHART_ARCHIVE ?= dist/cmp-issuer-$(CHART_VERSION).tgz
+## Signed image provenance bundle staged from the GitHub attestation action
+PROVENANCE_BUNDLE ?= dist/cmp-issuer-$(VERSION)-provenance.sigstore.json
 ## Air-gapped bundle, and the directory it unpacks to, which carries the same name as the archive
 BUNDLE_DIR = cmp-issuer-$(VERSION)-airgap
 BUNDLE_ARCHIVE = dist/$(BUNDLE_DIR).tar.gz
+## Complete source archives built from the release tag
+SOURCE_ZIP ?= dist/cmp-issuer-$(VERSION)-source.zip
+SOURCE_TAR_GZ ?= dist/cmp-issuer-$(VERSION)-source.tar.gz
+## SHA-256 manifest covering every payload attached to the GitHub Release
+RELEASE_CHECKSUMS ?= dist/cmp-issuer-$(VERSION)_SHA256SUMS.txt
 
 ## SBOM_VERSION names the bill of materials. The routine supply chain run publishes one for a commit
 ## rather than for a release, so it falls back to the commit description instead of to a name that
@@ -282,6 +289,16 @@ sbom: cyclonedx-gomod ## Generate a CycloneDX software bill of materials for the
 	mkdir -p dist
 	"$(CYCLONEDX_GOMOD)" mod -licenses -json -output "$(SBOM_FILE)" .
 	@echo "Wrote $(SBOM_FILE)"
+
+.PHONY: release-source-archives
+release-source-archives: require-version ## Archive the complete tagged source tree as ZIP and tar. Specify VERSION.
+	mkdir -p dist
+	git archive --format=zip --output "$(SOURCE_ZIP)" "$(VERSION)"
+	git archive --format=tar.gz --output "$(SOURCE_TAR_GZ)" "$(VERSION)"
+
+.PHONY: release-checksums
+release-checksums: release-source-archives ## Write SHA-256 checksums for every release payload. Specify VERSION.
+	cd dist && sha256sum "$(notdir $(INSTALLER_MANIFEST))" "$(notdir $(SBOM_FILE))" "$(notdir $(PROVENANCE_BUNDLE))" "$(notdir $(CHART_ARCHIVE))" "$(notdir $(BUNDLE_ARCHIVE))" "$(notdir $(SOURCE_ZIP))" "$(notdir $(SOURCE_TAR_GZ))" | tee "$(notdir $(RELEASE_CHECKSUMS))"
 
 # TRIVY_IMAGE runs the scanner as a container so no scanner binary has to be installed.
 TRIVY_IMAGE ?= aquasec/trivy:0.74.0
