@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.1] - TBD
+
+Repository metadata and release downloads are now self-checking, with citation and support routes for users plus consistent editor and local hook settings for contributors.
+
+### Project maintenance
+
+* **Cite a published cmp-issuer release** - `CITATION.cff` supplies GitHub's citation widget and stays tied by test to the newest dated release notes section.
+* **Find the right support channel** - `SUPPORT.md` routes questions, bug reports, feature requests and private vulnerability reports, with the sanitized deployment details to collect first.
+* **Use the repository's measured editor style** - `.editorconfig` declares LF and UTF-8 throughout, tabs for Go and Make recipes plus two-space indentation for structured configuration and shell files. Optional pre-commit hooks enforce text hygiene and reject private keys without requiring a Go toolchain.
+* **Verify every release download** - Release builds add complete ZIP and tar source archives, a SHA-256 manifest for every attached payload and GitHub build provenance attestations for the downloadable artifacts.
+
 ## [0.1.0] - 22 Aug 2026
 
 The first release of **cmp-issuer**, a vendor-neutral cert-manager external issuer that speaks CMPv2 directly to a certificate authority.
