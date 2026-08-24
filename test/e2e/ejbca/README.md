@@ -45,6 +45,8 @@ hostname.
 | Administration authority | `ManagementCA`, which signs the TLS server certificate and the registration certificate |
 | CMP alias `cmpissuerpbm` | RA mode, requests protected with a shared secret, responses signed by the issuing authority |
 | CMP alias `cmpissuersig` | RA mode, requests protected with a certificate signature |
+| CMP alias `cmpissuerkurinit` | Client mode, initial P10CR protected with a shared secret |
+| CMP alias `cmpissuerkur` | Client mode, KUR protected by the certificate being updated with automatic key update enabled and KUP `caPubs` disabled |
 | `/opt/keyfactor/cmp-issuer-e2e` | trust anchors, registration credential, alias names and the shared secret, which the specs read from the running container |
 
 Both aliases keep the EJBCA default of `responseprotection` `signature`, so the issuing authority signs
@@ -56,10 +58,11 @@ Two authorities rather than one is deliberate. The authority that signs CMP resp
 authority that signed the endpoint TLS certificate, so a run proves that the two trust decisions stay
 separate instead of passing because one anchor happens to cover both.
 
-The aliases are configured in RA mode. In client mode EJBCA leaves an end entity in status `GENERATED`
-after issuance and refuses the next request for it, which would make every repeated run depend on an
-administrative reset first. In RA mode the server registers the end entity from the request, so the
-same subject can enroll as often as a run needs.
+The ordinary P10CR aliases are configured in RA mode. EJBCA registers the end entity from each request,
+so the same subject can enroll as often as a run needs. Two fixed client-mode end entities exercise
+true KUR. Their initial P10CR goes through the HMAC alias and their next cert-manager revision goes
+through the certificate-authenticated key-update alias without an administrative reset. One rotates
+its key while the other reuses it.
 
 The shared secret and the registration key travel inside a published image and protect nothing but a
 throwaway authority whose signing key was generated in that same image. They are fixtures, not
