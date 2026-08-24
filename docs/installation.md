@@ -69,7 +69,7 @@ helm install cmp-issuer ./charts/cmp-issuer \
 | `crd.keep` | Keep the CRDs when the release is uninstalled, default `true` |
 | `certManagerApproval.create` | Let cert-manager approve requests for this issuer type, default `true` |
 | `certManagerApproval.serviceAccountName` and `.namespace` | Where cert-manager runs, default `cert-manager` in `cert-manager` |
-| `credentialNamespaces` | Namespaces to pre-authorize for `CMPIssuer` credential reads, default empty |
+| `credentialNamespaces` | Namespaces to pre-authorize for issuer credentials and KUR workload key reads, default empty |
 | `serviceAccount.enabled` and `.name` | Create the default ServiceAccount or use the required existing name when creation is disabled |
 | `logging.level`, `.stacktraceLevel`, `.encoder` | Controller log verbosity, stack traces and format |
 
