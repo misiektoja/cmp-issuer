@@ -4,7 +4,7 @@ Behavior to plan around in the current release. Each item states what is not cov
 
 ## Transaction durability
 
-cmp-issuer records the transaction identifier, issuer and credential configuration identity and the issued chain in `CMPTransaction`, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.
+cmp-issuer records the operation, transaction identifier, issuer and Secret configuration identity plus the issued chain in `CMPTransaction`, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.
 
 ### A lost enrollment response cannot be recovered
 
@@ -23,7 +23,8 @@ A transaction that obtained a certificate keeps its record, including the issued
 | Limitation | Status |
 | --- | --- |
 | IR and CRMF | Planned |
-| KUR | Planned |
+| KUR with a changed subject or SAN | Unsupported by design. Use P10CR where the server permits re-enrollment or wait for planned CR support |
+| KUR after the old certificate expires | Unsupported by RFC profile requirements. Renew while it is still valid |
 | PBMAC1 | Planned |
 | mTLS to the CMP endpoint | Planned |
 | CMPv3 | Planned |
