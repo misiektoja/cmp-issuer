@@ -186,7 +186,7 @@ logging:
   # Log format. 'json' suits log collectors, 'console' is easier to read by eye.
   encoder: json
 
-## Namespaces whose CMPIssuer credential and trust Secrets the controller may read.
+## Namespaces whose CMPIssuer credentials or KUR workload Secrets the controller may read.
 ##
 ## The controller has no cluster-wide Secret access. Each namespace hosting a CMPIssuer needs a
 ## RoleBinding granting it the credential reader role there, and listing the namespace here creates
@@ -196,7 +196,9 @@ logging:
 ## the project is built around, so this is a convenience for namespaces you already decided on rather
 ## than a default. Each namespace must exist before the release is installed or upgraded.
 ##
-## A CMPClusterIssuer does not need this. It reads credentials only from the release namespace.
+## A CMPClusterIssuer using P10CR does not need this. It reads credentials only from the release
+## namespace. A CMPClusterIssuer using KUR needs each workload namespace listed here so the controller
+## can read the authenticated current and staged key Secrets.
 ##
 ## Requires rbac.namespaced to be false, because a RoleBinding in another namespace cannot reference
 ## a Role that lives in this one.
