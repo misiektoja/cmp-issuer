@@ -29,7 +29,6 @@ Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or 
 * [Issue your first certificate](#issue-your-first-certificate)
 * [How it works](#how-it-works)
 * [Documentation](#documentation)
-* [Citation](#citation)
 * [Support](#support)
 * [License](#license)
 
@@ -203,10 +202,6 @@ Full documentation is at
 * [Troubleshooting](https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/)
 * [Known limitations](https://misiektoja.github.io/cmp-issuer/known-limitations/)
 * [Threat model](https://misiektoja.github.io/cmp-issuer/security/threat-model/)
-
-## Citation
-
-If you use cmp-issuer in research or writing, cite it with the metadata in [CITATION.cff](CITATION.cff). GitHub renders it as **Cite this repository** on the repository page and exports it in common citation formats.
 
 ## Support
 
