@@ -30,6 +30,12 @@ rules:
 - apiGroups:
   - cert-manager.io
   resources:
+  - certificates
+  verbs:
+  - get
+- apiGroups:
+  - cert-manager.io
+  resources:
   - certificaterequests/status
   verbs:
   - get
