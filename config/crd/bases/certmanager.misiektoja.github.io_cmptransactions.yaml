@@ -119,6 +119,7 @@ spec:
                 description: Operation is the CMP operation this transaction performs.
                 enum:
                 - P10CR
+                - KUR
                 type: string
               protocolVersion:
                 description: ProtocolVersion is the CMP protocol version of every
