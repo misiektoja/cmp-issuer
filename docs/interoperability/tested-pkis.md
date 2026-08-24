@@ -4,7 +4,7 @@ cmp-issuer has completed protected P10CR enrollments through real cert-manager `
 
 ## Contents
 
-* [Nokia NCM 26.7 / Insta Certifier 7.20](#nokia-ncm-267--insta-certifier-720)
+* [Nokia NCM 26.7 / Insta Certifier 7.20](#nokia-ncm-267-insta-certifier-720)
 * [EJBCA Community Edition 9.3.7](#ejbca-community-edition-937)
 * [OpenSSL CMP mock](#openssl-cmp-mock)
 * [What is not claimed](#what-is-not-claimed)
