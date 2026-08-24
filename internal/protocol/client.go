@@ -44,6 +44,8 @@ import (
 const (
 	// operationEnrollment names the P10CR exchange in a log line.
 	operationEnrollment = "p10cr"
+	// operationKeyUpdate names the KUR exchange in a log line.
+	operationKeyUpdate = "kur"
 	// operationPoll names the pollReq exchange in a log line.
 	operationPoll = "pollReq"
 	// operationConfirmation names the certConf exchange in a log line.
@@ -58,6 +60,10 @@ func NewClient() Client { return &CMPClient{} }
 
 // EnrollP10CR validates inputs and executes one synchronous P10CR exchange.
 func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) (EnrollmentResult, error) {
+	if request.Operation != "" && request.Operation != OperationP10CR {
+		return EnrollmentResult{}, permanent("validate P10CR operation", "badRequest", fmt.Errorf("P10CR enrollment cannot execute operation %q", request.Operation))
+	}
+	request.Operation = OperationP10CR
 	if err := validateEnrollmentRequest(request); err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -183,7 +189,7 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 // finishTransaction turns an authenticated CP into a validated chain, or reports that polling continues.
 // delayedRequestNonce is the sender nonce that identifies this transaction to a server that delays responses.
 func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
-	issued, err := extractCP(response, request.RejectGrantedMods, request.ResponseCertReqID)
+	issued, err := extractEnrollmentResponse(response, request)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -228,6 +234,12 @@ func extractPollRep(response *pkicmp.PKIMessage, expectedCertReqID int64, respon
 
 // validateEnrollmentRequest rejects unsupported or unsafe transaction configurations.
 func validateEnrollmentRequest(request EnrollmentRequest) error {
+	if request.Operation == "" {
+		request.Operation = OperationP10CR
+	}
+	if request.Operation != OperationP10CR && request.Operation != OperationKUR {
+		return permanent("validate operation", "badRequest", fmt.Errorf("unsupported enrollment operation %q", request.Operation))
+	}
 	parsedURL, err := url.Parse(request.EndpointURL)
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
 		return permanent("validate endpoint", "badRequest", fmt.Errorf("endpoint must be a complete HTTP or HTTPS URL"))
@@ -466,8 +478,8 @@ type issuedCertificate struct {
 	Waiting bool
 }
 
-// extractCP validates the P10CR response status and returns the issued certificate with its candidates.
-func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, pinnedCertReqID *int64) (issuedCertificate, error) {
+// extractEnrollmentResponse validates a CP or KUP and returns the issued certificate with its candidates.
+func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRequest) (issuedCertificate, error) {
 	if response.Body.Type == pkicmp.BodyTypeError {
 		content, err := response.Body.Error()
 		if err != nil {
@@ -475,18 +487,30 @@ func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, pinnedCertRe
 		}
 		return issuedCertificate{}, classifyStatus(content.PKIStatusInfo)
 	}
-	if response.Body.Type != pkicmp.BodyTypeCP {
-		return issuedCertificate{}, permanent("validate response body", "unsupportedBody", fmt.Errorf("expected CP response"))
+	expectedBody := pkicmp.BodyTypeCP
+	operation := "P10CR"
+	if request.Operation == OperationKUR {
+		expectedBody = pkicmp.BodyTypeKUP
+		operation = "KUR"
 	}
-	reply, err := response.Body.CP()
+	if response.Body.Type != expectedBody {
+		return issuedCertificate{}, permanent("validate response body", "unsupportedBody", fmt.Errorf("expected %s response", expectedBody.String()))
+	}
+	var reply *pkicmp.CertRepMessage
+	var err error
+	if request.Operation == OperationKUR {
+		reply, err = response.Body.KUP()
+	} else {
+		reply, err = response.Body.CP()
+	}
 	if err != nil {
-		return issuedCertificate{}, permanent("parse CP", "badDataFormat", err)
+		return issuedCertificate{}, permanent("parse "+expectedBody.String(), "badDataFormat", err)
 	}
 	if len(reply.Response) != 1 {
-		return issuedCertificate{}, permanent("validate CP", "badRequest", fmt.Errorf("CP must contain exactly one CertResponse"))
+		return issuedCertificate{}, permanent("validate "+expectedBody.String(), "badRequest", fmt.Errorf("%s must contain exactly one CertResponse", expectedBody.String()))
 	}
 	certificateResponse := reply.Response[0]
-	if err := acceptResponseCertReqID(certificateResponse.CertReqID, pinnedCertReqID); err != nil {
+	if err := acceptResponseCertReqID(operation, certificateResponse.CertReqID, request.ResponseCertReqID); err != nil {
 		return issuedCertificate{}, err
 	}
 	if certificateResponse.Status.Status == pkicmp.StatusWaiting {
@@ -495,17 +519,20 @@ func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, pinnedCertRe
 	if statusErr := classifyStatus(certificateResponse.Status); statusErr != nil {
 		return issuedCertificate{}, statusErr
 	}
-	if certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods && rejectGrantedMods {
+	if certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods && request.RejectGrantedMods {
 		return issuedCertificate{}, permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
 	}
 	if certificateResponse.CertifiedKeyPair == nil || certificateResponse.CertifiedKeyPair.CertOrEncCert.Certificate == nil {
-		return issuedCertificate{}, permanent("extract certificate", "badDataFormat", fmt.Errorf("CP does not contain a plaintext certificate"))
+		return issuedCertificate{}, permanent("extract certificate", "badDataFormat", fmt.Errorf("%s does not contain a plaintext certificate", expectedBody.String()))
 	}
 	certificate, err := certificateResponse.CertifiedKeyPair.CertOrEncCert.Certificate.Parse()
 	if err != nil {
 		return issuedCertificate{}, permanent("parse issued certificate", "badDataFormat", err)
 	}
 	candidates := make([]*x509.Certificate, 0, len(reply.CAPubs)+len(response.ExtraCerts))
+	if request.Operation == OperationKUR && len(reply.CAPubs) != 0 {
+		return issuedCertificate{}, permanent("validate KUP", "badDataFormat", fmt.Errorf("KUP caPubs must be absent"))
+	}
 	for _, encoded := range append(reply.CAPubs, response.ExtraCerts...) {
 		parsed, err := encoded.Parse()
 		if err != nil {
@@ -516,8 +543,14 @@ func extractCP(response *pkicmp.PKIMessage, rejectGrantedMods bool, pinnedCertRe
 	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response)}, nil
 }
 
-// acceptResponseCertReqID enforces a pinned P10CR response identifier or the two interoperable values.
-func acceptResponseCertReqID(observed int64, pinned *int64) error {
+// acceptResponseCertReqID enforces the operation-specific certificate response identifier.
+func acceptResponseCertReqID(operation string, observed int64, pinned *int64) error {
+	if operation == "KUR" {
+		if observed != 0 {
+			return security("validate KUP certReqId", "certReqIdMismatch", fmt.Errorf("KUR KUP certReqId must be 0 but response contained %d", observed))
+		}
+		return nil
+	}
 	if pinned != nil {
 		if observed != *pinned {
 			return security("validate CP certReqId", "certReqIdMismatch", fmt.Errorf("P10CR CP certReqId must be %d but response contained %d", *pinned, observed))
