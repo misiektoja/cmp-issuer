@@ -22,8 +22,8 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | `deadline` | Absolute transaction expiry |
 | `csrDigest` | SHA-256 of the enrolled CSR, in lowercase hexadecimal |
 | `issuerRef` | Name, kind, UID and generation of the issuer that served the transaction |
-| `configurationDigest` | SHA-256 identity of that issuer generation and the credential Secret versions it loaded |
-| `operation` | CMP operation, currently `P10CR` |
+| `configurationDigest` | SHA-256 identity of that issuer generation and every credential or KUR workload Secret version it loaded |
+| `operation` | CMP operation selected before sending, `P10CR` or `KUR` |
 | `protocolVersion` | CMP protocol version of every message |
 
 **Status** (updated during the transaction):
@@ -89,6 +89,8 @@ If the controller stops after sending the enrollment but before receiving the re
 Neither server issued a second certificate. Both answers are protected and echo the transaction identifier and nonce, so the refusal is authenticated rather than guessed. The request then **fails permanently**, and cert-manager enrolls again under a new transaction identifier. The certificate created by the lost response is orphaned and never used, because the controller never received it.
 
 Reusing the recorded identifier rather than generating a fresh one is what makes this outcome reliable. A new identifier presents the retry to the server as an unrelated enrollment, which is accepted and yields a second certificate.
+
+KUR never falls back to P10CR after an ambiguous send. The operation is recorded with the transaction and a retry repeats only KUR under the same identifier.
 
 ### Crash between issuance and storage
 
