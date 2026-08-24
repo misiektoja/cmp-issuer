@@ -13,6 +13,7 @@ flowchart LR
   AD --> HTTP[HTTP or HTTPS client]
   HTTP --> CA[CMP server]
   CMP --> TX[CMPTransaction API]
+  CMP --> CERT[Certificate ownership state]
   CMP --> SEC[Kubernetes Secrets]
 ```
 
@@ -32,8 +33,8 @@ The Kubernetes CSR controller bundled with issuer-lib is **disabled**. cmp-issue
 2. issuer-lib approves or denies the request. Unapproved or denied requests send **no** CMP traffic.
 3. The signer loads any existing transaction and validates its CSR and issuer binding. An `Issued` transaction returns its recorded chain without reading credentials.
 4. For an unfinished or new transaction the signer loads issuer credentials and CMP trust from Secrets authorized by RBAC.
-5. For P10CR the signer forwards the CSR bytes. It never reads the workload private key.
-6. Before the first CMP message the signer creates a `CMPTransaction` owned by the `CertificateRequest` and records the issuer identity, credential configuration identity and transaction identifier.
+5. For P10CR the signer forwards the CSR bytes and never reads the workload private key. For KUR it authenticates the controlling `Certificate` and reads the exact current and staged keys needed for message protection and CRMF proof of possession.
+6. Before the first CMP message the signer creates a `CMPTransaction` owned by the `CertificateRequest` and records the operation, issuer identity, credential and workload Secret configuration identity plus transaction identifier.
 7. Protected DER is exchanged until the server returns a certificate or a permanent error.
 8. The signer validates the configured protection mechanism, response sender, transaction ID, nonces, `certReqId`, issued public key and chain trust.
 9. The validated chain is recorded in the `CMPTransaction` before it is returned, then cert-manager stores the TLS Secret.
@@ -42,7 +43,7 @@ The Kubernetes CSR controller bundled with issuer-lib is **disabled**. cmp-issue
 
 When the server answers `waiting`, the signer enters a poll loop. Poll intervals honor the server request within `minimumPollInterval` and `maximumPollInterval`. The transaction fails after `maximumDuration` or `maximumPolls`.
 
-Transaction state in `CMPTransaction` includes the transaction identifier, deadline, enrolled CSR digest, issuer and credential configuration identity, phase, nonces, polled `certReqId`, validated response signer, poll count and the issued chain. A controller restart resumes from this state instead of starting a second enrollment. An issuer edit, issuer recreation or credential Secret rotation ends an unfinished transaction before more CMP traffic is sent.
+Transaction state in `CMPTransaction` includes the selected P10CR or KUR operation, transaction identifier, deadline, enrolled CSR digest, issuer and Secret configuration identity, phase, nonces, polled `certReqId`, validated response signer, poll count and the issued chain. A controller restart resumes from this state instead of starting a second enrollment. An issuer edit, issuer recreation or relevant Secret rotation ends an unfinished transaction before more CMP traffic is sent.
 
 The validated chain is recorded before `certConf` is sent, so a server that delays `pkiConf` is polled from recorded state and a restart during confirmation resumes rather than discarding an issued certificate. See [Transaction recovery](guide/transaction-recovery.md).
 
@@ -59,7 +60,7 @@ CMP trust and TLS trust are independent. HTTP endpoints are supported and may re
 ## Security boundaries
 
 * Credential Secret reads are namespace bounded. See [Credential Secret access](operations/secret-access.md).
-* P10CR does not follow `cert-manager.io/private-key-secret-name`. See [Private-key handling](guide/private-key-handling.md).
+* P10CR does not follow `cert-manager.io/private-key-secret-name`. KUR uses it only after the complete cert-manager ownership chain is verified. See [Private-key handling](guide/private-key-handling.md).
 * Protected CMP messages are mandatory. Unprotected responses are rejected.
 
 See [Security model](security/security-model.md) and [Threat model](security/threat-model.md).
