@@ -1,56 +1,74 @@
-# P10CR renewal and KUR roadmap
+# Renewal with P10CR or KUR
 
-cmp-issuer implements enrollment through P10CR and renews the same way, by sending a fresh P10CR. It implements **no CMP Key Update Request**, so cert-manager renewal and KUR stay distinct concepts here.
+cert-manager decides when to renew a `Certificate`. cmp-issuer decides which CMP operation performs that renewal through `spec.protocol.renewal`.
+
+```yaml
+spec:
+  endpoint:
+    url: https://ca.example.test/cmp/initial
+    renewalUrl: https://ca.example.test/cmp/key-update
+  protocol:
+    initialEnrollment: P10CR
+    renewal: KUR
+```
+
+`renewalUrl` is optional. Omit it when one CMP endpoint accepts both P10CR and KUR.
 
 ## cert-manager renewal
 
-When a `Certificate` nears expiry cert-manager may create a new `CertificateRequest` for the same identity. cmp-issuer sends another P10CR with a fresh CSR.
+When a `Certificate` nears expiry cert-manager creates a new `CertificateRequest`. Revision one always uses P10CR. Later revisions use the configured renewal operation.
 
-Whether that succeeds depends entirely on the CMP server profile:
+| `renewal` | CMP operation | Workload key access | Server requirement |
+| --- | --- | --- | --- |
+| `P10CR` or omitted | Fresh P10CR | None | Repeat enrollment for the same identity |
+| `KUR` | Certificate-authenticated KUR | Current and staged keys | KUR enabled for the existing certificate |
 
-| Server behavior | Outcome |
-| --- | --- |
-| Allows repeat P10CR for the same identity | Renewal succeeds |
-| One-time enrollment code (EJBCA client mode) | Fails until the end entity is reset |
-| Requires KUR with proof of possession | **Unsupported** today |
+## P10CR compatibility renewal
 
-cmp-issuer does **not** implement KUR. Repeat P10CR is not KUR even when it works.
-
-### Both private key rotation policies work where the server allows re-enrollment
-
-Renewal was exercised against Nokia NCM 26.7 through cert-manager, with `cmctl renew`, for both values of `privateKey.rotationPolicy`:
+P10CR is the default for compatibility. It was exercised against Nokia NCM 26.7 through cert-manager with both values of `privateKey.rotationPolicy`:
 
 | `rotationPolicy` | What the renewal sends | Result |
 | --- | --- | --- |
 | `Always` | A new key, so a new public key in the CSR | New certificate, new serial |
 | `Never` | The existing key, so the same public key in the CSR | New certificate, new serial |
 
-Each renewal is a **new CMP transaction with a fresh identifier**, not a repeat of the earlier one, which is why it does not draw the `transactionIdInUse` refusal that an actual retransmission gets. See [transaction recovery](transaction-recovery.md) for that distinction.
+Each renewal is a new CMP transaction with a fresh identifier. It is not a retransmission of the earlier transaction. The controller reads no workload private key in this mode.
 
-The controller reads no private key in either case. Under `Never` cert-manager reuses the key it already holds and signs the new CSR itself, exactly as it does for the first enrollment.
+## True KUR renewal
 
-A server whose profile authorizes enrollment once per identity refuses the second request. That is a property of the profile, not of cmp-issuer, and the failure is reported as a CMP rejection with the server's own `failInfo`.
+KUR proves two things before the server updates the certificate:
+
+1. The current valid certificate and private key protect the CMP message.
+2. The requested private key signs CRMF proof of possession.
+
+With `rotationPolicy: Always` these are different keys. With `rotationPolicy: Never` the same key makes both proofs and the server profile must allow same-key update.
+
+cmp-issuer rejects KUR before network traffic when the current certificate is expired, its key does not match, its Key Usage extension forbids digital signatures, the staged key does not match the CSR or the subject or SAN values changed. The CA must reject a revoked current certificate.
+
+A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof. Server policy still decides whether that certificate is eligible for key update.
+
+No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.
+
+## Workload Secret authorization
+
+KUR does not trust `cert-manager.io/private-key-secret-name` by itself. Before reading either key cmp-issuer verifies the controlling `Certificate`, owner UID, immediately previous revision, issuer reference, current output Secret, `status.nextPrivateKeySecretName`, staged Secret owner and label, CSR signature and public-key equality.
+
+The current and staged Secret UID and resourceVersion values are included in the transaction configuration digest. Rotation during an unfinished KUR stops it before more CMP traffic.
+
+See [Private-key handling](private-key-handling.md) and [Credential Secret access](../operations/secret-access.md).
 
 ## Nokia NCM REST renewal
 
-Some Nokia deployments expose certificate renewal through NCM REST APIs. That path is unrelated to CMP KUR and is **Unsupported** by cmp-issuer.
-
-## Planned: true KUR
-
-A future release may implement CMPv2 KUR with CRMF proof of possession. That requires reading the workload private key under strict authorization rules described in [Private-key handling](private-key-handling.md).
-
-## Planned: IR and CRMF
-
-Initial Registration with CRMF (`IR`) is also planned and shares the private-key access design.
+Some Nokia deployments expose certificate renewal through NCM REST APIs. That path is unrelated to CMP KUR and is unsupported by cmp-issuer.
 
 ## Support matrix
 
 | Operation | Status |
 | --- | --- |
 | P10CR initial enrollment | Implemented |
-| P10CR repeat enrollment | Server dependent, not KUR. Verified against NCM 26.7 for both rotation policies |
-| KUR | Planned |
+| P10CR repeat enrollment | Server dependent. Verified against NCM 26.7 for both rotation policies |
+| KUR | Implemented for unchanged subject and SANs. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 with both rotation policies |
 | IR (CRMF) | Planned |
 | Nokia NCM REST renewal | Unsupported |
 
-See [Support matrix](../support-matrix.md).
+See [Tested PKIs](../interoperability/tested-pkis.md) for server-specific validation and configuration.
