@@ -95,12 +95,12 @@ metadata:
 spec:
   endpoint:
     url: %[2]s
-    timeout: 30s
+%[8]s    timeout: 30s
     maxResponseSize: 1048576
   protocol:
     version: 2
     initialEnrollment: P10CR
-    recipient: %[3]s
+%[7]s    recipient: %[3]s
     confirmation: Explicit
   protection:
 %[4]s  cmpTrust:
@@ -109,6 +109,26 @@ spec:
       key: ca.crt
 %[6]s  policy:
     grantedModifications: Reject
+`
+
+// ejbcaKURCertificateTemplate renders a client-mode certificate with selectable key rotation.
+const ejbcaKURCertificateTemplate = `apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: %[1]s
+spec:
+  secretName: %[1]s-tls
+  commonName: %[1]s
+  duration: 2160h
+  revisionHistoryLimit: 2
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: %[2]s
+  issuerRef:
+    name: %[3]s
+    kind: CMPIssuer
+    group: certmanager.misiektoja.github.io
 `
 
 // passwordBasedMacProtection renders the protection block of a request protected with a shared secret.
@@ -149,6 +169,8 @@ type ejbcaIssuer struct {
 	protection  string
 	trustSecret string
 	transport   string
+	renewal     string
+	renewalURL  string
 }
 
 // ejbcaWorkloadManifest renders the CMP server Deployment and the Service that publishes it.
@@ -158,6 +180,19 @@ func ejbcaWorkloadManifest(name string, image string, httpPort int, httpsPort in
 
 // ejbcaIssuerManifest renders an issuer for one combination of protection mechanism and transport.
 func (issuer ejbcaIssuer) manifest() string {
+	renewal := ""
+	if issuer.renewal != "" {
+		renewal = "    renewal: " + issuer.renewal + "\n"
+	}
+	renewalURL := ""
+	if issuer.renewalURL != "" {
+		renewalURL = "    renewalUrl: " + issuer.renewalURL + "\n"
+	}
 	return fmt.Sprintf(ejbcaIssuerTemplate, issuer.name, issuer.url, yamlQuote(issuer.recipient),
-		issuer.protection, issuer.trustSecret, issuer.transport)
+		issuer.protection, issuer.trustSecret, issuer.transport, renewal, renewalURL)
+}
+
+// ejbcaKURCertificateManifest renders one certificate used for a two-revision client-mode update.
+func ejbcaKURCertificateManifest(name string, rotationPolicy string, issuer string) string {
+	return fmt.Sprintf(ejbcaKURCertificateTemplate, name, rotationPolicy, issuer)
 }
