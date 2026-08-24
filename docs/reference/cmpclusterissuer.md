@@ -74,7 +74,7 @@ The `spec` and `status` schemas are identical to [CMPIssuer](cmpissuer.md). Only
 
 ## RBAC
 
-The base install grants Secret read access in `cmp-issuer-system` through a RoleBinding to the `cmp-issuer-credential-reader` ClusterRole. No per-namespace RoleBinding is required for cluster issuers.
+The base install grants credential Secret read access in `cmp-issuer-system` through a RoleBinding to the `cmp-issuer-credential-reader` ClusterRole. P10CR needs no workload namespace access. A cluster issuer configured with `protocol.renewal: KUR` also needs this RoleBinding in every workload namespace because KUR reads the authorized current and staged private keys. Add those namespaces to `credentialNamespaces` or bind them manually.
 
 ## Related pages
 
