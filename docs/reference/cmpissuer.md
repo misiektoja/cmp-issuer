@@ -50,6 +50,7 @@ spec:
 | Field | Required | Default | Description |
 | --- | --- | --- | --- |
 | `url` | yes | | Complete HTTP or HTTPS CMP URL |
+| `renewalUrl` | no | `url` | Complete HTTP or HTTPS URL used only for KUR |
 | `timeout` | yes | `30s` | Per HTTP exchange timeout |
 | `maxResponseSize` | yes | `1048576` | Maximum response body in bytes (1024-10485760) |
 
@@ -59,6 +60,7 @@ spec:
 | --- | --- | --- | --- |
 | `version` | yes | `2` | CMP version; only `2` is supported |
 | `initialEnrollment` | yes | `P10CR` | Only `P10CR` is implemented |
+| `renewal` | no | `P10CR` | `P10CR` repeats enrollment. `KUR` uses the current certificate and CRMF proof of possession for later cert-manager revisions |
 | `recipient` | yes | | RFC 4514 recipient DN. Also the authority every response must be sent by, compared ignoring attribute order |
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
 | `p10crResponseCertReqId` | no | accept `-1` or `0` | Pin `-1` or `0` when the server behavior is known |
@@ -111,7 +113,7 @@ Ready condition follows issuer-lib conventions. When credential or trust Secrets
 
 ## RBAC
 
-The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
+The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact current and staged workload Secret reads needed when `renewal: KUR` is selected. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
 
 ## Related pages
 
