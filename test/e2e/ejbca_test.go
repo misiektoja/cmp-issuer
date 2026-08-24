@@ -22,6 +22,7 @@ limitations under the License.
 package e2e
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -50,7 +51,7 @@ const (
 	ejbcaStateDir = "/opt/keyfactor/cmp-issuer-e2e"
 	// defaultEjbcaTestImage is the published CMP server image. The Makefile passes the same reference
 	// through EJBCA_TEST_IMAGE, so the two have to be advanced together.
-	defaultEjbcaTestImage = "ghcr.io/misiektoja/cmp-issuer-ejbca-test:9.3.7-1"
+	defaultEjbcaTestImage = "ghcr.io/misiektoja/cmp-issuer-ejbca-test:9.3.7-2"
 	// ejbcaCredentialSecret carries the PasswordBasedMac reference and shared secret.
 	ejbcaCredentialSecret = "cmp-issuer-e2e-ejbca-credentials"
 	// ejbcaSignatureSecret carries the registration certificate and its private key.
@@ -66,6 +67,10 @@ const (
 	ejbcaPasswordHTTPSIssuer = "cmp-issuer-e2e-ejbca-password-https"
 	// ejbcaSignatureHTTPIssuer enrolls with a certificate signature over plain HTTP.
 	ejbcaSignatureHTTPIssuer = "cmp-issuer-e2e-ejbca-signature-http"
+	// ejbcaKURAlwaysIssuer updates a client-mode certificate while rotating its private key.
+	ejbcaKURAlwaysIssuer = "cmp-issuer-e2e-ejbca-kur-always"
+	// ejbcaKURNeverIssuer updates a client-mode certificate while retaining its private key.
+	ejbcaKURNeverIssuer = "cmp-issuer-e2e-ejbca-kur-never"
 	// ejbcaReadyTimeout bounds the start of the CMP server, which deploys an application server.
 	ejbcaReadyTimeout = 10 * time.Minute
 	// ejbcaEnrollmentTimeout bounds one enrollment through cert-manager.
@@ -78,7 +83,7 @@ const (
 var ejbcaHostname = fmt.Sprintf("%s.%s.svc.cluster.local", ejbcaWorkload, ejbcaNamespace)
 
 // ejbcaIssuers are the issuers that cert-manager is allowed to approve requests for.
-var ejbcaIssuers = []string{ejbcaPasswordHTTPIssuer, ejbcaPasswordHTTPSIssuer, ejbcaSignatureHTTPIssuer}
+var ejbcaIssuers = []string{ejbcaPasswordHTTPIssuer, ejbcaPasswordHTTPSIssuer, ejbcaSignatureHTTPIssuer, ejbcaKURAlwaysIssuer, ejbcaKURNeverIssuer}
 
 // ejbcaConfiguration is the configuration that the CMP server image was built with.
 type ejbcaConfiguration struct {
@@ -86,6 +91,10 @@ type ejbcaConfiguration struct {
 	recipient         string
 	passwordAlias     string
 	signatureAlias    string
+	kurInitialAlias   string
+	kurAlias          string
+	kurAlwaysIdentity string
+	kurNeverIdentity  string
 	pbmReference      string
 	pbmSecret         string
 	responseTrust     string
@@ -155,6 +164,14 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 				name: ejbcaSignatureHTTPIssuer, url: configuration.endpointURL("http", configuration.signatureAlias),
 				recipient: configuration.recipient, protection: signature, trustSecret: ejbcaTrustSecret,
 			},
+			{
+				name: ejbcaKURAlwaysIssuer, url: configuration.endpointURL("http", configuration.kurInitialAlias),
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, renewal: "KUR", renewalURL: configuration.endpointURL("http", configuration.kurAlias),
+			},
+			{
+				name: ejbcaKURNeverIssuer, url: configuration.endpointURL("http", configuration.kurInitialAlias),
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, renewal: "KUR", renewalURL: configuration.endpointURL("http", configuration.kurAlias),
+			},
 		} {
 			Expect(kubectlApply(ejbcaNamespace, issuer.manifest())).To(Succeed())
 		}
@@ -211,16 +228,30 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		expectIssuedBy(certificate, configuration.responseTrust)
 	})
 
+	It("updates a client-mode certificate with KUR and a new private key", func() {
+		renewThroughKUR(configuration, ejbcaKURAlwaysIssuer, configuration.kurAlwaysIdentity, "Always", true)
+	})
+
+	It("updates a client-mode certificate with KUR and the existing private key", func() {
+		renewThroughKUR(configuration, ejbcaKURNeverIssuer, configuration.kurNeverIdentity, "Never", false)
+	})
+
 	It("records a completed transaction for every enrollment", func() {
 		By("listing the transactions that the enrollments left behind")
 		arguments := []string{"get", "cmptransaction", "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].status.phase}"}
 		output, err := utils.Run(exec.Command("kubectl", arguments...))
 		Expect(err).NotTo(HaveOccurred())
 		phases := strings.Fields(output)
-		Expect(phases).To(HaveLen(len(ejbcaIssuers)), "expected one transaction per enrollment")
+		Expect(phases).To(HaveLen(len(ejbcaIssuers)+2), "expected one transaction per initial enrollment and KUR")
 		for _, phase := range phases {
 			Expect(phase).To(Equal("Issued"))
 		}
+		arguments = []string{"get", "cmptransaction", "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].spec.operation}"}
+		output, err = utils.Run(exec.Command("kubectl", arguments...))
+		Expect(err).NotTo(HaveOccurred())
+		operations := strings.Fields(output)
+		Expect(operations).To(HaveLen(len(ejbcaIssuers) + 2))
+		Expect(operations).To(ConsistOf("P10CR", "P10CR", "P10CR", "P10CR", "P10CR", "KUR", "KUR"))
 	})
 })
 
@@ -263,6 +294,10 @@ func readEjbcaConfiguration() ejbcaConfiguration {
 		hostname:          readEjbcaFile(directory, "hostname"),
 		passwordAlias:     readEjbcaFile(directory, "pbm-alias"),
 		signatureAlias:    readEjbcaFile(directory, "signature-alias"),
+		kurInitialAlias:   readEjbcaFile(directory, "kur-initial-alias"),
+		kurAlias:          readEjbcaFile(directory, "kur-alias"),
+		kurAlwaysIdentity: readEjbcaFile(directory, "kur-always-identity"),
+		kurNeverIdentity:  readEjbcaFile(directory, "kur-never-identity"),
 		pbmReference:      readEjbcaFile(directory, "pbm-reference"),
 		pbmSecret:         readEjbcaFile(directory, "pbm-secret"),
 		responseTrust:     responseTrust,
@@ -327,6 +362,41 @@ func enrollThrough(issuer string, certificate string) string {
 		g.Expect(ready.Status).To(Equal("True"), "certificate not ready: %s", ready.Message)
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 	return certificate
+}
+
+// renewThroughKUR proves two cert-manager revisions use the selected workload-key rotation behavior.
+func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificate string, rotationPolicy string, expectKeyChange bool) {
+	By("requesting the initial P10CR certificate from the client-mode alias")
+	Expect(kubectlApply(ejbcaNamespace, ejbcaKURCertificateManifest(certificate, rotationPolicy, issuer))).To(Succeed())
+	Eventually(func(g Gomega) {
+		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
+	initialSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
+	Expect(err).NotTo(HaveOccurred())
+	initialCertificate, err := parseCertificate(initialSecret["tls.crt"])
+	Expect(err).NotTo(HaveOccurred())
+
+	By("changing a non-identity Certificate field to trigger revision two")
+	_, err = utils.Run(exec.Command("kubectl", "patch", "certificate", certificate, "-n", ejbcaNamespace, "--type=merge", "-p", `{"spec":{"duration":"2161h"}}`))
+	Expect(err).NotTo(HaveOccurred())
+	Eventually(func(g Gomega) {
+		arguments := []string{"get", "certificate", certificate, "-n", ejbcaNamespace, "-o", "jsonpath={.status.revision}"}
+		revision, err := utils.Run(exec.Command("kubectl", arguments...))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(strings.TrimSpace(revision)).To(Equal("2"))
+		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
+	renewedSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
+	Expect(err).NotTo(HaveOccurred())
+	renewedCertificate, err := parseCertificate(renewedSecret["tls.crt"])
+	Expect(err).NotTo(HaveOccurred())
+	Expect(renewedCertificate.SerialNumber).NotTo(Equal(initialCertificate.SerialNumber))
+	Expect(bytes.Equal(renewedSecret["tls.key"], initialSecret["tls.key"])).To(Equal(!expectKeyChange))
+	expectIssuedBy(certificate, configuration.responseTrust)
 }
 
 // expectIssuedBy checks that the stored certificate certifies the requested name and was signed by the anchor.
