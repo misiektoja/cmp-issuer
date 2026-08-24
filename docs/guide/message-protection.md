@@ -191,8 +191,10 @@ behavior.
 ## Credential rotation
 
 Credentials are reloaded from the Secret on every reconcile. Rotating a Secret during an open
-transaction invalidates in-flight protection, and the transaction fails within `maximumDuration`. Secret
-resourceVersions are not recorded. See [Known limitations](../known-limitations.md).
+transaction invalidates in-flight protection and the transaction fails within `maximumDuration`. The
+transaction configuration digest records the UID and resourceVersion of every referenced credential
+Secret, so cmp-issuer stops the unfinished transaction before sending more CMP traffic when any of
+those values changes. See [Known limitations](../known-limitations.md).
 
 ## Related pages
 
