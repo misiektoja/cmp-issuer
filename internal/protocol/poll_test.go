@@ -275,7 +275,7 @@ func TestAsynchronousTransactionRejectsMismatchedPollRep(t *testing.T) {
 	poll := PollRequest{Enrollment: request, RecipNonce: result.Pending.RecipNonce, CertReqID: result.Pending.CertReqID, ResponseSigner: result.Pending.ResponseSigner}
 	_, err = client.PollP10CR(context.Background(), poll)
 	var typed *Error
-	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != "certReqIdMismatch" {
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testFailureCertReqIDMismatch {
 		t.Fatalf("expected a certReqId mismatch security failure, got %v", err)
 	}
 }
