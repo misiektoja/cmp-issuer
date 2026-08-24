@@ -29,6 +29,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -55,7 +56,9 @@ import (
 const (
 	fieldOwner              = "cmp-issuer.certmanager.misiektoja.github.io"
 	eventHTTPNoConfidential = "HTTPTransportNoConfidentiality"
+	pemCertificateBlockType = "CERTIFICATE"
 	schemeHTTP              = "http"
+	schemeHTTPS             = "https"
 	// The polling defaults match the CRD defaults and apply when the transaction block is omitted.
 	defaultMaximumDuration     = 10 * time.Minute
 	defaultMinimumPollInterval = time.Second
@@ -71,6 +74,7 @@ const (
 // +kubebuilder:rbac:groups=certmanager.misiektoja.github.io,resources=cmptransactions/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificaterequests/status,verbs=get;patch;update
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
@@ -142,6 +146,10 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: err}
 	}
 	csrDigest := csrDigestHex(requestDER)
+	operation, err := selectedTransactionOperation(issuer, request)
+	if err != nil {
+		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: err}
+	}
 	transaction, err := s.transactions.load(ctx, request.GetNamespace(), request.GetName(), request.GetUID())
 	if err != nil {
 		return issuersigner.PEMBundle{}, err
@@ -149,17 +157,12 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	resumed := transaction != nil
 	if resumed {
 		logResumedTransaction(ctx, transaction)
-		if transaction.Spec.CSRDigest != "" && transaction.Spec.CSRDigest != csrDigest {
-			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction enrolls a different certificate signing request")})
-		}
 		expectedIssuer := issuerReference(issuer)
-		if transaction.Spec.IssuerRef == nil || transaction.Spec.IssuerRef.Name != expectedIssuer.Name || transaction.Spec.IssuerRef.Kind != expectedIssuer.Kind || transaction.Spec.IssuerRef.UID != expectedIssuer.UID {
-			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction belongs to a different issuer identity")})
+		if validationErr := validateResumedTransaction(transaction, csrDigest, operation, expectedIssuer); validationErr != nil {
+			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: validationErr})
 		}
 		// The transaction outlives this reconcile, so issuance is timed from the record that started it.
-		if !transaction.CreationTimestamp.IsZero() {
-			enrollmentStarted = transaction.CreationTimestamp.Time
-		}
+		enrollmentStarted = transactionStartTime(transaction, enrollmentStarted)
 		if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseIssued {
 			return recoverIssuedChain(ctx, transaction, requestDER)
 		}
@@ -171,14 +174,23 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	if configurationErr != nil {
 		return issuersigner.PEMBundle{}, issuersigner.IssuerError{Err: configurationErr}
 	}
-	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("endpoint", logging.Text(runtimeConfiguration.EnrollmentRequest.EndpointURL)))
 	enrollmentRequest := runtimeConfiguration.EnrollmentRequest
 	enrollmentRequest.CSRDER = requestDER
+	enrollmentRequest.Operation = operation
+	if operation == cmpv1alpha1.TransactionOperationKUR && runtimeConfiguration.RenewalEndpointURL != "" {
+		enrollmentRequest.EndpointURL = runtimeConfiguration.RenewalEndpointURL
+	}
+	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("endpoint", logging.Text(enrollmentRequest.EndpointURL)))
+	if operation == cmpv1alpha1.TransactionOperationKUR {
+		if preparationErr := s.prepareKUREnrollment(ctx, request, issuer, requestDER, &runtimeConfiguration, &enrollmentRequest); preparationErr != nil {
+			return issuersigner.PEMBundle{}, preparationErr
+		}
+	}
 	limits := runtimeConfiguration.Transaction
 	if !resumed {
 		// The transaction is recorded before the first message is sent, so that a controller restart
 		// resumes this transaction instead of starting a second enrollment for the same request.
-		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration), transactionDetail{CSRDigest: csrDigest, IssuerRef: issuerReference(issuer), ConfigurationDigest: runtimeConfiguration.ConfigurationDigest, Operation: cmpv1alpha1.TransactionOperationP10CR, ProtocolVersion: cmpProtocolVersion})
+		transaction, err = s.transactions.create(ctx, request.GetNamespace(), request.GetName(), request.GetUID(), time.Now().Add(limits.MaximumDuration.Duration), transactionDetail{CSRDigest: csrDigest, IssuerRef: issuerReference(issuer), ConfigurationDigest: runtimeConfiguration.ConfigurationDigest, Operation: operation, ProtocolVersion: cmpProtocolVersion})
 		if err != nil {
 			return issuersigner.PEMBundle{}, err
 		}
@@ -219,6 +231,52 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	logIssuedCertificate(ctx, transaction, result.Chain, confirmationImplicit, enrollmentStarted)
 	recordIssuedEnrollment(ctx, confirmationImplicit, enrollmentStarted)
 	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(result.Chain)}, nil
+}
+
+// validateResumedTransaction binds a recorded transaction to the same request, operation and issuer identity.
+func validateResumedTransaction(transaction *cmpv1alpha1.CMPTransaction, csrDigest string, operation string, expectedIssuer cmpv1alpha1.TransactionIssuerReference) error {
+	if transaction.Spec.CSRDigest != "" && transaction.Spec.CSRDigest != csrDigest {
+		return fmt.Errorf("recorded CMP transaction enrolls a different certificate signing request")
+	}
+	if transaction.Spec.IssuerRef == nil || transaction.Spec.IssuerRef.Name != expectedIssuer.Name || transaction.Spec.IssuerRef.Kind != expectedIssuer.Kind || transaction.Spec.IssuerRef.UID != expectedIssuer.UID {
+		return fmt.Errorf("recorded CMP transaction belongs to a different issuer identity")
+	}
+	if transaction.Spec.Operation != "" && transaction.Spec.Operation != operation {
+		return fmt.Errorf("recorded CMP transaction uses a different enrollment operation")
+	}
+	return nil
+}
+
+// transactionStartTime returns the persisted start time when a transaction outlives one reconcile.
+func transactionStartTime(transaction *cmpv1alpha1.CMPTransaction, fallback time.Time) time.Time {
+	if transaction.CreationTimestamp.IsZero() {
+		return fallback
+	}
+	return transaction.CreationTimestamp.Time
+}
+
+// prepareKUREnrollment authorizes workload keys and binds them to the runtime request and configuration digest.
+func (s *Signer) prepareKUREnrollment(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, requestDER []byte, runtimeConfiguration *runtimeConfiguration, enrollmentRequest *protocol.EnrollmentRequest) error {
+	material, materialErr := s.loadKURMaterial(ctx, request, issuer, requestDER)
+	if materialErr != nil {
+		if materialErr.Permanent {
+			return issuersigner.PermanentError{Err: materialErr}
+		}
+		return issuersigner.PendingError{Err: materialErr, RequeueAfter: time.Second}
+	}
+	enrollmentRequest.Protection = material.Protection
+	enrollmentRequest.RequestedPrivateKey = material.RequestedPrivateKey
+	enrollmentRequest.ResponseCertReqID = nil
+	maps.Copy(runtimeConfiguration.ConfigurationSecrets, material.Secrets)
+	configurationDigest, err := runtimeConfigurationDigest(issuerReference(issuer), runtimeConfiguration.ConfigurationSecrets)
+	if err != nil {
+		return issuersigner.PermanentError{Err: fmt.Errorf("identify KUR configuration: %w", err)}
+	}
+	runtimeConfiguration.ConfigurationDigest = configurationDigest
+	if err := protocol.ValidateKURRequest(*enrollmentRequest); err != nil {
+		return mapProtocolError(err)
+	}
+	return nil
 }
 
 // resumeConfirmation continues the confirmation of a certificate an earlier reconcile already
@@ -324,7 +382,7 @@ func recordedChain(transaction *cmpv1alpha1.CMPTransaction, csrDER []byte) ([]*x
 func encodeChainPEM(chain []*x509.Certificate) []byte {
 	chainPEM := make([]byte, 0, len(chain)*1024)
 	for _, certificate := range chain {
-		chainPEM = append(chainPEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate.Raw})...)
+		chainPEM = append(chainPEM, pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificate.Raw})...)
 	}
 	return chainPEM
 }
@@ -352,6 +410,9 @@ func (s *Signer) exchange(ctx context.Context, enrollmentRequest protocol.Enroll
 	if transaction.Status.Phase != cmpv1alpha1.TransactionPhasePolling {
 		// A transaction that never reached the polling phase is retried under its recorded transaction
 		// ID, which is how a server recognises a repeated request rather than a new enrollment.
+		if transaction.Spec.Operation == cmpv1alpha1.TransactionOperationKUR {
+			return s.ProtocolClient.EnrollKUR(ctx, enrollmentRequest)
+		}
 		return s.ProtocolClient.EnrollP10CR(ctx, enrollmentRequest)
 	}
 	if transaction.Status.CertReqID == nil || len(transaction.Status.RecipNonce) == 0 {
@@ -403,10 +464,12 @@ func (s *Signer) failTransaction(ctx context.Context, transaction *cmpv1alpha1.C
 
 // runtimeConfiguration contains locally validated data for one issuer generation.
 type runtimeConfiguration struct {
-	EndpointScheme      string
-	EnrollmentRequest   protocol.EnrollmentRequest
-	Transaction         cmpv1alpha1.TransactionSpec
-	ConfigurationDigest string
+	EndpointScheme       string
+	RenewalEndpointURL   string
+	EnrollmentRequest    protocol.EnrollmentRequest
+	Transaction          cmpv1alpha1.TransactionSpec
+	ConfigurationDigest  string
+	ConfigurationSecrets map[types.NamespacedName]*corev1.Secret
 }
 
 // configurationError distinguishes immutable spec failures from retryable Secret state.
@@ -432,26 +495,35 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if err != nil {
 		return runtimeConfiguration{}, permanentConfiguration("validate issuer spec", err)
 	}
-	secrets := map[string]*corev1.Secret{}
+	secrets := map[types.NamespacedName]*corev1.Secret{}
 	getSecret := func(reference cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError) {
-		if secret, found := secrets[reference.Name]; found {
+		key := types.NamespacedName{Namespace: namespace, Name: reference.Name}
+		if secret, found := secrets[key]; found {
 			return secret, nil
 		}
 		secret := &corev1.Secret{}
-		if err := s.KubeClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: reference.Name}, secret); err != nil {
+		if err := s.KubeClient.Get(ctx, key, secret); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil, retryableConfiguration("read credential Secret", fmt.Errorf("referenced Secret %q is not available", reference.Name))
 			}
 			return nil, retryableConfiguration("read credential Secret", err)
 		}
-		secrets[reference.Name] = secret
+		secrets[key] = secret
 		return secret, nil
 	}
 	cmpTrust, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
 	}
-	tlsRoots, configurationErr := loadTLSRoots(getSecret, spec, parsedEndpoint.Scheme)
+	renewalScheme := ""
+	if spec.Endpoint.RenewalURL != "" {
+		parsedRenewalEndpoint, parseErr := validateEndpointURL(spec.Endpoint.RenewalURL)
+		if parseErr != nil {
+			return runtimeConfiguration{}, permanentConfiguration("validate renewal endpoint", parseErr)
+		}
+		renewalScheme = parsedRenewalEndpoint.Scheme
+	}
+	tlsRoots, configurationErr := loadTLSRoots(getSecret, spec, parsedEndpoint.Scheme == schemeHTTPS || renewalScheme == schemeHTTPS)
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
 	}
@@ -484,21 +556,31 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if err != nil {
 		return runtimeConfiguration{}, permanentConfiguration("identify issuer configuration", err)
 	}
-	return runtimeConfiguration{EndpointScheme: parsedEndpoint.Scheme, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction), ConfigurationDigest: configurationDigest}, nil
+	endpointScheme := parsedEndpoint.Scheme
+	if renewalScheme == schemeHTTP {
+		endpointScheme = schemeHTTP
+	}
+	return runtimeConfiguration{EndpointScheme: endpointScheme, RenewalEndpointURL: spec.Endpoint.RenewalURL, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction), ConfigurationDigest: configurationDigest, ConfigurationSecrets: secrets}, nil
 }
 
 // runtimeConfigurationDigest identifies the issuer generation and credential Secret versions used by a transaction.
-func runtimeConfigurationDigest(issuerRef cmpv1alpha1.TransactionIssuerReference, secrets map[string]*corev1.Secret) (string, error) {
+func runtimeConfigurationDigest(issuerRef cmpv1alpha1.TransactionIssuerReference, secrets map[types.NamespacedName]*corev1.Secret) (string, error) {
 	type secretIdentity struct {
+		Namespace       string `json:"namespace"`
 		Name            string `json:"name"`
 		UID             string `json:"uid"`
 		ResourceVersion string `json:"resourceVersion"`
 	}
 	identities := make([]secretIdentity, 0, len(secrets))
-	for name, secret := range secrets {
-		identities = append(identities, secretIdentity{Name: name, UID: string(secret.UID), ResourceVersion: secret.ResourceVersion})
+	for key, secret := range secrets {
+		identities = append(identities, secretIdentity{Namespace: key.Namespace, Name: key.Name, UID: string(secret.UID), ResourceVersion: secret.ResourceVersion})
 	}
-	slices.SortFunc(identities, func(left secretIdentity, right secretIdentity) int { return strings.Compare(left.Name, right.Name) })
+	slices.SortFunc(identities, func(left secretIdentity, right secretIdentity) int {
+		if namespaceOrder := strings.Compare(left.Namespace, right.Namespace); namespaceOrder != 0 {
+			return namespaceOrder
+		}
+		return strings.Compare(left.Name, right.Name)
+	})
 	encoded, err := json.Marshal(struct {
 		Issuer  cmpv1alpha1.TransactionIssuerReference `json:"issuer"`
 		Secrets []secretIdentity                       `json:"secrets"`
@@ -568,7 +650,15 @@ func validateSpec(spec *cmpv1alpha1.CMPIssuerSpec) (*url.URL, error) {
 	if err := validateProtection(spec.Protection); err != nil {
 		return nil, err
 	}
-	if err := validateTransport(spec.Transport, endpoint.Scheme); err != nil {
+	renewalScheme := ""
+	if spec.Endpoint.RenewalURL != "" {
+		renewalEndpoint, err := validateEndpointURL(spec.Endpoint.RenewalURL)
+		if err != nil {
+			return nil, fmt.Errorf("renewal %w", err)
+		}
+		renewalScheme = renewalEndpoint.Scheme
+	}
+	if err := validateTransport(spec.Transport, endpoint.Scheme == schemeHTTPS || renewalScheme == schemeHTTPS); err != nil {
 		return nil, err
 	}
 	if err := validateTransactionAndPolicy(spec.Transaction, spec.Policy); err != nil {
@@ -579,15 +669,24 @@ func validateSpec(spec *cmpv1alpha1.CMPIssuerSpec) (*url.URL, error) {
 
 // validateEndpoint enforces complete bounded HTTP or HTTPS endpoint configuration.
 func validateEndpoint(spec cmpv1alpha1.EndpointSpec) (*url.URL, error) {
-	endpoint, err := url.Parse(spec.URL)
-	if err != nil || endpoint.Host == "" || (endpoint.Scheme != schemeHTTP && endpoint.Scheme != "https") {
+	endpoint, err := validateEndpointURL(spec.URL)
+	if err != nil {
+		return nil, err
+	}
+	if spec.Timeout.Duration <= 0 || spec.MaxResponseSize < 1024 || spec.MaxResponseSize > 10485760 {
+		return nil, fmt.Errorf("endpoint timeout or response size is outside supported bounds")
+	}
+	return endpoint, nil
+}
+
+// validateEndpointURL enforces one complete HTTP or HTTPS endpoint URL without embedded credentials.
+func validateEndpointURL(value string) (*url.URL, error) {
+	endpoint, err := url.Parse(value)
+	if err != nil || endpoint.Host == "" || (endpoint.Scheme != schemeHTTP && endpoint.Scheme != schemeHTTPS) {
 		return nil, fmt.Errorf("endpoint URL must be a complete HTTP or HTTPS URL")
 	}
 	if endpoint.User != nil || endpoint.Fragment != "" {
 		return nil, fmt.Errorf("endpoint URL user information and fragments are not supported")
-	}
-	if spec.Timeout.Duration <= 0 || spec.MaxResponseSize < 1024 || spec.MaxResponseSize > 10485760 {
-		return nil, fmt.Errorf("endpoint timeout or response size is outside supported bounds")
 	}
 	return endpoint, nil
 }
@@ -599,6 +698,9 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	}
 	if spec.CertProfile != "" {
 		return fmt.Errorf("certProfile is reserved until its CMP encoding is implemented")
+	}
+	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
+		return fmt.Errorf("renewal must be P10CR or KUR")
 	}
 	if spec.Recipient == "" || (spec.Confirmation != "Explicit" && spec.Confirmation != "Implicit") {
 		return fmt.Errorf("recipient and a supported confirmation policy are required")
@@ -644,12 +746,12 @@ func validateProtection(spec cmpv1alpha1.ProtectionSpec) error {
 }
 
 // validateTransport keeps TLS credentials separate and rejects unimplemented mTLS.
-func validateTransport(spec cmpv1alpha1.TransportSpec, endpointScheme string) error {
+func validateTransport(spec cmpv1alpha1.TransportSpec, usesHTTPS bool) error {
 	if spec.TLS != nil && spec.TLS.ClientCertificateSecretRef != nil {
 		return fmt.Errorf("mTLS client certificates are reserved for a later release")
 	}
-	if endpointScheme == schemeHTTP && spec.TLS != nil && spec.TLS.CASecretRef != nil {
-		return fmt.Errorf("TLS CA trust cannot be configured for an HTTP endpoint")
+	if !usesHTTPS && spec.TLS != nil && spec.TLS.CASecretRef != nil {
+		return fmt.Errorf("TLS CA trust cannot be configured without an HTTPS endpoint")
 	}
 	return nil
 }
@@ -688,8 +790,8 @@ func loadTrustPool(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Sec
 }
 
 // loadTLSRoots parses optional HTTPS trust anchors.
-func loadTLSRoots(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), spec *cmpv1alpha1.CMPIssuerSpec, scheme string) (*x509.CertPool, *configurationError) {
-	if scheme != "https" || spec.Transport.TLS == nil || spec.Transport.TLS.CASecretRef == nil {
+func loadTLSRoots(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), spec *cmpv1alpha1.CMPIssuerSpec, usesHTTPS bool) (*x509.CertPool, *configurationError) {
+	if !usesHTTPS || spec.Transport.TLS == nil || spec.Transport.TLS.CASecretRef == nil {
 		return nil, nil
 	}
 	reference := *spec.Transport.TLS.CASecretRef
