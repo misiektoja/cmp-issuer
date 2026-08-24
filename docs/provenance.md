@@ -10,7 +10,7 @@ cmp-issuer is built from public standards and public project APIs, starting from
 | [RFC 9810](https://www.rfc-editor.org/rfc/rfc9810.html) | IETF Trust legal provisions | CMP message syntax, state transitions, protection and confirmation |
 | [RFC 9811](https://www.rfc-editor.org/rfc/rfc9811.html) | IETF Trust legal provisions | CMP over HTTP transport behavior |
 | [RFC 9481](https://www.rfc-editor.org/rfc/rfc9481.html) | IETF Trust legal provisions | Algorithm requirements and recommendations |
-| [RFC 9483](https://www.rfc-editor.org/rfc/rfc9483.html) | IETF Trust legal provisions | Lightweight CMP profile and P10CR `certReqId` rules |
+| [RFC 9483](https://www.rfc-editor.org/rfc/rfc9483.html) | IETF Trust legal provisions | Lightweight CMP profile, P10CR `certReqId` rules and KUR profile requirements |
 | [3GPP TS 33.310 V18.8.0](https://www.etsi.org/deliver/etsi_ts/133300_133399/133310/18.08.00_60/ts_133310v180800p.pdf) | ETSI terms apply | Telecom certificate-management context only |
 | [cert-manager external issuer guidance](https://cert-manager.io/docs/contributing/external-issuers/) | CC BY 4.0 documentation | External issuer API integration and approval model |
 | [issuer-lib](https://github.com/cert-manager/issuer-lib) | Apache-2.0 | Controller reconciliation contracts and signer integration |
