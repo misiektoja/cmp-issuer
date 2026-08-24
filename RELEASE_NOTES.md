@@ -2,9 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.1.1] - TBD
+## [0.2.0] - TBD
 
-Repository metadata and release downloads are now self-checking, with citation and support routes for users plus consistent editor and local hook settings for contributors.
+True CMP key update is now available for cert-manager renewals while repeat P10CR remains the compatibility default. This release also carries the repository metadata and release-download improvements prepared for the skipped 0.1.1 version.
+
+### Certificate management
+
+* **Renew certificates with true KUR** - Set `spec.protocol.renewal` to `KUR` to authenticate renewal with the current valid certificate and prove possession of cert-manager's requested key. Initial issuance remains P10CR. New-key and same-key renewal were verified against Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.3.
+* **Use separate enrollment and renewal endpoints** - Optional `spec.endpoint.renewalUrl` routes KUR to a dedicated CMP alias while initial P10CR continues to use `endpoint.url`. Omit it when one endpoint accepts both operations.
+* **Keep existing renewal behavior by default** - Existing issuers continue to use repeat P10CR. KUR never silently falls back to another operation after a send and every transaction records whether it is P10CR or KUR.
+
+### Security and reliability
+
+* **Authorize workload key access through cert-manager ownership** - KUR validates the controlling `Certificate`, revision, issuer reference, current output Secret and staged key Secret before reading either key. P10CR keeps its original boundary and never reads workload private keys.
+* **Stop renewal when key state changes mid-transaction** - Current and staged Secret UID plus resourceVersion values are included in the transaction configuration digest. Credential or workload key rotation stops an unfinished transaction before more CMP traffic.
+* **Reject unsafe key-update changes locally** - KUR requires a currently valid certificate that can sign, matching current and requested keys plus unchanged subject and SAN values before sending to the CA.
 
 ### Project maintenance
 
