@@ -45,7 +45,7 @@ checksums and signed build provenance. These checks keep metadata changes review
 
 ## OpenSSL CMP interoperability
 
-CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
+CI runs delayed transaction, delayed confirmation, pinned transaction and KUR flows against the OpenSSL 3.6 CMP mock. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
 
 Locally set `OPENSSL_BIN` to select a non-default OpenSSL binary. The test skips when OpenSSL is missing.
 
@@ -108,6 +108,8 @@ This runs a second set of specs that enroll real certificates from EJBCA Communi
 | Shared secret over HTTP | `PasswordBasedMac` protected P10CR against a plain endpoint |
 | Shared secret over HTTPS | the same request over TLS, with the endpoint certificate verified against a pinned authority |
 | Certificate signature over HTTP | `Signature` protected P10CR using a registration certificate |
+| KUR with key rotation | P10CR revision one then certificate-authenticated KUR with a new requested key |
+| KUR with key reuse | P10CR revision one then certificate-authenticated KUR with the existing key |
 | Transaction records | one `CMPTransaction` per enrollment, each reporting `Issued` |
 
 Each issued certificate is checked against the authority that signed it and against the chain stored in its Secret. The CMP response trust anchor and the endpoint TLS trust anchor are two different authorities, so a run also proves the two trust decisions stay separate.
