@@ -52,10 +52,6 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 * [Development](development/development.md) and [Testing](development/testing.md)
 * Source and issues: [github.com/misiektoja/cmp-issuer](https://github.com/misiektoja/cmp-issuer)
 
-## Citation
-
-If you use cmp-issuer in research or writing, cite it with the metadata in [CITATION.cff](https://github.com/misiektoja/cmp-issuer/blob/main/CITATION.cff). GitHub renders it as **Cite this repository** on the repository page and exports it in common citation formats.
-
 ## Support
 
 [SUPPORT.md](https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md) routes usage questions, bug reports, feature requests and private security reports. Check the documentation and collect sanitized diagnostics before posting.
