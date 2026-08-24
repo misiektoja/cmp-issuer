@@ -58,4 +58,12 @@ issuers live in more than one namespace.
 
 The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.
 
-P10CR does not require the workload private key. The controller does not interpret `cert-manager.io/private-key-secret-name` and it has no default Secret access in workload namespaces beyond explicitly authorized issuer credential namespaces.
+## Workload Secrets for KUR
+
+P10CR does not require the workload private key and never follows cert-manager's private-key annotation.
+
+KUR needs `get` access to the current and staged workload Secrets. The same namespace RoleBinding used for issuer credentials grants that access. For a namespaced `CMPIssuer` the issuer and workload already share a namespace. For a `CMPClusterIssuer` each workload namespace that uses KUR must be listed in `credentialNamespaces` or receive the manual RoleBinding above.
+
+The permission alone does not select a Secret. cmp-issuer first verifies the controlling cert-manager `Certificate`, exact UID, revision, issuer reference, current Secret name, next-key status, staged Secret owner and label plus CSR key equality. An annotation alone cannot authorize a read.
+
+The manager also has cluster-wide `get` permission for `Certificate` resources so it can authenticate this ownership chain. It does not receive list, watch, create, update or delete permission for Certificates.
