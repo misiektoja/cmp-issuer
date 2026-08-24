@@ -23,18 +23,23 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
 	"math/big"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	issuersigner "github.com/cert-manager/issuer-lib/controllers/signer"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -55,6 +60,9 @@ const (
 	testPasswordReferenceKey      = "reference"
 	testTrustSecretName           = "cmp-trust"
 	testUnrelatedPrivateKeySecret = "unrelated-private-key"
+	testWorkloadCommonName        = "workload"
+	testHTTPExchangeOperation     = "HTTP exchange"
+	testFailureSystemUnavailable  = "systemUnavail"
 )
 
 // recordingClient records object names read through Get.
@@ -83,6 +91,7 @@ func (c *recordingClient) readNames() []types.NamespacedName {
 type fakeProtocolClient struct {
 	mu             sync.Mutex
 	calls          int
+	kurCalls       int
 	polls          int
 	confirms       int
 	request        protocol.EnrollmentRequest
@@ -98,6 +107,15 @@ func (c *fakeProtocolClient) EnrollP10CR(_ context.Context, request protocol.Enr
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
+	c.request = request
+	return c.next()
+}
+
+// EnrollKUR records the key update request and returns the configured result.
+func (c *fakeProtocolClient) EnrollKUR(_ context.Context, request protocol.EnrollmentRequest) (protocol.EnrollmentResult, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.kurCalls++
 	c.request = request
 	return c.next()
 }
@@ -175,7 +193,7 @@ func testCertificateMaterial(t *testing.T, commonName string) (*x509.Certificate
 	if err != nil {
 		t.Fatal(err)
 	}
-	return certificate, key, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificateDER}), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyDER})
+	return certificate, key, pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER}), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyDER})
 }
 
 // testCSR creates a PEM-encoded signed PKCS #10 request.
@@ -185,7 +203,7 @@ func testCSR(t *testing.T) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "workload"}}, key)
+	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: testWorkloadCommonName}}, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,10 +222,67 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
+	if err := certmanagerv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
 	if err := cmpv1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	return scheme
+}
+
+// testKURKeyPEM encodes one private key for a cert-manager TLS Secret.
+func testKURKeyPEM(t *testing.T, key *ecdsa.PrivateKey) []byte {
+	t.Helper()
+	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyDER})
+}
+
+// testKURCertificate issues a currently valid leaf for the selected workload key and identity.
+func testKURCertificate(t *testing.T, key *ecdsa.PrivateKey) (*x509.Certificate, []byte) {
+	t.Helper()
+	template := &x509.Certificate{SerialNumber: big.NewInt(91), Subject: pkix.Name{CommonName: testWorkloadCommonName}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature}
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificate, err := x509.ParseCertificate(certificateDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return certificate, pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER})
+}
+
+// testKURRequestObjects builds the cert-manager ownership chain and current and staged key Secrets.
+func testKURRequestObjects(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, rotateKey bool) (*fakeCertificateRequest, *certmanagerv1.Certificate, *corev1.Secret, *corev1.Secret) {
+	t.Helper()
+	currentKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestedKey := currentKey
+	if rotateKey {
+		requestedKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: testWorkloadCommonName}}, requestedKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, currentCertificatePEM := testKURCertificate(t, currentKey)
+	revision := 1
+	nextPrivateKeySecretName := "workload-next-key"
+	certificate := &certmanagerv1.Certificate{ObjectMeta: metav1.ObjectMeta{Name: testWorkloadCommonName, Namespace: testIssuerNamespace, UID: types.UID("22222222-2222-2222-2222-222222222222")}, Spec: certmanagerv1.CertificateSpec{SecretName: "workload-tls", IssuerRef: cmmeta.IssuerReference{Name: issuer.Name, Kind: cmpv1alpha1.TransactionIssuerKindNamespaced, Group: cmpv1alpha1.GroupVersion.Group}}, Status: certmanagerv1.CertificateStatus{Revision: &revision, NextPrivateKeySecretName: &nextPrivateKeySecretName}}
+	controllerReference := *metav1.NewControllerRef(certificate, certmanagerv1.SchemeGroupVersion.WithKind("Certificate"))
+	currentSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: certificate.Spec.SecretName, Namespace: testIssuerNamespace}, Data: map[string][]byte{corev1.TLSCertKey: currentCertificatePEM, corev1.TLSPrivateKeyKey: testKURKeyPEM(t, currentKey)}}
+	stagedSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: nextPrivateKeySecretName, Namespace: testIssuerNamespace, Labels: map[string]string{certmanagerv1.IsNextPrivateKeySecretLabelKey: "true"}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, Data: map[string][]byte{corev1.TLSPrivateKeyKey: testKURKeyPEM(t, requestedKey)}}
+	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID, Annotations: map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: "2", certmanagerv1.CertificateRequestPrivateKeyAnnotationKey: nextPrivateKeySecretName}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, details: issuersigner.CertificateDetails{CSR: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: requestDER})}}
+	return request, certificate, currentSecret, stagedSecret
 }
 
 // credentialSecrets returns valid PasswordBasedMac and CMP trust Secrets.
@@ -227,6 +302,7 @@ func TestValidateSpec(t *testing.T) {
 	}{
 		{name: "relative endpoint", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.URL = "/cmp" }},
 		{name: "endpoint credentials", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.URL = "https://user@example.test/cmp" }},
+		{name: "relative renewal endpoint", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.RenewalURL = "/keyupdate" }},
 		{name: "unsupported operation", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.InitialEnrollment = "IR" }},
 		{name: "unsupported P10CR response certReqId", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			unsupported := int64(1)
@@ -381,5 +457,111 @@ func TestSignForwardsMACResponseProtection(t *testing.T) {
 				t.Fatalf("expected AllowSignedMACResponse %t, got %t", test.allowed, protocolClient.request.AllowSignedMACResponse)
 			}
 		})
+	}
+}
+
+// TestSignUsesKURForCertManagerRenewals verifies authorized new-key and same-key renewals persist and execute KUR.
+func TestSignUsesKURForCertManagerRenewals(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		rotateKey bool
+	}{
+		{name: "rotation policy Always", rotateKey: true},
+		{name: "rotation policy Never", rotateKey: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+			issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+			issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+			issuer.Spec.Endpoint.RenewalURL = "https://example.test/keyupdate"
+			request, certificate, currentSecret, stagedSecret := testKURRequestObjects(t, issuer, test.rotateKey)
+			issued := issuedCertificateFor(t, request.details.CSR)
+			kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+			protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}
+			signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+			bundle, err := signer.Sign(context.Background(), request, issuer)
+			if err != nil || len(bundle.ChainPEM) == 0 {
+				t.Fatalf("KUR Sign failed: %v", err)
+			}
+			if protocolClient.kurCalls != 1 || protocolClient.calls != 0 {
+				t.Fatalf("expected one KUR and no P10CR calls, got %d and %d", protocolClient.kurCalls, protocolClient.calls)
+			}
+			if protocolClient.request.Operation != protocol.OperationKUR || protocolClient.request.RequestedPrivateKey == nil || protocolClient.request.Protection.Signature == nil {
+				t.Fatal("KUR request did not carry both authorized key proofs")
+			}
+			if protocolClient.request.EndpointURL != issuer.Spec.Endpoint.RenewalURL {
+				t.Fatalf("expected KUR endpoint %q, got %q", issuer.Spec.Endpoint.RenewalURL, protocolClient.request.EndpointURL)
+			}
+			stored := &cmpv1alpha1.CMPTransaction{}
+			if err := kubeClient.Get(context.Background(), types.NamespacedName{Namespace: testIssuerNamespace, Name: testRequestName}, stored); err != nil {
+				t.Fatalf("read KUR transaction: %v", err)
+			}
+			if stored.Spec.Operation != cmpv1alpha1.TransactionOperationKUR || len(stored.Spec.ConfigurationDigest) != sha256.Size*2 {
+				t.Fatalf("expected persisted KUR operation and configuration digest, got %q and %q", stored.Spec.Operation, stored.Spec.ConfigurationDigest)
+			}
+		})
+	}
+}
+
+// TestSignRetriesKURUnderTheRecordedTransactionID verifies restart-safe retries stay pinned to KUR.
+func TestSignRetriesKURUnderTheRecordedTransactionID(t *testing.T) {
+	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+	issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+	request, certificate, currentSecret, stagedSecret := testKURRequestObjects(t, issuer, true)
+	issued := issuedCertificateFor(t, request.details.CSR)
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+	protocolClient := &fakeProtocolClient{queue: []fakeExchange{
+		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: testHTTPExchangeOperation, Failure: testFailureSystemUnavailable, Err: errors.New("connection refused")}},
+		{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}},
+	}}
+	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+	if _, err := signer.Sign(context.Background(), request, issuer); err == nil {
+		t.Fatal("expected the first KUR exchange to fail retryably")
+	}
+	stored := &cmpv1alpha1.CMPTransaction{}
+	transactionKey := types.NamespacedName{Namespace: testIssuerNamespace, Name: testRequestName}
+	if err := kubeClient.Get(context.Background(), transactionKey, stored); err != nil {
+		t.Fatalf("read recorded KUR transaction: %v", err)
+	}
+	recordedID := append([]byte(nil), stored.Spec.TransactionID...)
+	if _, err := signer.Sign(context.Background(), request, issuer); err != nil {
+		t.Fatalf("retry KUR: %v", err)
+	}
+	if protocolClient.kurCalls != 2 || protocolClient.calls != 0 || protocolClient.polls != 0 {
+		t.Fatalf("expected two KUR calls with no P10CR or poll calls, got %d, %d and %d", protocolClient.kurCalls, protocolClient.calls, protocolClient.polls)
+	}
+	if !slices.Equal(protocolClient.request.TransactionID, recordedID) {
+		t.Fatal("expected the KUR retry to reuse the recorded transaction ID")
+	}
+}
+
+// TestSignRejectsAnnotationOnlyKURAuthorization verifies arbitrary private-key annotations cannot trigger Secret reads.
+func TestSignRejectsAnnotationOnlyKURAuthorization(t *testing.T) {
+	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+	unrelated := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testUnrelatedPrivateKeySecret, Namespace: testIssuerNamespace}, Data: map[string][]byte{corev1.TLSPrivateKeyKey: []byte("sensitive")}}
+	baseClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, unrelated).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+	recording := &recordingClient{Client: baseClient}
+	protocolClient := &fakeProtocolClient{}
+	signer := &Signer{KubeClient: recording, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(baseClient)}
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
+	issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID, Annotations: map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: "2", certmanagerv1.CertificateRequestPrivateKeyAnnotationKey: testUnrelatedPrivateKeySecret}}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
+	_, err := signer.Sign(context.Background(), request, issuer)
+	var permanent issuersigner.PermanentError
+	if !errors.As(err, &permanent) {
+		t.Fatalf("expected a permanent KUR authorization failure, got %v", err)
+	}
+	for _, read := range recording.readNames() {
+		if read.Name == testUnrelatedPrivateKeySecret {
+			t.Fatal("signer read an annotation-selected Secret without a verified Certificate owner chain")
+		}
+	}
+	if protocolClient.kurCalls != 0 || protocolClient.calls != 0 {
+		t.Fatal("signer sent CMP traffic after KUR authorization failed")
+	}
+	stored := &cmpv1alpha1.CMPTransaction{}
+	if err := baseClient.Get(context.Background(), types.NamespacedName{Namespace: testIssuerNamespace, Name: testRequestName}, stored); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no transaction before KUR authorization, got %v", err)
 	}
 }
