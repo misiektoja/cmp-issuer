@@ -2,6 +2,13 @@
 
 cmp-issuer has completed protected P10CR enrollments through real cert-manager `Certificate` resources against the servers below. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.
 
+## Contents
+
+* [Nokia NCM 26.7 / Insta Certifier 7.20](#nokia-ncm-267--insta-certifier-720)
+* [EJBCA Community Edition 9.3.7](#ejbca-community-edition-937)
+* [OpenSSL CMP mock](#openssl-cmp-mock)
+* [What is not claimed](#what-is-not-claimed)
+
 ## Nokia NCM 26.7 / Insta Certifier 7.20
 
 | Item | Value |
