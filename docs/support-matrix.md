@@ -18,8 +18,8 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | --- | --- | --- |
 | CMPv2 P10CR initial enrollment | Implemented, Interoperability tested | PKCS #10 in P10CR, CP response |
 | CMPv2 IR (CRMF) | Planned | Requires workload private-key access |
-| CMPv2 KUR (true key update) | Planned | Distinct from cert-manager renewal or P10CR re-enrollment |
-| cert-manager Certificate renewal | Implemented as repeat P10CR, not KUR | Succeeds only where the server allows re-enrollment of an identity. Verified against NCM 26.7 with `rotationPolicy` `Always` and `Never` |
+| CMPv2 KUR (true key update) | Implemented, Interoperability tested | Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 |
+| cert-manager Certificate renewal | Implemented as selectable P10CR or KUR | P10CR is the compatibility default. KUR is opt-in through `protocol.renewal` |
 | Explicit `certConf` confirmation | Implemented, Interoperability tested | Default |
 | Server-granted implicit confirmation | Implemented | Set `protocol.confirmation: Implicit` |
 | Asynchronous `waiting` / `pollReq` / `pollRep` | Implemented, Interoperability tested | Bounded by `spec.transaction` |
@@ -57,6 +57,8 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Accept `-1` or `0` by default |
+| `protocol.renewal` | Implemented | `P10CR` by default or `KUR` for later cert-manager revisions |
+| `endpoint.renewalUrl` | Implemented | Optional KUR endpoint for servers with separate initial and key-update aliases |
 | `macResponseProtection` | Implemented, Interoperability tested | `AllowSignature` by default, so a signed answer to a `PasswordBasedMac` request is accepted when it chains to the CMP trust anchor and names the recipient. `Strict` requires MAC-based protection throughout |
 | Endpoint reachability in issuer readiness | Planned | Readiness reflects configuration, not whether the server answers |
 | Requested validity period from `Certificate.spec.duration` | Planned | Needs CRMF, since a PKCS #10 request carries no validity |
