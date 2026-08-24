@@ -27,6 +27,10 @@ const (
 	ProtectionTypeSignature = "Signature"
 	// InitialEnrollmentP10CR selects PKCS #10 initial enrollment.
 	InitialEnrollmentP10CR = "P10CR"
+	// RenewalP10CR selects PKCS #10 repeat enrollment for certificate renewals.
+	RenewalP10CR = "P10CR"
+	// RenewalKUR selects a certificate-authenticated CMP Key Update Request for renewals.
+	RenewalKUR = "KUR"
 	// P10CRResponseCertReqIDStandard pins the response identifier required by RFC 9810 and RFC 9483.
 	P10CRResponseCertReqIDStandard int64 = -1
 	// P10CRResponseCertReqIDLegacyZero pins the response identifier returned by servers that reuse the CRMF index.
@@ -84,6 +88,11 @@ type EndpointSpec struct {
 	// +kubebuilder:validation:Pattern=`^https?://[^[:space:]]+$`
 	// +required
 	URL string `json:"url"`
+	// RenewalURL is an optional CMP endpoint used for KUR while URL remains the initial enrollment endpoint.
+	// Omit it when the server exposes both operations through the same endpoint.
+	// +kubebuilder:validation:Pattern=`^https?://[^[:space:]]+$`
+	// +optional
+	RenewalURL string `json:"renewalUrl,omitempty"`
 	// Timeout bounds one HTTP exchange.
 	// +kubebuilder:default="30s"
 	// +required
@@ -96,7 +105,7 @@ type EndpointSpec struct {
 	MaxResponseSize int64 `json:"maxResponseSize"`
 }
 
-// ProtocolSpec configures the initial CMP operation and message header.
+// ProtocolSpec configures CMP enrollment operations and message headers.
 type ProtocolSpec struct {
 	// Version is the CMP protocol version number.
 	// +kubebuilder:default=2
@@ -110,6 +119,14 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=P10CR
 	// +required
 	InitialEnrollment string `json:"initialEnrollment"`
+	// Renewal selects the operation used after the first cert-manager certificate revision.
+	// P10CR repeats PKCS #10 enrollment and remains the compatibility default. KUR proves ownership
+	// of the current valid certificate and requested private key, so it requires narrowly authorized
+	// access to the Certificate's current and staged private-key Secrets.
+	// +kubebuilder:default=P10CR
+	// +kubebuilder:validation:Enum=P10CR;KUR
+	// +optional
+	Renewal string `json:"renewal,omitempty"`
 	// P10CRResponseCertReqID pins the exact certReqId required in CP and echoed in certConf.
 	// Omit this field to accept the standards-defined value -1 or the widely deployed legacy value 0
 	// and echo the received value. Set it to reject every other value for a known server.
