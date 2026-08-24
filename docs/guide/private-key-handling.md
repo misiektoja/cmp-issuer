@@ -1,6 +1,6 @@
 # cert-manager private-key handling
 
-cmp-issuer integrates with cert-manager external issuers. Private-key access policy differs between P10CR today and planned CRMF operations.
+cmp-issuer integrates with cert-manager external issuers. Private-key access depends on the selected CMP operation.
 
 ## P10CR: no workload private-key access
 
@@ -17,15 +17,21 @@ The end-to-end suite covers this boundary: a crafted annotation pointing at a se
 
 RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.
 
+## KUR: two narrowly authorized key proofs
+
+KUR reads the current workload key and the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, immediately previous revision, issuer reference, current output Secret, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
+
+The current key protects the CMP message with the certificate being updated. The requested key signs CRMF proof of possession. With `rotationPolicy: Never` both roles can use the same key material.
+
+Only `tls.key` is parsed from the staged Secret. The current Secret contributes `tls.crt` and `tls.key`. Their UID and resourceVersion values are bound into the durable transaction configuration digest.
+
 ## Annotation is not authorization
 
-`cert-manager.io/private-key-secret-name` names where cert-manager stores the workload key. It is not permission for the external issuer to read that Secret. Future CRMF support must not treat the annotation alone as sufficient authorization.
+`cert-manager.io/private-key-secret-name` names where cert-manager stores the workload key. It is not permission for the external issuer to read that Secret. cmp-issuer uses it only after the value matches the authenticated `Certificate.status.nextPrivateKeySecretName` and the Secret's owner and label.
 
-## Future CRMF and IR
+## Future IR
 
-Initial Registration with CRMF requires proof of possession over the workload private key. A future design must validate the owning `Certificate`, revision, issuer reference, expected Secret state, owner references, labels, CSR signature and public-key equality before reading only `tls.key`.
-
-IR and true KUR remain **Planned**. See [P10CR renewal and KUR roadmap](renewal-and-kur.md).
+Initial Registration with CRMF requires proof of possession over the workload private key. IR remains planned and can reuse the KUR authorization boundary only after its separate API and protocol design is accepted.
 
 ## Related pages
 
