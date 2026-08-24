@@ -29,6 +29,12 @@ rules:
   - patch
   - update
 - apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - get
+- apiGroups:
   - certmanager.misiektoja.github.io
   resources:
   - cmpclusterissuers
