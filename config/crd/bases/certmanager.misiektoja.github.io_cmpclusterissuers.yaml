@@ -76,6 +76,12 @@ spec:
                     maximum: 10485760
                     minimum: 1024
                     type: integer
+                  renewalUrl:
+                    description: |-
+                      RenewalURL is an optional CMP endpoint used for KUR while URL remains the initial enrollment endpoint.
+                      Omit it when the server exposes both operations through the same endpoint.
+                    pattern: ^https?://[^[:space:]]+$
+                    type: string
                   timeout:
                     default: 30s
                     description: Timeout bounds one HTTP exchange.
@@ -273,6 +279,17 @@ spec:
                     description: Recipient is the RFC 4514 distinguished name for
                       the CMP recipient.
                     maxLength: 1024
+                    type: string
+                  renewal:
+                    default: P10CR
+                    description: |-
+                      Renewal selects the operation used after the first cert-manager certificate revision.
+                      P10CR repeats PKCS #10 enrollment and remains the compatibility default. KUR proves ownership
+                      of the current valid certificate and requested private key, so it requires narrowly authorized
+                      access to the Certificate's current and staged private-key Secrets.
+                    enum:
+                    - P10CR
+                    - KUR
                     type: string
                   sender:
                     description: Sender is an optional RFC 4514 distinguished name
