@@ -235,7 +235,7 @@ func TestSignRecordsTransactionDetail(t *testing.T) {
 // certificate for a request that may already have been answered.
 func TestSignReusesThePinnedTransactionAfterInterruption(t *testing.T) {
 	fixture := newAsyncFixture(t, []fakeExchange{
-		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: "HTTP exchange", Failure: "systemUnavail", Err: errors.New("connection reset")}},
+		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: testHTTPExchangeOperation, Failure: testFailureSystemUnavailable, Err: errors.New("connection reset")}},
 		{result: waitingResult(0, "nonce", 0)},
 	})
 	requirePending(t, mustFail(fixture.sign(t)), time.Second)
@@ -623,7 +623,7 @@ func TestSignDiscardsStateFromRecreatedRequest(t *testing.T) {
 // TestSignRetriesEnrollmentUnderTheRecordedTransactionID verifies an interrupted send is not duplicated.
 func TestSignRetriesEnrollmentUnderTheRecordedTransactionID(t *testing.T) {
 	fixture := newAsyncFixture(t, []fakeExchange{
-		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: "HTTP exchange", Failure: "systemUnavail", Err: errors.New("connection refused")}},
+		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: testHTTPExchangeOperation, Failure: testFailureSystemUnavailable, Err: errors.New("connection refused")}},
 		{result: waitingResult(0, "nonce", 0)},
 	})
 	if _, err := fixture.sign(t); err == nil {
