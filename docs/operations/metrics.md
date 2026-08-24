@@ -11,11 +11,11 @@ Every series carries the same three labels:
 | `issuer` | `namespace/name` for a `CMPIssuer`, `name` for a `CMPClusterIssuer` |
 | `operation` | `enrollment` or `renewal` |
 
-`operation` separates the first issuance of a certificate from a re-enrollment. cert-manager stamps
+`operation` separates the first issuance of a certificate from a renewal. cert-manager stamps
 each `CertificateRequest` with the revision it will become, so anything past the first is a renewal. A
-`CertificateRequest` written by hand carries no revision and counts as an enrollment. Note that
-cmp-issuer renews by sending a fresh P10CR rather than a CMP Key Update Request, so a renewal is the
-same protocol exchange as an enrollment. See [P10CR renewal and KUR](../guide/renewal-and-kur.md).
+`CertificateRequest` written by hand carries no revision and counts as an enrollment. Renewal can use
+repeat P10CR or KUR. This metric label describes certificate lifecycle intent rather than the CMP body.
+See [Renewal with P10CR or KUR](../guide/renewal-and-kur.md).
 
 ## What is published
 
