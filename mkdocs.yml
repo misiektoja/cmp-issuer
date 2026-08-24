@@ -48,7 +48,7 @@ nav:
       - CMP response trust: guide/cmp-response-trust.md
       - HTTP and HTTPS transport: guide/transport.md
       - Transaction recovery: guide/transaction-recovery.md
-      - P10CR renewal and KUR roadmap: guide/renewal-and-kur.md
+      - Renewal with P10CR or KUR: guide/renewal-and-kur.md
       - cert-manager private-key handling: guide/private-key-handling.md
   - Reference:
       - CMPIssuer: reference/cmpissuer.md
@@ -71,3 +71,4 @@ nav:
   - Design decisions:
       - CMP library selection: adr/0001-cmp-library.md
       - Issuer reconciliation library: adr/0002-issuer-lib.md
+      - KUR renewal: adr/0003-kur-renewal.md
