@@ -45,6 +45,9 @@ const opensslMockPassword = "cmp-issuer-interop-secret"
 // opensslMockReference is the PasswordBasedMac reference the OpenSSL mock server expects.
 const opensslMockReference = "cmp-issuer-interop-ref"
 
+// opensslPortOption selects the OpenSSL mock server listen port.
+const opensslPortOption = "-port"
+
 // requireOpenSSLCMP skips the test unless an OpenSSL build with a usable CMP mock server is present.
 func requireOpenSSLCMP(t *testing.T) string {
 	t.Helper()
@@ -60,7 +63,7 @@ func requireOpenSSLCMP(t *testing.T) string {
 	if err != nil && len(help) == 0 {
 		t.Skipf("this openssl build has no cmp application, skipping: %v", err)
 	}
-	for _, option := range []string{"-port", "-poll_count", "-check_after", "-srv_secret"} {
+	for _, option := range []string{opensslPortOption, "-poll_count", "-check_after", "-srv_secret"} {
 		if !bytes.Contains(help, []byte(option)) {
 			t.Skipf("this openssl cmp application lacks %s, skipping", option)
 		}
@@ -109,7 +112,7 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
 	port := freePort(t)
 	arguments := []string{
-		"cmp", "-port", fmt.Sprint(port),
+		"cmp", opensslPortOption, fmt.Sprint(port),
 		"-srv_secret", "pass:" + opensslMockPassword,
 		"-srv_ref", opensslMockReference,
 		"-srv_cert", certificatePath,
@@ -146,6 +149,52 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("the OpenSSL mock server did not accept connections:\n%s", output.String())
+	return ""
+}
+
+// startOpenSSLKURMockServer runs an independently authenticated signature-protected KUR responder.
+func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate) string {
+	t.Helper()
+	binary := requireOpenSSLCMP(t)
+	dir := t.TempDir()
+	caKeyDER, err := x509.MarshalPKCS8PrivateKey(pki.CAKey)
+	if err != nil {
+		t.Fatalf("marshal CA key: %v", err)
+	}
+	keyPath := writePEM(t, dir, "srv_key.pem", "PRIVATE KEY", caKeyDER)
+	certificatePath := writePEM(t, dir, "srv_cert.pem", "CERTIFICATE", pki.CACertificate.Raw)
+	trustPath := writePEM(t, dir, "srv_trusted.pem", "CERTIFICATE", pki.CACertificate.Raw)
+	currentPath := writePEM(t, dir, "ref_cert.pem", "CERTIFICATE", current.Raw)
+	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
+	port := freePort(t)
+	arguments := []string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, "-ref_cert", currentPath, "-rsp_cert", issuedPath, "-rsp_extracerts", certificatePath, "-max_msgs", "0"}
+	command := exec.Command(binary, arguments...)
+	output := &bytes.Buffer{}
+	command.Stdout = output
+	command.Stderr = output
+	if err := command.Start(); err != nil {
+		t.Fatalf("start the OpenSSL KUR mock server: %v", err)
+	}
+	address := fmt.Sprintf("127.0.0.1:%d", port)
+	t.Cleanup(func() {
+		if command.Process != nil {
+			_ = command.Process.Kill()
+		}
+		_ = command.Wait()
+		if t.Failed() {
+			t.Logf("OpenSSL KUR mock server output:\n%s", output.String())
+		}
+	})
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		connection, err := net.DialTimeout("tcp", address, time.Second)
+		if err == nil {
+			_ = connection.Close()
+			return address
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("the OpenSSL KUR mock server did not accept connections:\n%s", output.String())
 	return ""
 }
 
@@ -303,6 +352,44 @@ func TestPinnedTransactionAgainstOpenSSLMockServer(t *testing.T) {
 	}
 	if !bytes.Equal(sent.Header.TransactionID, request.TransactionID) {
 		t.Fatal("expected the pinned transaction identifier to reach the server unchanged")
+	}
+}
+
+// TestKURAgainstOpenSSLMockServer verifies new-key and same-key CRMF updates with an independent implementation.
+func TestKURAgainstOpenSSLMockServer(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		rotateKey bool
+	}{
+		{name: "new key", rotateKey: true},
+		{name: "same key", rotateKey: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			request := kurEnrollmentRequest(t, pki, "", test.rotateKey)
+			certificateRequest, err := x509.ParseCertificateRequest(request.CSRDER)
+			if err != nil {
+				t.Fatalf("parse KUR CSR: %v", err)
+			}
+			issued := issueLeaf(t, pki, certificateRequest, request.RequestedPrivateKey.Public())
+			proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued))
+			request.EndpointURL = proxy.URL
+			client := NewClient()
+			result, err := client.EnrollKUR(context.Background(), request)
+			if err == nil {
+				result, err = confirmToCompletion(t, client, request, result)
+			}
+			if err != nil {
+				t.Fatalf("OpenSSL KUR returned error: %v", err)
+			}
+			if len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+				t.Fatal("expected the KUR certificate configured on the OpenSSL mock server")
+			}
+			sent, err := pkicmp.ParsePKIMessage(forwarded.at(0))
+			if err != nil || sent.Body.Type != pkicmp.BodyTypeKUR {
+				t.Fatalf("expected OpenSSL to accept a KUR body, got %v and %v", sent, err)
+			}
+		})
 	}
 }
 
