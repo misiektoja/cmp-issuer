@@ -184,6 +184,10 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | Condition message pattern | Likely cause |
 | --- | --- |
 | P10CR CP certReqId | Server returned an unexpected identifier; adjust `p10crResponseCertReqId` or use default |
+| KUR requires a certificate revision greater than one | A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager `Certificate` |
+| KUR current or staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
+| KUR certificate identity | The renewal CSR changed the subject or SAN set. Use the P10CR compatibility mode where the CA permits re-enrollment or wait for CR support |
+| KUP caPubs must be absent or KUR certReqId mismatch | The server response is outside the supported RFC 9483 KUR profile. Correct the CMP server profile |
 | Response protection / trust | Wrong CMP trust anchors or unexpected signer |
 | `message is signature-protected but MAC-based protection is required` | `spec.protocol.macResponseProtection` is `Strict` and the server signs its answer to a `PasswordBasedMac` request. Remove the value to fall back to the `AllowSignature` default, or configure the server to protect the answer with the shared secret |
 | Response sender does not name the configured recipient | The server answers under a different name than `spec.protocol.recipient`. Set the recipient to the name the server puts in its responses. Attribute order does not matter, so only a genuine difference in attributes or values causes this |
@@ -202,6 +206,7 @@ The transaction `Phase` column tells you where a request stopped. `Enrolling` me
 | Refused after first success | End entity in GENERATED state | Reset end entity status to NEW before repeat enrollment |
 | Subject mismatch | Signature mode enrolls bootstrap DN only | Match Certificate SAN/CN to registered end entity or use PBM with correct profile |
 | Wrong protection | Alias authentication modules | Confirm alias uses HMAC for PBM and EndEntityCertificate for signature |
+| KUR reaches the initial alias | Key update needs a separate client-mode alias | Set `endpoint.renewalUrl` to the alias with `EndEntityCertificate` and Automatic Key Update enabled |
 
 ## Nokia NCM
 
