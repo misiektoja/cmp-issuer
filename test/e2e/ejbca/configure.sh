@@ -6,10 +6,8 @@
 # This runs inside the container, once, while the test image is being built. Nothing here runs during
 # a test run, which is the whole point of baking the result into an image.
 #
-# The CMP aliases are configured in RA mode so that every enrollment creates or updates the end entity
-# on the server side. Client mode leaves an end entity in status GENERATED after issuance and refuses
-# the next request until the status is reset, which makes a repeatable suite depend on an extra
-# administrative call before every enrollment.
+# The ordinary enrollment aliases use RA mode so repeated P10CR stays stateless. Dedicated client-mode
+# aliases and end entities exercise automatic key update without an administrative reset.
 #
 # References:
 #   EJBCA command line interface: https://docs.keyfactor.com/ejbca/latest/command-line-interfaces
@@ -23,6 +21,10 @@ ISSUING_CA_NAME="${ISSUING_CA_NAME:-CmpIssuerTestCA}"
 ISSUING_CA_DN="${ISSUING_CA_DN:-CN=cmp-issuer test CA,O=cmp-issuer}"
 PBM_ALIAS="${PBM_ALIAS:-cmpissuerpbm}"
 SIGNATURE_ALIAS="${SIGNATURE_ALIAS:-cmpissuersig}"
+KUR_INITIAL_ALIAS="${KUR_INITIAL_ALIAS:-cmpissuerkurinit}"
+KUR_ALIAS="${KUR_ALIAS:-cmpissuerkur}"
+KUR_ALWAYS_IDENTITY="${KUR_ALWAYS_IDENTITY:-cmp-issuer-e2e-kur-always}"
+KUR_NEVER_IDENTITY="${KUR_NEVER_IDENTITY:-cmp-issuer-e2e-kur-never}"
 PBM_REFERENCE="${PBM_REFERENCE:-cmp-issuer-e2e}"
 # A throwaway value published inside a public test image. It authenticates nothing but a test CA that
 # issues from a key generated in the same image, so it is a fixture rather than a credential.
@@ -104,13 +106,43 @@ configure_alias() {
         "ra.certificateprofile ENDUSER" \
         "responseprotection signature" \
         "allowupdatewithsamekey true"; do
-        ejbca config cmp updatealias --alias "${alias}" \
-            --key "${setting%% *}" --value "${setting#* }"
+        ejbca config cmp updatealias --alias "${alias}" --key "${setting%% *}" --value "${setting#* }"
     done
 }
 
 configure_alias "${PBM_ALIAS}" HMAC "${PBM_SECRET}"
 configure_alias "${SIGNATURE_ALIAS}" EndEntityCertificate ManagementCA
+
+# configure_client_alias configures one client-mode enrollment stage for the fixed KUR identities.
+configure_client_alias() {
+    local alias="$1" module="$2" parameters="$3"
+    log "configuring the CMP alias ${alias}"
+    ejbca config cmp addalias --alias "${alias}"
+    local setting
+    for setting in \
+        "operationmode client" \
+        "authenticationmodule ${module}" \
+        "authenticationparameters ${parameters}" \
+        "defaultcertprofile ENDUSER" \
+        "defaultca ${ISSUING_CA_NAME}" \
+        "defaulteeprofile EMPTY" \
+        "responseprotection signature" \
+        "allowautomatickeyupdate true" \
+        "allowupdatewithsamekey true"; do
+        ejbca config cmp updatealias --alias "${alias}" --key "${setting%% *}" --value "${setting#* }"
+    done
+}
+
+log "creating the client-mode KUR end entities"
+for identity in "${KUR_ALWAYS_IDENTITY}" "${KUR_NEVER_IDENTITY}"; do
+    ejbca ra addendentity --username "${identity}" --dn "CN=${identity}" --caname "${ISSUING_CA_NAME}" --type 1 --token USERGENERATED --password "${PBM_SECRET}" --eeprofile EMPTY --certprofile ENDUSER
+    ejbca ra setclearpwd --username "${identity}" --password "${PBM_SECRET}"
+done
+configure_client_alias "${KUR_INITIAL_ALIAS}" HMAC "${PBM_SECRET}"
+configure_client_alias "${KUR_ALIAS}" EndEntityCertificate "${ISSUING_CA_NAME}"
+# RFC 9483 section 4.1.3 requires caPubs to be absent from KUP. EJBCA includes the issuing CA by
+# default, so the KUR-only alias must turn that response field off explicitly.
+ejbca config cmp updatealias --alias "${KUR_ALIAS}" --key response.capubsissuingca --value false
 
 log "exporting the trust anchors and the alias settings"
 ejbca ca getcacert --caname "${ISSUING_CA_NAME}" -f /dev/stdout \
@@ -124,6 +156,10 @@ printf '%s' "${PBM_REFERENCE}" > "${EXPORT_DIR}/pbm-reference"
 printf '%s' "${PBM_SECRET}" > "${EXPORT_DIR}/pbm-secret"
 printf '%s' "${PBM_ALIAS}" > "${EXPORT_DIR}/pbm-alias"
 printf '%s' "${SIGNATURE_ALIAS}" > "${EXPORT_DIR}/signature-alias"
+printf '%s' "${KUR_INITIAL_ALIAS}" > "${EXPORT_DIR}/kur-initial-alias"
+printf '%s' "${KUR_ALIAS}" > "${EXPORT_DIR}/kur-alias"
+printf '%s' "${KUR_ALWAYS_IDENTITY}" > "${EXPORT_DIR}/kur-always-identity"
+printf '%s' "${KUR_NEVER_IDENTITY}" > "${EXPORT_DIR}/kur-never-identity"
 
 # The CMP recipient is the subject of the issuing CA certificate, so the suite reads it from
 # cmp-ca.pem rather than from a value that could drift away from the certificate it names.
