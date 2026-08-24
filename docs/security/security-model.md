@@ -7,7 +7,7 @@ This page summarizes how cmp-issuer enforces security goals. Detailed analysis l
 | Goal | Mechanism |
 | --- | --- |
 | Protect credentials | Namespace-bounded Secret RBAC, no secret values in logs or Events |
-| Protect workload keys | P10CR never reads private-key Secrets |
+| Protect workload keys | P10CR never reads workload keys. KUR authenticates the cert-manager ownership chain before reading the exact current and staged Secrets |
 | Reject forged CMP responses | Pinned PKIProtection mechanism, configured sender identity, transaction ID and nonce checks |
 | Reject substituted certificates | CSR public-key match and CMP trust chain validation |
 | Limit blast radius | Bounded timeouts, response size, poll counts and transaction duration |
@@ -22,7 +22,8 @@ flowchart TB
     RBAC[RBAC]
     CR[CertificateRequest]
     ISS[CMPIssuer]
-    SEC[Credential Secrets]
+    SEC[Credential and workload Secrets]
+    CERT[Certificate ownership state]
   end
   subgraph cmp [CMP]
     MSG[Protected CMP messages]
@@ -30,6 +31,7 @@ flowchart TB
   end
   RBAC --> SEC
   ISS --> SEC
+  CERT -->|authorizes KUR key reads| SEC
   CR -->|approved CSR only| MSG
   MSG --> CA
 ```
@@ -45,6 +47,7 @@ flowchart TB
 | --- | --- |
 | Workload private key generation and storage | cert-manager |
 | CSR creation and signature | cert-manager |
+| KUR Secret selection and key proof validation | cmp-issuer after cert-manager ownership checks |
 | CMP enrollment and validation | cmp-issuer |
 | TLS Secret for the workload | cert-manager after cmp-issuer returns the chain |
 
@@ -52,7 +55,7 @@ flowchart TB
 
 * The CMP encoding layer is a pre-v1 library kept behind project-owned interfaces, maintained by this project's author and validated independently of its own checks. See [ADR 0001](../adr/0001-cmp-library.md).
 * CMP interoperability depends on server configuration.
-* A `CMPTransaction` records the transaction identifier, nonces, issuer identity, credential Secret versions and the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests`.
+* A `CMPTransaction` records the transaction identifier, nonces, issuer identity, credential and KUR workload Secret versions plus the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests`.
 * Transaction persistence gaps leave specific ambiguous failure modes open. See [Known limitations](../known-limitations.md).
 
 ## Supply chain
