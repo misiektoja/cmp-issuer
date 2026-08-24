@@ -28,18 +28,20 @@ import (
 )
 
 const (
+	// OperationP10CR identifies PKCS #10 enrollment and compatibility renewal.
+	OperationP10CR = "P10CR"
+	// OperationKUR identifies a certificate-authenticated Key Update Request.
+	OperationKUR = "KUR"
 	// ResponseCertReqIDStandard is the P10CR response identifier required by RFC 9810 and RFC 9483.
 	ResponseCertReqIDStandard int64 = -1
 	// ResponseCertReqIDLegacyZero is the identifier returned by servers that reuse the CRMF request index.
 	ResponseCertReqIDLegacyZero int64 = 0
 )
 
-// Client enrolls a signed PKCS #10 request through one protected CMP transaction, resumes a
-// transaction that the server answered with waiting and confirms an issued certificate. Confirmation
-// is a separate call so the caller can record the validated chain before certConf is sent, which is
-// what lets an interrupted confirmation resume instead of losing a certificate that already exists.
+// Client enrolls or updates a certificate, resumes a waiting transaction and confirms issuance.
 type Client interface {
 	EnrollP10CR(context.Context, EnrollmentRequest) (EnrollmentResult, error)
+	EnrollKUR(context.Context, EnrollmentRequest) (EnrollmentResult, error)
 	PollP10CR(context.Context, PollRequest) (EnrollmentResult, error)
 	ConfirmP10CR(context.Context, ConfirmRequest) (EnrollmentResult, error)
 }
@@ -69,13 +71,14 @@ type Protection struct {
 	Signature *SignatureProtection
 }
 
-// EnrollmentRequest contains validated inputs for one P10CR exchange.
+// EnrollmentRequest contains validated inputs for one P10CR or KUR exchange.
 // A nil ResponseCertReqID accepts either the standard or the legacy zero response identifier.
 // TransactionID pins the CMP transaction identifier so a caller can persist it before the request
 // is sent and resume the same transaction later. It is generated when empty, so a caller that polls
 // or confirms must supply it rather than let the transaction identifier be generated. Every
 // enrollment that is not implicitly confirmed needs it, because confirmation is a separate call.
 type EnrollmentRequest struct {
+	Operation         string
 	EndpointURL       string
 	Timeout           time.Duration
 	MaxResponseSize   int64
@@ -89,6 +92,7 @@ type EnrollmentRequest struct {
 	ResponseCertReqID      *int64
 	TransactionID          []byte
 	CSRDER                 []byte
+	RequestedPrivateKey    crypto.Signer
 	Protection             Protection
 	CMPTrust               *x509.CertPool
 	TLSRoots               *x509.CertPool
