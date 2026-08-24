@@ -41,7 +41,7 @@ Everything else has a working default. These do not.
 ### `credentialNamespaces`
 
 The controller has **no cluster-wide Secret access**. Each namespace hosting a `CMPIssuer` has to be
-authorized explicitly, and listing it here creates that RoleBinding instead of you applying it by hand.
+authorized explicitly and listing it here creates that RoleBinding instead of you applying it by hand.
 
 ```yaml
 credentialNamespaces:
@@ -50,9 +50,11 @@ credentialNamespaces:
 ```
 
 Every entry widens the boundary the project is built around, so name only namespaces you have already
-decided on. Each must exist before the release is installed or upgraded. A `CMPClusterIssuer` needs
-none of this, since it reads credentials only from the release namespace. Requires `rbac.namespaced` to
-be `false`, because a RoleBinding in another namespace cannot reference a Role that lives in this one.
+decided on. Each must exist before the release is installed or upgraded. A `CMPClusterIssuer` using
+P10CR needs none of this because it reads credentials only from the release namespace. One using KUR
+needs each workload namespace listed here so the controller can read the authorized current and staged
+keys. Requires `rbac.namespaced` to be `false`, because a RoleBinding in another namespace cannot
+reference a Role that lives in this one.
 See [credential Secret access](https://misiektoja.github.io/cmp-issuer/operations/secret-access/).
 
 ### `certManagerApproval`
@@ -89,7 +91,7 @@ when mirroring the image, or to a `repository@sha256:...` reference to pin a dig
 | `manager.affinity`, `manager.nodeSelector`, `manager.tolerations`, `manager.topologySpreadConstraints` | empty | Scheduling |
 | `manager.priorityClassName`, `manager.strategy`, `manager.terminationGracePeriodSeconds` | unset, unset, `10` | Deployment tuning |
 | `manager.labels`, `manager.annotations`, `manager.pod.labels`, `manager.pod.annotations` | unset | Custom metadata |
-| `credentialNamespaces` | `[]` | Namespaces whose credential and trust Secrets the controller may read |
+| `credentialNamespaces` | `[]` | Namespaces whose credential, trust and KUR workload Secrets the controller may read |
 | `certManagerApproval.create` | `true` | Grant cert-manager's approver permission over this issuer type |
 | `certManagerApproval.serviceAccountName` | `cert-manager` | ServiceAccount the cert-manager controller runs as |
 | `certManagerApproval.namespace` | `cert-manager` | Namespace cert-manager is installed in |
