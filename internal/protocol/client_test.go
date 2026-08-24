@@ -42,6 +42,8 @@ import (
 	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
 )
 
+const testFailureCertReqIDMismatch = "certReqIdMismatch"
+
 // Names used by the response sender comparison tests, modelled on a CA whose subject carries a UID.
 const (
 	testAuthorityCN     = "ManagementCA"
@@ -72,6 +74,7 @@ type mockOptions struct {
 	NullSender          bool
 	OmitPKIConfCerts    bool
 	InvalidPKIConf      bool
+	KUPCAPubs           bool
 	HTTPStatus          int
 	ContentType         string
 }
@@ -193,7 +196,7 @@ func issueLeaf(t *testing.T, pki testPKI, request *x509.CertificateRequest, publ
 	return certificate
 }
 
-// newMockCMPServer creates a protected two-message P10CR and certConf test server.
+// newMockCMPServer creates a protected two-message enrollment and certConf test server.
 func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots *x509.CertPool, options mockOptions) (*httptest.Server, *mockState) {
 	t.Helper()
 	state := &mockState{}
@@ -216,30 +219,7 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		}
 		state.add(message.Body.Type)
 		response := &pkicmp.PKIMessage{Header: pkicmp.PKIHeader{PVNO: pkicmp.PVNO2, Sender: pkicmp.NewDirectoryName(pki.CACertificate.Subject), TransactionID: append([]byte(nil), message.Header.TransactionID...), RecipNonce: append([]byte(nil), message.Header.SenderNonce...)}}
-		switch message.Body.Type {
-		case pkicmp.BodyTypeP10CR:
-			certificateRequest, parseErr := message.Body.P10CR()
-			if parseErr != nil {
-				t.Errorf("parse P10CR: %v", parseErr)
-				return
-			}
-			publicKey := certificateRequest.PublicKey
-			if options.WrongPublicKey {
-				_, wrongKey := createCSR(t, "wrong")
-				publicKey = wrongKey.Public()
-			}
-			leaf := issueLeaf(t, pki, certificateRequest, publicKey)
-			response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
-		case pkicmp.BodyTypeCertConf:
-			confirmation, parseErr := message.Body.CertConf()
-			if parseErr != nil || len(*confirmation) != 1 {
-				t.Errorf("parse certConf: %v", parseErr)
-				return
-			}
-			state.recordConfirmation((*confirmation)[0].CertReqID)
-			response.Body = pkicmp.NewPKIConfBody()
-		default:
-			t.Errorf("unexpected request body %s", message.Body.Type)
+		if !setMockResponseBody(t, pki, options, message, response, state) {
 			return
 		}
 		if options.WrongTransactionID {
@@ -308,6 +288,70 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		_, _ = writer.Write(responseDER)
 	}))
 	return server, state
+}
+
+// setMockResponseBody builds the response body for one supported mock CMP request.
+func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message *pkicmp.PKIMessage, response *pkicmp.PKIMessage, state *mockState) bool {
+	t.Helper()
+	switch message.Body.Type {
+	case pkicmp.BodyTypeP10CR:
+		certificateRequest, err := message.Body.P10CR()
+		if err != nil {
+			t.Errorf("parse P10CR: %v", err)
+			return false
+		}
+		publicKey := certificateRequest.PublicKey
+		if options.WrongPublicKey {
+			_, wrongKey := createCSR(t, "wrong")
+			publicKey = wrongKey.Public()
+		}
+		leaf := issueLeaf(t, pki, certificateRequest, publicKey)
+		response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
+	case pkicmp.BodyTypeKUR:
+		certificateRequests, err := message.Body.KUR()
+		if err != nil || len(*certificateRequests) != 1 {
+			t.Errorf("parse KUR: %v", err)
+			return false
+		}
+		certificateRequest := &(*certificateRequests)[0]
+		if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
+			t.Errorf("verify KUR proof of possession: %v", err)
+			return false
+		}
+		publicKey, err := certificateRequest.PublicKey()
+		if err != nil {
+			t.Errorf("parse KUR public key: %v", err)
+			return false
+		}
+		extensions, err := certificateRequest.Extensions()
+		if err != nil {
+			t.Errorf("parse KUR extensions: %v", err)
+			return false
+		}
+		template := &x509.Certificate{SerialNumber: big.NewInt(4), Subject: certificateRequest.Subject(), NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtraExtensions: extensions}
+		certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
+		if err != nil {
+			t.Errorf("issue KUR certificate: %v", err)
+			return false
+		}
+		responseMessage := &pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: certificateDER}}}}}}
+		if options.KUPCAPubs {
+			responseMessage.CAPubs = []pkicmp.CMPCertificate{{Raw: pki.CACertificate.Raw}}
+		}
+		response.Body = pkicmp.NewKUPBody(responseMessage)
+	case pkicmp.BodyTypeCertConf:
+		confirmation, err := message.Body.CertConf()
+		if err != nil || len(*confirmation) != 1 {
+			t.Errorf("parse certConf: %v", err)
+			return false
+		}
+		state.recordConfirmation((*confirmation)[0].CertReqID)
+		response.Body = pkicmp.NewPKIConfBody()
+	default:
+		t.Errorf("unexpected request body %s", message.Body.Type)
+		return false
+	}
+	return true
 }
 
 // TestEnrollP10CRRejectsMACSubstitution verifies signature operations cannot switch to shared-secret protection.
@@ -506,7 +550,7 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 		pinned  *int64
 		failure string
 	}{
-		{name: "pinned certReqId", options: mockOptions{CertReqID: 0}, pinned: pinCertReqID(ResponseCertReqIDStandard), failure: "certReqIdMismatch"},
+		{name: "pinned certReqId", options: mockOptions{CertReqID: 0}, pinned: pinCertReqID(ResponseCertReqIDStandard), failure: testFailureCertReqIDMismatch},
 		{name: "unsupported certReqId", options: mockOptions{CertReqID: 7}, failure: "certReqIdUnsupported"},
 		{name: "public key", options: mockOptions{CertReqID: -1, WrongPublicKey: true}, failure: "publicKeyMismatch"},
 		{name: "protection", options: mockOptions{CertReqID: -1, InvalidProtection: true}, failure: testBadMessageCheck},
