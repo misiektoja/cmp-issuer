@@ -10,8 +10,12 @@ cmp-issuer supports two protection modes, configured in `spec.protection.type`:
 | `PasswordBasedMac` | RFC 4210 PasswordBasedMac | Shared reference and secret | The server issued you an enrollment code |
 | `Signature` | RFC 4210 certificate-based protection | Bootstrap certificate and private key | The device or workload already holds an identity the server trusts |
 
-Both modes protect the same messages, and response validation is identical for both. Only the
-credential differs.
+The selected mode protects initial P10CR and compatibility P10CR renewal. Response validation is
+identical for both modes.
+
+KUR always uses the current workload certificate and private key for request protection as required by
+the CMP profile. This replaces the configured bootstrap or shared-secret request protection only for
+the KUR exchange. The configured CMP trust policy still validates every response.
 
 ## PasswordBasedMac
 
@@ -162,6 +166,7 @@ bootstrap identity rather than arbitrary workload names, unless the server profi
 The signer protects every message it sends:
 
 * P10CR enrollment requests
+* KUR requests with the current workload certificate
 * `pollReq` messages during asynchronous transactions
 * `certConf` confirmation messages when explicit confirmation is configured
 
@@ -173,8 +178,8 @@ Before accepting a certificate the signer validates:
 * Signer trust against `spec.cmpTrust`
 * That the response sender names the configured `recipient`
 * Transaction identifier and nonces
-* P10CR `certReqId` against policy
-* Exactly one `CertResponse` in CP
+* P10CR `certReqId` against policy or KUR `certReqId` fixed at `0`
+* Exactly one `CertResponse` in CP or KUP and no `caPubs` in KUP
 * That the issued public key matches the CSR
 * A leaf-first chain that validates against CMP trust
 
@@ -193,8 +198,8 @@ behavior.
 Credentials are reloaded from the Secret on every reconcile. Rotating a Secret during an open
 transaction invalidates in-flight protection and the transaction fails within `maximumDuration`. The
 transaction configuration digest records the UID and resourceVersion of every referenced credential
-Secret, so cmp-issuer stops the unfinished transaction before sending more CMP traffic when any of
-those values changes. See [Known limitations](../known-limitations.md).
+Secret. For KUR it also records both workload Secrets. cmp-issuer stops the unfinished transaction
+before sending more CMP traffic when any of those values changes. See [Known limitations](../known-limitations.md).
 
 ## Related pages
 
