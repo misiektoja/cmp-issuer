@@ -17,7 +17,7 @@ Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrol
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or certificate-based signature protection for CMP P10CR requests.
+Initial enrollment uses P10CR. Renewal can repeat P10CR for compatibility or use certificate-authenticated KUR with CRMF proof of possession.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
@@ -150,8 +150,12 @@ demo-tls   True    demo-tls   12s
 
 **Enrollment.** The controller watches approved `CertificateRequest` resources, forwards the signed
 PKCS #10 request in a protected P10CR and returns the issued chain to cert-manager. `initialEnrollment`
-accepts only `P10CR`, because IR needs CRMF proof of possession over the workload private key, which the
-issuer deliberately never reads.
+accepts only `P10CR`.
+
+**Renewal.** `spec.protocol.renewal` defaults to repeat P10CR. Set it to `KUR` when the CMP profile
+requires true key update. KUR protects the request with the current valid certificate and proves
+possession of cert-manager's requested key. A separate CMP alias can be selected with
+`spec.endpoint.renewalUrl`.
 
 **Built on cert-manager's own reconciliation library.** Approval, denial, retry classification, Ready
 conditions and Events come from [issuer-lib](https://github.com/cert-manager/issuer-lib), maintained by
@@ -166,10 +170,11 @@ recorded in a `CMPTransaction` before the first message is sent, so a controller
 existing transaction rather than enrolling a second time. Follow progress with
 `kubectl get cmptransactions -A`.
 
-**Security boundaries.** The controller never reads the workload private key. It has no cluster-wide
-Secret access, so each namespace hosting a `CMPIssuer` is authorized explicitly. TLS trust and CMP
-response trust are configured separately, and every response must be sent by the authority configured
-as `recipient`.
+**Security boundaries.** P10CR never reads workload private keys. KUR reads the exact current and staged
+keys only after validating the controlling cert-manager `Certificate`, owner UID, revision, issuer
+reference and Secret ownership state. Secret access is namespace bounded. TLS trust and CMP response
+trust are configured separately and every response must be sent by the authority configured as
+`recipient`.
 
 **Response compatibility.** The issuer accepts `certReqId` `-1` or `0` in P10CR CP responses, echoes the
 received value in `certConf` and rejects anything else. Pin one value with
@@ -195,6 +200,7 @@ Full documentation is at
 * [Installation](https://misiektoja.github.io/cmp-issuer/installation/)
 * [Support matrix](https://misiektoja.github.io/cmp-issuer/support-matrix/)
 * [Enrollment guide](https://misiektoja.github.io/cmp-issuer/guide/enrollment/)
+* [Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/)
 * [Message protection](https://misiektoja.github.io/cmp-issuer/guide/message-protection/)
 * [CMPIssuer reference](https://misiektoja.github.io/cmp-issuer/reference/cmpissuer/)
 * [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/)
