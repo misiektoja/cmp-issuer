@@ -38,6 +38,8 @@ const (
 
 	// TransactionOperationP10CR is the CMP operation of a PKCS #10 initial enrollment.
 	TransactionOperationP10CR = "P10CR"
+	// TransactionOperationKUR is the CMP operation of updating a valid certificate.
+	TransactionOperationKUR = "KUR"
 
 	// TransactionIssuerKindNamespaced identifies a namespaced CMPIssuer.
 	TransactionIssuerKindNamespaced = "CMPIssuer"
@@ -99,7 +101,7 @@ type CMPTransactionSpec struct {
 	// +optional
 	ConfigurationDigest string `json:"configurationDigest,omitempty"`
 	// Operation is the CMP operation this transaction performs.
-	// +kubebuilder:validation:Enum=P10CR
+	// +kubebuilder:validation:Enum=P10CR;KUR
 	// +optional
 	Operation string `json:"operation,omitempty"`
 	// ProtocolVersion is the CMP protocol version of every message in this transaction.
