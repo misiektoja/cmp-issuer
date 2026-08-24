@@ -14,7 +14,7 @@ Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrol
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or certificate-based signature protection for CMP P10CR requests.
+Initial enrollment uses P10CR. Renewal can repeat P10CR for compatibility or use certificate-authenticated KUR with CRMF proof of possession.
 
 ## Start here
 
@@ -28,6 +28,7 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 | Install a different way, or understand the CRD lifecycle | [Installation](installation.md) |
 | Know what is supported today | [Support matrix](support-matrix.md) |
 | Understand the request lifecycle | [Enrollment](guide/enrollment.md) |
+| Configure renewal as P10CR or KUR | [Renewal with P10CR or KUR](guide/renewal-and-kur.md) |
 | Choose a protection mode | [Message protection](guide/message-protection.md) |
 | Configure which CA responses are trusted | [CMP response trust](guide/cmp-response-trust.md) |
 | Move off plain HTTP | [HTTP and HTTPS transport](guide/transport.md) |
@@ -45,7 +46,7 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 * [Transaction recovery](guide/transaction-recovery.md) - what survives a controller restart
 * [Security model](security/security-model.md) and [Threat model](security/threat-model.md)
 * [Provenance and supply chain](provenance.md)
-* [CMP library selection](adr/0001-cmp-library.md) and [issuer reconciliation library](adr/0002-issuer-lib.md)
+* [CMP library selection](adr/0001-cmp-library.md), [issuer reconciliation library](adr/0002-issuer-lib.md) and [KUR renewal design](adr/0003-kur-renewal.md)
 
 ## Contributing
 
