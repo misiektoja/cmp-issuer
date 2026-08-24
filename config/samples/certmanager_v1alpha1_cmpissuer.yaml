@@ -13,6 +13,7 @@ spec:
   protocol:
     version: 2
     initialEnrollment: P10CR
+    renewal: P10CR
     recipient: CN=Example CMP CA,O=Example
     confirmation: Explicit
   protection:
