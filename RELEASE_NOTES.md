@@ -11,6 +11,7 @@ True CMP key update is now available for cert-manager renewals while repeat P10C
 * **Renew certificates with true KUR** - Set `spec.protocol.renewal` to `KUR` to authenticate renewal with the current valid certificate and prove possession of cert-manager's requested key. Initial issuance remains P10CR. New-key and same-key renewal were verified against Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.3.
 * **Use separate enrollment and renewal endpoints** - Optional `spec.endpoint.renewalUrl` routes KUR to a dedicated CMP alias while initial P10CR continues to use `endpoint.url`. Omit it when one endpoint accepts both operations.
 * **Keep existing renewal behavior by default** - Existing issuers continue to use repeat P10CR. KUR never silently falls back to another operation after a send and every transaction records whether it is P10CR or KUR.
+* **Choose interoperable or RFC 9483 response validation** - `spec.protocol.validationProfile` defaults to `Interoperable`, which accepts KUP `caPubs` only as untrusted chain candidates. `RFC9483` bundles strict P10CR identifier, MAC response and KUP `caPubs` checks. Focused settings remain available for mixed server profiles.
 
 ### Security and reliability
 
