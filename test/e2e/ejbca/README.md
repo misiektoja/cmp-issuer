@@ -45,14 +45,19 @@ hostname.
 | Administration authority | `ManagementCA`, which signs the TLS server certificate and the registration certificate |
 | CMP alias `cmpissuerpbm` | RA mode, requests protected with a shared secret, responses signed by the issuing authority |
 | CMP alias `cmpissuersig` | RA mode, requests protected with a certificate signature |
-| CMP alias `cmpissuerkurinit` | Client mode, initial P10CR protected with a shared secret |
-| CMP alias `cmpissuerkur` | Client mode, KUR protected by the certificate being updated with automatic key update enabled and KUP `caPubs` disabled |
+| CMP alias `cmpissuerkurinit` | Client mode, initial P10CR protected with a shared secret and response protected with a signature |
+| CMP alias `cmpissuerkur` | Client mode, KUR protected by the certificate being updated with automatic key update enabled and KUP `caPubs` enabled |
+| CMP alias `cmpissuerkurstrict` | Client mode, KUR protected by the certificate being updated with automatic key update enabled and KUP `caPubs` disabled |
 | `/opt/keyfactor/cmp-issuer-e2e` | trust anchors, registration credential, alias names and the shared secret, which the specs read from the running container |
 
-Both aliases keep the EJBCA default of `responseprotection` `signature`, so the issuing authority signs
-every response including the answer to a request protected with a shared secret. The issuers in the
-specs set no `spec.protocol.macResponseProtection`, so a passing run proves that a stock EJBCA alias
-works against a cmp-issuer left at its own defaults.
+The ordinary aliases and default KUR pair keep EJBCA's `responseprotection` `signature`, so the issuing
+authority signs every response including the answer to a request protected with a shared secret. The
+default KUR response includes the issuing CA in `caPubs`. A passing run proves the interoperable
+defaults accept both behaviors without treating a delivered certificate as a trust anchor.
+
+After initial enrollment the second KUR flow enables `validationProfile: RFC9483` before using the
+strict KUR alias, which omits `caPubs`. EJBCA returns P10CR `certReqId` `0`, so enabling the profile
+before initial enrollment would correctly reject that nonconforming response.
 
 Two authorities rather than one is deliberate. The authority that signs CMP responses is not the
 authority that signed the endpoint TLS certificate, so a run proves that the two trust decisions stay
