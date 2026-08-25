@@ -114,7 +114,7 @@ cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 ## EJBCA_VERSION is the upstream release the CMP server image is built from.
 EJBCA_VERSION ?= 9.3.7
 ## EJBCA_IMAGE_REVISION advances when the baked configuration changes without an upstream release.
-EJBCA_IMAGE_REVISION ?= 2
+EJBCA_IMAGE_REVISION ?= 3
 ## EJBCA_TEST_IMAGE is the preconfigured CMP server image that the enrollment specs start.
 EJBCA_TEST_IMAGE ?= ghcr.io/misiektoja/cmp-issuer-ejbca-test:$(EJBCA_VERSION)-$(EJBCA_IMAGE_REVISION)
 ## EJBCA_HOSTNAME is baked into the TLS server certificate and has to stay the Service name that
