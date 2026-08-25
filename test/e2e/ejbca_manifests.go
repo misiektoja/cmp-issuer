@@ -163,14 +163,16 @@ const tlsTransport = `  transport:
 
 // ejbcaIssuer describes one combination of endpoint, protection mechanism and transport.
 type ejbcaIssuer struct {
-	name        string
-	url         string
-	recipient   string
-	protection  string
-	trustSecret string
-	transport   string
-	renewal     string
-	renewalURL  string
+	name              string
+	url               string
+	recipient         string
+	protection        string
+	trustSecret       string
+	transport         string
+	renewal           string
+	renewalURL        string
+	validationProfile string
+	kurResponseCAPubs string
 }
 
 // ejbcaWorkloadManifest renders the CMP server Deployment and the Service that publishes it.
@@ -183,6 +185,12 @@ func (issuer ejbcaIssuer) manifest() string {
 	renewal := ""
 	if issuer.renewal != "" {
 		renewal = "    renewal: " + issuer.renewal + "\n"
+	}
+	if issuer.validationProfile != "" {
+		renewal += "    validationProfile: " + issuer.validationProfile + "\n"
+	}
+	if issuer.kurResponseCAPubs != "" {
+		renewal += "    kurResponseCaPubs: " + issuer.kurResponseCAPubs + "\n"
 	}
 	renewalURL := ""
 	if issuer.renewalURL != "" {
