@@ -67,9 +67,10 @@ is planned rather than implemented.
 ### Response protection
 
 Many servers sign every response regardless of how the request was protected. EJBCA does this on any
-CMP alias left at its own default of `responseprotection` `signature`. RFC 9483 section 5 permits that
-substitution, so `spec.protocol.macResponseProtection` defaults to `AllowSignature` and both a
-MAC-protected and a signed response are accepted.
+CMP alias left at its own default of `responseprotection` `signature`. For interoperability,
+`spec.protocol.macResponseProtection` defaults to `AllowSignature` and both a MAC-protected and a
+signed response are accepted. This is not the RFC 9483 profile behavior, which requires MAC-based
+protection throughout a MAC-protected operation.
 
 Accepting a signature does not weaken the response to an unauthenticated one. The signer must chain to
 `spec.cmpTrust.caSecretRef` and the response sender must name `spec.protocol.recipient`, which is the
@@ -89,6 +90,9 @@ be able to answer for the recipient, or to conform to a profile that requires on
 whole PKI management operation. Confirm the server protects its answers with the shared secret before
 turning it on, since a server that signs them will have issued the certificate before the response is
 rejected.
+
+Setting `spec.protocol.validationProfile` to `RFC9483` enables `Strict` behavior implicitly. An
+explicit `AllowSignature` conflicts with that profile and is rejected by API validation.
 
 ### Server setup
 
@@ -179,12 +183,18 @@ Before accepting a certificate the signer validates:
 * That the response sender names the configured `recipient`
 * Transaction identifier and nonces
 * P10CR `certReqId` against policy or KUR `certReqId` fixed at `0`
-* Exactly one `CertResponse` in CP or KUP and no `caPubs` in KUP
+* Exactly one `CertResponse` in CP or KUP
+* KUP `caPubs` according to the selected validation profile
 * That the issued public key matches the CSR
 * A leaf-first chain that validates against CMP trust
 
 Protected error responses are verified the same way. A verification failure fails the
 `CertificateRequest` and stores no certificate.
+
+The default `Interoperable` profile accepts certificates from KUP `caPubs` and `extraCerts` only as
+untrusted candidates for building the issued chain. They never become trust anchors. The completed
+chain must still validate to a CA from `spec.cmpTrust`. Set `kurResponseCaPubs: RequireAbsent` for only
+the RFC 9483 KUP rule or select `validationProfile: RFC9483` to enable the bundled checks.
 
 ### Confirmation signer retention
 
