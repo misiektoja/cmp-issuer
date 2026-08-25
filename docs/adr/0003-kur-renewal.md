@@ -19,6 +19,12 @@ Add optional `spec.endpoint.renewalUrl`. When set, KUR uses this URL while P10CR
 
 Select the operation before creating a `CMPTransaction` and persist it in `spec.operation`. Never fall back from KUR to P10CR after a send. A timeout can be ambiguous and changing operations could issue another certificate.
 
+Default response validation to `spec.protocol.validationProfile: Interoperable`. KUP `caPubs` and
+`extraCerts` are untrusted chain-building candidates under this profile. They never extend configured
+CMP trust. Add `RFC9483` as a bundled receiver profile that pins P10CR CP `certReqId` to `-1`, requires
+MAC protection throughout a MAC-protected operation and requires KUP `caPubs` absent. Keep focused
+controls for deployments that need only one rule.
+
 Authorize workload key reads through cert-manager state rather than through an annotation alone. The signer validates all of the following before it reads either workload Secret:
 
 * A controlling `cert-manager.io/v1` `Certificate` owner with the exact name and UID
