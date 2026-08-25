@@ -61,10 +61,12 @@ spec:
 | `version` | yes | `2` | CMP version; only `2` is supported |
 | `initialEnrollment` | yes | `P10CR` | Only `P10CR` is implemented |
 | `renewal` | no | `P10CR` | `P10CR` repeats enrollment. `KUR` uses the current certificate and CRMF proof of possession for later cert-manager revisions |
+| `validationProfile` | no | `Interoperable` | `Interoperable` uses safe receiver compatibility defaults. `RFC9483` pins P10CR response `certReqId` to `-1`, requires MAC-based responses to MAC-protected operations and requires KUP `caPubs` absent |
+| `kurResponseCaPubs` | no | inherit profile | `Accept` treats KUP `caPubs` as untrusted chain candidates. `RequireAbsent` rejects any KUP that contains them |
 | `recipient` | yes | | RFC 4514 recipient DN. Also the authority every response must be sent by, compared ignoring attribute order |
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
-| `p10crResponseCertReqId` | no | accept `-1` or `0` | Pin `-1` or `0` when the server behavior is known |
-| `macResponseProtection` | no | `AllowSignature` | `AllowSignature` accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `Strict` requires MAC-based protection throughout, so the shared secret authenticates the response as well as the request |
+| `p10crResponseCertReqId` | no | inherit profile | `Interoperable` accepts `-1` or `0`. `RFC9483` requires `-1`. Pin either value for a known server under the interoperable profile |
+| `macResponseProtection` | no | inherit profile | `Interoperable` uses `AllowSignature`, which accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `RFC9483` uses `Strict`, which requires MAC-based protection throughout |
 | `certProfile` | no | | Optional server certificate profile |
 | `sender` | no | | Optional sender DN |
 
