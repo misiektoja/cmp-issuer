@@ -311,6 +311,25 @@ func TestValidateSpec(t *testing.T) {
 		{name: "unsupported MAC response protection", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protocol.MACResponseProtection = "Any"
 		}},
+		{name: "unsupported validation profile", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.ValidationProfile = "Strict"
+		}},
+		{name: "unsupported KUR caPubs policy", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.KURResponseCAPubs = "Ignore"
+		}},
+		{name: "RFC9483 legacy P10CR certReqId", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			legacy := int64(0)
+			spec.Protocol.ValidationProfile = cmpv1alpha1.ValidationProfileRFC9483
+			spec.Protocol.P10CRResponseCertReqID = &legacy
+		}},
+		{name: "RFC9483 signed MAC response", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.ValidationProfile = cmpv1alpha1.ValidationProfileRFC9483
+			spec.Protocol.MACResponseProtection = cmpv1alpha1.MACResponseProtectionAllowSignature
+		}},
+		{name: "RFC9483 accepts KUP caPubs", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.ValidationProfile = cmpv1alpha1.ValidationProfileRFC9483
+			spec.Protocol.KURResponseCAPubs = cmpv1alpha1.KURResponseCAPubsAccept
+		}},
 		{name: "profile not encoded", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.CertProfile = "profile" }},
 		{name: "same password key", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protection.PasswordBasedMac.SecretKey = testPasswordReferenceKey
@@ -427,6 +446,51 @@ func TestSignLeavesResponseCertReqIDUnpinnedByDefault(t *testing.T) {
 	}
 	if protocolClient.request.ResponseCertReqID != nil {
 		t.Fatalf("expected no pinned response certReqId, got %d", *protocolClient.request.ResponseCertReqID)
+	}
+	if protocolClient.request.RequireKUPCAPubsAbsent {
+		t.Fatal("expected the interoperable default to accept KUP caPubs")
+	}
+}
+
+// TestSignAppliesValidationProfile verifies profile defaults and the focused caPubs override reach the protocol client.
+func TestSignAppliesValidationProfile(t *testing.T) {
+	tests := []struct {
+		name               string
+		profile            string
+		kurCAPubs          string
+		expectPinned       bool
+		expectSignedMAC    bool
+		expectAbsentCAPubs bool
+	}{
+		{name: "RFC9483", profile: cmpv1alpha1.ValidationProfileRFC9483, expectPinned: true, expectSignedMAC: false, expectAbsentCAPubs: true},
+		{name: "interoperable override", profile: cmpv1alpha1.ValidationProfileInteroperable, kurCAPubs: cmpv1alpha1.KURResponseCAPubsRequireAbsent, expectSignedMAC: true, expectAbsentCAPubs: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			auth, trust, leaf := credentialSecrets(t, testIssuerNamespace)
+			kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+			protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{leaf}}}
+			signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+			issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace}, Spec: validSpec("https://example.test/cmp")}
+			issuer.Spec.Protocol.ValidationProfile = test.profile
+			issuer.Spec.Protocol.KURResponseCAPubs = test.kurCAPubs
+			request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
+			if _, err := signer.Sign(context.Background(), request, issuer); err != nil {
+				t.Fatalf("Sign failed: %v", err)
+			}
+			if (protocolClient.request.ResponseCertReqID != nil) != test.expectPinned {
+				t.Fatalf("expected pinned response certReqId %t, got %v", test.expectPinned, protocolClient.request.ResponseCertReqID)
+			}
+			if test.expectPinned && *protocolClient.request.ResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDStandard {
+				t.Fatalf("expected RFC9483 response certReqId -1, got %d", *protocolClient.request.ResponseCertReqID)
+			}
+			if protocolClient.request.AllowSignedMACResponse != test.expectSignedMAC {
+				t.Fatalf("expected signed MAC response acceptance %t", test.expectSignedMAC)
+			}
+			if protocolClient.request.RequireKUPCAPubsAbsent != test.expectAbsentCAPubs {
+				t.Fatalf("expected KUP caPubs absence %t", test.expectAbsentCAPubs)
+			}
+		})
 	}
 }
 
