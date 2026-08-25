@@ -180,6 +180,11 @@ trust are configured separately and every response must be sent by the authority
 received value in `certConf` and rejects anything else. Pin one value with
 `spec.protocol.p10crResponseCertReqId` when a server's behavior is known.
 
+`spec.protocol.validationProfile` defaults to `Interoperable`. In that profile KUP `caPubs` are
+accepted only as untrusted chain candidates and never as trust anchors. Select `RFC9483` to pin P10CR
+responses to `certReqId` `-1`, require MAC responses to MAC-protected requests and reject KUP
+`caPubs`. Each control also has a focused override for server-specific deployments.
+
 **Observability.** Each completed enrollment writes one `Issued certificate` log line carrying the
 subject, serial, validity and issuing CA. The controller also publishes its own Prometheus metrics next
 to the controller-runtime and Go defaults, counting enrollments, durations and classified failures per
