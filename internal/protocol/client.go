@@ -350,11 +350,10 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	}
 	// A MAC-protected request is answered with MAC-based protection unless the issuer opts in, because
 	// the shared secret is the only thing that authenticates the peer of such an operation and a
-	// signature would otherwise let any certificate under the trust anchor answer in its place. RFC 9483
-	// section 5 does allow a PKI management entity to replace MAC-based protection with signature-based
-	// protection, which is what a server sends when it is configured to sign every response, so the
-	// opt-in accepts a signer that chains to the configured anchor. The sender check below still
-	// requires that signer to name the recipient the request addressed.
+	// signature would otherwise let any certificate under the trust anchor answer in its place. Some
+	// servers sign every response even though RFC 9483 requires MAC-based protection throughout this
+	// kind of operation, so the interoperability opt-in accepts a signer that chains to the configured
+	// anchor. The sender check below still requires that signer to name the request recipient.
 	signatureAccepted := requiredProtection == pkicmp.ProtectionSignature || request.AllowSignedMACResponse
 	var responseSigner *x509.Certificate
 	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
@@ -529,18 +528,35 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 	if err != nil {
 		return issuedCertificate{}, permanent("parse issued certificate", "badDataFormat", err)
 	}
-	candidates := make([]*x509.Certificate, 0, len(reply.CAPubs)+len(response.ExtraCerts))
-	if request.Operation == OperationKUR && len(reply.CAPubs) != 0 {
+	if request.Operation == OperationKUR && request.RequireKUPCAPubsAbsent && len(reply.CAPubs) != 0 {
 		return issuedCertificate{}, permanent("validate KUP", "badDataFormat", fmt.Errorf("KUP caPubs must be absent"))
 	}
-	for _, encoded := range append(reply.CAPubs, response.ExtraCerts...) {
-		parsed, err := encoded.Parse()
-		if err != nil {
-			return issuedCertificate{}, permanent("parse response certificate", "badDataFormat", err)
-		}
-		candidates = append(candidates, parsed)
+	candidates, err := parseResponseCertificates(reply.CAPubs, response.ExtraCerts)
+	if err != nil {
+		return issuedCertificate{}, err
 	}
 	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response)}, nil
+}
+
+// parseResponseCertificates parses and deduplicates untrusted chain candidates from response certificate fields.
+func parseResponseCertificates(groups ...[]pkicmp.CMPCertificate) ([]*x509.Certificate, error) {
+	candidates := make([]*x509.Certificate, 0)
+	seen := make(map[string]struct{})
+	for _, group := range groups {
+		for _, encoded := range group {
+			key := string(encoded.Raw)
+			if _, found := seen[key]; found {
+				continue
+			}
+			parsed, err := encoded.Parse()
+			if err != nil {
+				return nil, permanent("parse response certificate", "badDataFormat", err)
+			}
+			seen[key] = struct{}{}
+			candidates = append(candidates, parsed)
+		}
+	}
+	return candidates, nil
 }
 
 // acceptResponseCertReqID enforces the operation-specific certificate response identifier.
