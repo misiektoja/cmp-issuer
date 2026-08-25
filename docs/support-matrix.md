@@ -56,10 +56,12 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | `CMPClusterIssuer` (cluster) | Experimental | Credentials read from cluster resource namespace |
 | `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
-| `p10crResponseCertReqId` pin | Implemented | Accept `-1` or `0` by default |
+| `p10crResponseCertReqId` pin | Implemented | Interoperable profile accepts `-1` or `0`. RFC 9483 profile requires `-1` |
 | `protocol.renewal` | Implemented | `P10CR` by default or `KUR` for later cert-manager revisions |
+| `protocol.validationProfile` | Implemented | `Interoperable` by default or bundled RFC 9483 receiver checks for implemented P10CR and KUR flows |
+| `protocol.kurResponseCaPubs` | Implemented | Accept untrusted KUP chain candidates by default or require the field absent |
 | `endpoint.renewalUrl` | Implemented | Optional KUR endpoint for servers with separate initial and key-update aliases |
-| `macResponseProtection` | Implemented, Interoperability tested | `AllowSignature` by default, so a signed answer to a `PasswordBasedMac` request is accepted when it chains to the CMP trust anchor and names the recipient. `Strict` requires MAC-based protection throughout |
+| `macResponseProtection` | Implemented, Interoperability tested | Interoperable profile uses `AllowSignature`, so a signed answer to a `PasswordBasedMac` request is accepted when it chains to the CMP trust anchor and names the recipient. RFC 9483 uses `Strict` |
 | Endpoint reachability in issuer readiness | Planned | Readiness reflects configuration, not whether the server answers |
 | Requested validity period from `Certificate.spec.duration` | Planned | Needs CRMF, since a PKCS #10 request carries no validity |
 | Chain placement options for the issued Secret | Planned | Choose whether `tls.crt` carries the chain and what `ca.crt` holds |
