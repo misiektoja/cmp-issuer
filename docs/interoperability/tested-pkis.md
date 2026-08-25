@@ -50,7 +50,7 @@ This is P10CR re-enrollment rather than KUR. It differs from a retransmission, w
 
 ### KUR renewal
 
-The same lab profile accepted a P10CR-issued certificate as the authentication credential for later KUR on the same endpoint. Both cert-manager rotation policies completed with explicit confirmation. `Always` produced a new serial and public key while `Never` produced a new serial with the exact existing public key. NCM recorded signature-protected `keyUpReq`, `keyUpResp`, `certConfirm` and final confirmation messages.
+The same lab profile accepted a P10CR-issued certificate as the authentication credential for later KUR on the same endpoint. Both cert-manager rotation policies completed with explicit confirmation. `Always` produced a new serial and public key while `Never` produced a new serial with the exact existing public key. A repeated same-key KUR without CRMF `oldCertID` was rejected after the key had more than one certificate. Sending the current certificate issuer and serial in `oldCertID` resolved the ambiguity and the next repeated same-key KUR completed. NCM recorded signature-protected `keyUpReq`, `keyUpResp`, `certConfirm` and final confirmation messages.
 
 This verifies both new-key and same-key KUR against the tested profile. Another NCM profile can still disable key update or apply different certificate policy.
 
