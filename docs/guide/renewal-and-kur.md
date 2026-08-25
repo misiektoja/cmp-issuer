@@ -49,6 +49,35 @@ A certificate originally issued through P10CR can later be renewed through KUR. 
 
 No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.
 
+## Response validation profiles
+
+`spec.protocol.validationProfile` defaults to `Interoperable`. This accepts KUP `caPubs` because CMP
+servers including EJBCA and Nokia NCM can legitimately be configured to deliver CA certificates there.
+Those certificates are untrusted chain candidates only. They cannot add a trust root and the issued
+chain must still terminate at `spec.cmpTrust`.
+
+Use the RFC 9483 receiver rules for the implemented operations with:
+
+```yaml
+spec:
+  protocol:
+    validationProfile: RFC9483
+```
+
+This pins P10CR CP `certReqId` to `-1`, requires MAC-based responses throughout a MAC-protected
+operation and requires KUP `caPubs` absent. Tested NCM and EJBCA versions return P10CR `certReqId` `0`,
+so the complete profile rejects their initial enrollment behavior. Use the default profile with a
+focused setting when only one rule is required:
+
+```yaml
+spec:
+  protocol:
+    kurResponseCaPubs: RequireAbsent
+```
+
+The focused values are `kurResponseCaPubs: Accept | RequireAbsent`,
+`macResponseProtection: AllowSignature | Strict` and `p10crResponseCertReqId: -1 | 0`.
+
 ## Workload Secret authorization
 
 KUR does not trust `cert-manager.io/private-key-secret-name` by itself. Before reading either key cmp-issuer verifies the controlling `Certificate`, owner UID, immediately previous revision, issuer reference, current output Secret, `status.nextPrivateKeySecretName`, staged Secret owner and label, CSR signature and public-key equality.
