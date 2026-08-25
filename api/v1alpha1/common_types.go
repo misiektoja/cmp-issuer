@@ -31,6 +31,14 @@ const (
 	RenewalP10CR = "P10CR"
 	// RenewalKUR selects a certificate-authenticated CMP Key Update Request for renewals.
 	RenewalKUR = "KUR"
+	// ValidationProfileInteroperable accepts reviewed CMP deviations used by deployed servers.
+	ValidationProfileInteroperable = "Interoperable"
+	// ValidationProfileRFC9483 enforces the lightweight CMP profile choices supported by cmp-issuer.
+	ValidationProfileRFC9483 = "RFC9483"
+	// KURResponseCAPubsAccept accepts KUP caPubs as untrusted certificate-chain candidates.
+	KURResponseCAPubsAccept = "Accept"
+	// KURResponseCAPubsRequireAbsent rejects a KUP that contains caPubs.
+	KURResponseCAPubsRequireAbsent = "RequireAbsent"
 	// P10CRResponseCertReqIDStandard pins the response identifier required by RFC 9810 and RFC 9483.
 	P10CRResponseCertReqIDStandard int64 = -1
 	// P10CRResponseCertReqIDLegacyZero pins the response identifier returned by servers that reuse the CRMF index.
@@ -106,6 +114,9 @@ type EndpointSpec struct {
 }
 
 // ProtocolSpec configures CMP enrollment operations and message headers.
+// +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.p10crResponseCertReqId) || self.p10crResponseCertReqId == -1",message="RFC9483 requires P10CR response certReqId -1"
+// +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.macResponseProtection) || self.macResponseProtection == 'Strict'",message="RFC9483 requires MAC-based protection throughout a MAC-protected operation"
+// +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.kurResponseCaPubs) || self.kurResponseCaPubs == 'RequireAbsent'",message="RFC9483 requires KUP caPubs to be absent"
 type ProtocolSpec struct {
 	// Version is the CMP protocol version number.
 	// +kubebuilder:default=2
@@ -127,6 +138,19 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=P10CR;KUR
 	// +optional
 	Renewal string `json:"renewal,omitempty"`
+	// ValidationProfile selects a coherent set of CMP response checks. Interoperable accepts the
+	// reviewed deviations documented for supported servers. RFC9483 pins the P10CR response certReqId
+	// to -1, requires MAC-based responses to MAC-protected operations and requires KUP caPubs absent.
+	// +kubebuilder:default=Interoperable
+	// +kubebuilder:validation:Enum=Interoperable;RFC9483
+	// +optional
+	ValidationProfile string `json:"validationProfile,omitempty"`
+	// KURResponseCAPubs controls KUP caPubs handling when ValidationProfile is Interoperable.
+	// Omit it or set Accept to parse the certificates as untrusted chain candidates. RequireAbsent
+	// rejects the response. RFC9483 always requires absence and does not permit Accept.
+	// +kubebuilder:validation:Enum=Accept;RequireAbsent
+	// +optional
+	KURResponseCAPubs string `json:"kurResponseCaPubs,omitempty"`
 	// P10CRResponseCertReqID pins the exact certReqId required in CP and echoed in certConf.
 	// Omit this field to accept the standards-defined value -1 or the widely deployed legacy value 0
 	// and echo the received value. Set it to reject every other value for a known server.
@@ -134,15 +158,13 @@ type ProtocolSpec struct {
 	// +optional
 	P10CRResponseCertReqID *int64 `json:"p10crResponseCertReqId,omitempty"`
 	// MACResponseProtection selects which response protection answers a PasswordBasedMac request.
-	// AllowSignature, the default, accepts either MAC-based protection or a signature whose signer
+	// AllowSignature accepts either MAC-based protection or a signature whose signer
 	// chains to cmpTrust and whose sender names spec.protocol.recipient, which is the same authority
-	// check a Signature issuer already relies on for every response. RFC 9483 section 5 permits that
-	// substitution and many servers send it, including any EJBCA CMP alias left at its own default of
-	// responseprotection signature. Strict requires MAC-based protection throughout, so the shared
-	// secret authenticates every message of the operation rather than only the request. Set it where
-	// the trust anchor is shared with authorities that must not be able to answer, or to conform to a
-	// profile that requires one protection type for a whole operation.
-	// +kubebuilder:default=AllowSignature
+	// check a Signature issuer already relies on for every response. Many servers send this, including
+	// an EJBCA CMP alias left at its responseprotection signature default. Strict requires MAC-based
+	// protection throughout, so the shared secret authenticates every message of the operation rather
+	// than only the request. Omission inherits the validation profile: AllowSignature for Interoperable
+	// and Strict for RFC9483.
 	// +kubebuilder:validation:Enum=Strict;AllowSignature
 	// +optional
 	MACResponseProtection string `json:"macResponseProtection,omitempty"`
