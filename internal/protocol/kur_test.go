@@ -95,7 +95,7 @@ func TestEnrollKUR(t *testing.T) {
 	}
 }
 
-// TestEnrollKURRejectsInvalidKUPShape verifies KUP-specific response constraints are enforced.
+// TestEnrollKURRejectsInvalidKUPShape verifies the fixed KUR response identifier is enforced.
 func TestEnrollKURRejectsInvalidKUPShape(t *testing.T) {
 	for _, test := range []struct {
 		name    string
@@ -104,7 +104,6 @@ func TestEnrollKURRejectsInvalidKUPShape(t *testing.T) {
 		failure string
 	}{
 		{name: "nonzero certReqId", options: mockOptions{CertReqID: 7}, kind: ErrorKindSecurity, failure: testFailureCertReqIDMismatch},
-		{name: "caPubs present", options: mockOptions{CertReqID: ResponseCertReqIDLegacyZero, KUPCAPubs: true}, kind: ErrorKindPermanent, failure: "badDataFormat"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			pki := newTestPKI(t)
@@ -118,6 +117,53 @@ func TestEnrollKURRejectsInvalidKUPShape(t *testing.T) {
 				t.Fatalf("expected %s %s failure, got %v", test.kind, test.failure, err)
 			}
 		})
+	}
+}
+
+// TestEnrollKURAcceptsCAPubsByDefault verifies interoperable KUP handling deduplicates chain candidates.
+func TestEnrollKURAcceptsCAPubsByDefault(t *testing.T) {
+	pki := newTestPKI(t)
+	bootstrapRoots := x509.NewCertPool()
+	bootstrapRoots.AddCert(pki.CACertificate)
+	server, _ := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: ResponseCertReqIDLegacyZero, KUPCAPubs: true})
+	defer server.Close()
+	request := kurEnrollmentRequest(t, pki, server.URL, true)
+	result, err := NewClient().EnrollKUR(context.Background(), request)
+	if err != nil {
+		t.Fatalf("EnrollKUR returned error: %v", err)
+	}
+	if result.ExtraCertificateCount != 1 {
+		t.Fatalf("expected duplicate caPubs and extraCerts certificates to produce one candidate, got %d", result.ExtraCertificateCount)
+	}
+}
+
+// TestEnrollKURCanRequireAbsentCAPubs verifies the focused strict option rejects a nonconforming KUP.
+func TestEnrollKURCanRequireAbsentCAPubs(t *testing.T) {
+	pki := newTestPKI(t)
+	bootstrapRoots := x509.NewCertPool()
+	bootstrapRoots.AddCert(pki.CACertificate)
+	server, _ := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: ResponseCertReqIDLegacyZero, KUPCAPubs: true})
+	defer server.Close()
+	request := kurEnrollmentRequest(t, pki, server.URL, true)
+	request.RequireKUPCAPubsAbsent = true
+	_, err := NewClient().EnrollKUR(context.Background(), request)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindPermanent || typed.Failure != "badDataFormat" {
+		t.Fatalf("expected strict KUP caPubs rejection, got %v", err)
+	}
+}
+
+// TestResponseCandidatesDoNotExtendTrust verifies response certificates cannot become trust anchors.
+func TestResponseCandidatesDoNotExtendTrust(t *testing.T) {
+	pki := newTestPKI(t)
+	csrDER, key := createCSR(t, "untrusted-candidate")
+	csr, err := x509.ParseCertificateRequest(csrDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := issueLeaf(t, pki, csr, key.Public())
+	if _, err := validateAndOrderChain(leaf, []*x509.Certificate{pki.CACertificate}, x509.NewCertPool()); err == nil {
+		t.Fatal("expected an untrusted response candidate not to become a root")
 	}
 }
 
