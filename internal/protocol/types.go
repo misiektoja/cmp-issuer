@@ -90,6 +90,7 @@ type EnrollmentRequest struct {
 	// signer chains to CMPTrust. It is ignored when the request is signature-protected already.
 	AllowSignedMACResponse bool
 	ResponseCertReqID      *int64
+	RequireKUPCAPubsAbsent bool
 	TransactionID          []byte
 	CSRDER                 []byte
 	RequestedPrivateKey    crypto.Signer
