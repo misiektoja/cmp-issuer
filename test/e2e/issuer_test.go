@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"math/big"
 	"os/exec"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -149,6 +150,21 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 		err := kubectlApply(cmpNamespace, manifest)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("p10crResponseCertReqId"))
+	})
+
+	It("enforces validation profile conflicts in the API", func() {
+		By("creating an RFC 9483 profile with compatible focused settings")
+		issuer := "cmp-issuer-e2e-rfc9483"
+		manifest := passwordIssuerManifest(issuer, credentialSecretName, trustSecretName, "-1")
+		manifest = strings.Replace(manifest, "    p10crResponseCertReqId: -1", "    validationProfile: RFC9483\n    kurResponseCaPubs: RequireAbsent\n    macResponseProtection: Strict\n    p10crResponseCertReqId: -1", 1)
+		Expect(kubectlApply(cmpNamespace, manifest)).To(Succeed())
+
+		By("rejecting an explicit interoperability override under RFC 9483")
+		invalid := strings.Replace(manifest, "name: "+issuer, "name: cmp-issuer-e2e-rfc9483-invalid", 1)
+		invalid = strings.Replace(invalid, "kurResponseCaPubs: RequireAbsent", "kurResponseCaPubs: Accept", 1)
+		err := kubectlApply(cmpNamespace, invalid)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("RFC9483 requires KUP caPubs to be absent"))
 	})
 
 	It("sends no CMP message for a denied CertificateRequest", func() {
