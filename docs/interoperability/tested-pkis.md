@@ -94,11 +94,13 @@ Initial P10CR uses a client-mode HMAC alias. KUR uses a separate `EndEntityCerti
 
 The initial P10CR-issued certificate successfully authenticates later KUR. EJBCA issues a new serial for both a new requested key and the existing key when `allowupdatewithsamekey` is enabled. No administrative reset is used between revisions.
 
-RFC 9483 requires `caPubs` to be absent from KUP. EJBCA 9.3.7 includes the issuing CA there by default, so the KUR alias sets `response.capubsissuingca` to `false`. cmp-issuer rejects a nonconforming KUP rather than accepting new trust material during renewal.
+EJBCA 9.3.7 includes the issuing CA in KUP `caPubs` by default. The default `Interoperable` validation profile accepts it only as an untrusted chain candidate and still requires the issued chain to terminate at configured CMP trust. The continuously verified fixture exercises this default. A second KUR alias disables `response.capubsissuingca` and exercises `validationProfile: RFC9483` during renewal.
 
 ### P10CR certReqId
 
 EJBCA returns `0`. Pinning `-1` fails with a permanent error and issues no certificate.
+
+Because `validationProfile: RFC9483` pins P10CR responses to `-1`, the EJBCA fixture performs initial enrollment with `Interoperable` then enables the strict profile before KUR. This validates the strict key-update response rules without claiming that EJBCA's P10CR response follows RFC 9483.
 
 ### Retransmitted enrollment
 
