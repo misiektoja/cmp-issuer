@@ -19,14 +19,19 @@ limitations under the License.
 package protocol
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
+	"math/big"
 	"testing"
 	"time"
+
+	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
 )
 
 // kurEnrollmentRequest creates a valid certificate-authenticated renewal request with selectable key rotation.
@@ -92,6 +97,51 @@ func TestEnrollKUR(t *testing.T) {
 				t.Fatalf("expected certConf certReqId 0, got %d with observed %t", certReqID, observed)
 			}
 		})
+	}
+}
+
+// TestProtectedKURIncludesOldCertID verifies each update identifies the exact existing certificate.
+func TestProtectedKURIncludesOldCertID(t *testing.T) {
+	pki := newTestPKI(t)
+	request := kurEnrollmentRequest(t, pki, "https://cmp.example.test", false)
+	csr, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials, err := credentialsFor(request.Protection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, encoded, err := protectedKUR(request, csr, credentials)
+	if err != nil {
+		t.Fatal(err)
+	}
+	message, err := pkicmp.ParsePKIMessage(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages, err := message.Body.KUR()
+	if err != nil || messages == nil || len(*messages) != 1 {
+		t.Fatalf("parse KUR controls: %v", err)
+	}
+	controls := (*messages)[0].CertReq.Controls
+	if len(controls) != 1 || controls[0].Type.String() != "1.3.6.1.5.5.7.5.1.5" {
+		t.Fatalf("expected one oldCertID control, got %+v", controls)
+	}
+	var oldCertID struct {
+		Issuer       asn1.RawValue
+		SerialNumber *big.Int
+	}
+	rest, err := asn1.Unmarshal(controls[0].Value, &oldCertID)
+	if err != nil || len(rest) != 0 {
+		t.Fatalf("decode oldCertID: %v", err)
+	}
+	current := request.Protection.Signature.Certificate
+	if oldCertID.Issuer.Class != asn1.ClassContextSpecific || oldCertID.Issuer.Tag != 4 || !oldCertID.Issuer.IsCompound || !bytes.Equal(oldCertID.Issuer.Bytes, current.RawIssuer) {
+		t.Fatal("oldCertID does not preserve the current certificate issuer")
+	}
+	if oldCertID.SerialNumber == nil || oldCertID.SerialNumber.Cmp(current.SerialNumber) != 0 {
+		t.Fatalf("oldCertID serial %v does not identify current serial %v", oldCertID.SerialNumber, current.SerialNumber)
 	}
 }
 
