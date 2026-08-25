@@ -544,11 +544,17 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		sender = &parsedSender
 	}
 	var responseCertReqID *int64
+	strictRFC9483 := spec.Protocol.ValidationProfile == cmpv1alpha1.ValidationProfileRFC9483
+	if strictRFC9483 {
+		standard := cmpv1alpha1.P10CRResponseCertReqIDStandard
+		responseCertReqID = &standard
+	}
 	if spec.Protocol.P10CRResponseCertReqID != nil {
 		pinned := *spec.Protocol.P10CRResponseCertReqID
 		responseCertReqID = &pinned
 	}
-	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, AllowSignedMACResponse: spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict, ResponseCertReqID: responseCertReqID, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
+	requireKUPCAPubsAbsent := strictRFC9483 || spec.Protocol.KURResponseCAPubs == cmpv1alpha1.KURResponseCAPubsRequireAbsent
+	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, AllowSignedMACResponse: !strictRFC9483 && spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict, ResponseCertReqID: responseCertReqID, RequireKUPCAPubsAbsent: requireKUPCAPubsAbsent, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
 	if sender != nil {
 		request.Sender = sender
 	}
@@ -702,6 +708,12 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
 		return fmt.Errorf("renewal must be P10CR or KUR")
 	}
+	if spec.ValidationProfile != "" && spec.ValidationProfile != cmpv1alpha1.ValidationProfileInteroperable && spec.ValidationProfile != cmpv1alpha1.ValidationProfileRFC9483 {
+		return fmt.Errorf("validationProfile must be Interoperable or RFC9483")
+	}
+	if spec.KURResponseCAPubs != "" && spec.KURResponseCAPubs != cmpv1alpha1.KURResponseCAPubsAccept && spec.KURResponseCAPubs != cmpv1alpha1.KURResponseCAPubsRequireAbsent {
+		return fmt.Errorf("kurResponseCaPubs must be Accept or RequireAbsent")
+	}
 	if spec.Recipient == "" || (spec.Confirmation != "Explicit" && spec.Confirmation != "Implicit") {
 		return fmt.Errorf("recipient and a supported confirmation policy are required")
 	}
@@ -712,6 +724,17 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	// schema applies to every new object.
 	if spec.MACResponseProtection != "" && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionAllowSignature {
 		return fmt.Errorf("macResponseProtection must be Strict or AllowSignature")
+	}
+	if spec.ValidationProfile == cmpv1alpha1.ValidationProfileRFC9483 {
+		if spec.P10CRResponseCertReqID != nil && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDStandard {
+			return fmt.Errorf("RFC9483 validation requires p10cr response certReqId -1")
+		}
+		if spec.MACResponseProtection != "" && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict {
+			return fmt.Errorf("RFC9483 validation requires Strict macResponseProtection")
+		}
+		if spec.KURResponseCAPubs == cmpv1alpha1.KURResponseCAPubsAccept {
+			return fmt.Errorf("RFC9483 validation requires KUP caPubs to be absent")
+		}
 	}
 	return nil
 }
