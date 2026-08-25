@@ -23,6 +23,7 @@ PBM_ALIAS="${PBM_ALIAS:-cmpissuerpbm}"
 SIGNATURE_ALIAS="${SIGNATURE_ALIAS:-cmpissuersig}"
 KUR_INITIAL_ALIAS="${KUR_INITIAL_ALIAS:-cmpissuerkurinit}"
 KUR_ALIAS="${KUR_ALIAS:-cmpissuerkur}"
+KUR_STRICT_ALIAS="${KUR_STRICT_ALIAS:-cmpissuerkurstrict}"
 KUR_ALWAYS_IDENTITY="${KUR_ALWAYS_IDENTITY:-cmp-issuer-e2e-kur-always}"
 KUR_NEVER_IDENTITY="${KUR_NEVER_IDENTITY:-cmp-issuer-e2e-kur-never}"
 PBM_REFERENCE="${PBM_REFERENCE:-cmp-issuer-e2e}"
@@ -115,7 +116,7 @@ configure_alias "${SIGNATURE_ALIAS}" EndEntityCertificate ManagementCA
 
 # configure_client_alias configures one client-mode enrollment stage for the fixed KUR identities.
 configure_client_alias() {
-    local alias="$1" module="$2" parameters="$3"
+    local alias="$1" module="$2" parameters="$3" response_protection="$4"
     log "configuring the CMP alias ${alias}"
     ejbca config cmp addalias --alias "${alias}"
     local setting
@@ -126,7 +127,7 @@ configure_client_alias() {
         "defaultcertprofile ENDUSER" \
         "defaultca ${ISSUING_CA_NAME}" \
         "defaulteeprofile EMPTY" \
-        "responseprotection signature" \
+        "responseprotection ${response_protection}" \
         "allowautomatickeyupdate true" \
         "allowupdatewithsamekey true"; do
         ejbca config cmp updatealias --alias "${alias}" --key "${setting%% *}" --value "${setting#* }"
@@ -138,11 +139,12 @@ for identity in "${KUR_ALWAYS_IDENTITY}" "${KUR_NEVER_IDENTITY}"; do
     ejbca ra addendentity --username "${identity}" --dn "CN=${identity}" --caname "${ISSUING_CA_NAME}" --type 1 --token USERGENERATED --password "${PBM_SECRET}" --eeprofile EMPTY --certprofile ENDUSER
     ejbca ra setclearpwd --username "${identity}" --password "${PBM_SECRET}"
 done
-configure_client_alias "${KUR_INITIAL_ALIAS}" HMAC "${PBM_SECRET}"
-configure_client_alias "${KUR_ALIAS}" EndEntityCertificate "${ISSUING_CA_NAME}"
-# RFC 9483 section 4.1.3 requires caPubs to be absent from KUP. EJBCA includes the issuing CA by
-# default, so the KUR-only alias must turn that response field off explicitly.
-ejbca config cmp updatealias --alias "${KUR_ALIAS}" --key response.capubsissuingca --value false
+configure_client_alias "${KUR_INITIAL_ALIAS}" HMAC "${PBM_SECRET}" signature
+configure_client_alias "${KUR_ALIAS}" EndEntityCertificate "${ISSUING_CA_NAME}" signature
+configure_client_alias "${KUR_STRICT_ALIAS}" EndEntityCertificate "${ISSUING_CA_NAME}" signature
+# The interoperable alias keeps EJBCA's default KUP caPubs delivery while the RFC 9483 alias disables it.
+ejbca config cmp updatealias --alias "${KUR_ALIAS}" --key response.capubsissuingca --value true
+ejbca config cmp updatealias --alias "${KUR_STRICT_ALIAS}" --key response.capubsissuingca --value false
 
 log "exporting the trust anchors and the alias settings"
 ejbca ca getcacert --caname "${ISSUING_CA_NAME}" -f /dev/stdout \
@@ -158,6 +160,7 @@ printf '%s' "${PBM_ALIAS}" > "${EXPORT_DIR}/pbm-alias"
 printf '%s' "${SIGNATURE_ALIAS}" > "${EXPORT_DIR}/signature-alias"
 printf '%s' "${KUR_INITIAL_ALIAS}" > "${EXPORT_DIR}/kur-initial-alias"
 printf '%s' "${KUR_ALIAS}" > "${EXPORT_DIR}/kur-alias"
+printf '%s' "${KUR_STRICT_ALIAS}" > "${EXPORT_DIR}/kur-strict-alias"
 printf '%s' "${KUR_ALWAYS_IDENTITY}" > "${EXPORT_DIR}/kur-always-identity"
 printf '%s' "${KUR_NEVER_IDENTITY}" > "${EXPORT_DIR}/kur-never-identity"
 
