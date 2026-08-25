@@ -99,7 +99,11 @@ func protectedKUR(request EnrollmentRequest, csr *x509.CertificateRequest, crede
 	if len(csr.Extensions) > 0 {
 		template.Extensions = extensions
 	}
-	messageRequest := pkicmp.CertReqMsg{CertReq: pkicmp.CertRequest{CertReqID: 0, CertTemplate: template}}
+	oldCertID, err := pkicmp.NewOldCertIDControl(request.Protection.Signature.Certificate)
+	if err != nil {
+		return nil, nil, permanent("encode KUR oldCertID", "badRequest", err)
+	}
+	messageRequest := pkicmp.CertReqMsg{CertReq: pkicmp.CertRequest{CertReqID: 0, CertTemplate: template, Controls: []pkicmp.AttributeTypeAndValue{oldCertID}}}
 	if err := messageRequest.GeneratePOP(request.RequestedPrivateKey); err != nil {
 		return nil, nil, permanent("generate KUR proof of possession", "badPOP", err)
 	}
