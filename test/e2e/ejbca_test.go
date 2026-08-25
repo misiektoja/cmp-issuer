@@ -51,7 +51,7 @@ const (
 	ejbcaStateDir = "/opt/keyfactor/cmp-issuer-e2e"
 	// defaultEjbcaTestImage is the published CMP server image. The Makefile passes the same reference
 	// through EJBCA_TEST_IMAGE, so the two have to be advanced together.
-	defaultEjbcaTestImage = "ghcr.io/misiektoja/cmp-issuer-ejbca-test:9.3.7-2"
+	defaultEjbcaTestImage = "ghcr.io/misiektoja/cmp-issuer-ejbca-test:9.3.7-3"
 	// ejbcaCredentialSecret carries the PasswordBasedMac reference and shared secret.
 	ejbcaCredentialSecret = "cmp-issuer-e2e-ejbca-credentials"
 	// ejbcaSignatureSecret carries the registration certificate and its private key.
@@ -93,6 +93,7 @@ type ejbcaConfiguration struct {
 	signatureAlias    string
 	kurInitialAlias   string
 	kurAlias          string
+	kurStrictAlias    string
 	kurAlwaysIdentity string
 	kurNeverIdentity  string
 	pbmReference      string
@@ -170,7 +171,7 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 			},
 			{
 				name: ejbcaKURNeverIssuer, url: configuration.endpointURL("http", configuration.kurInitialAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, renewal: "KUR", renewalURL: configuration.endpointURL("http", configuration.kurAlias),
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, renewal: "KUR", renewalURL: configuration.endpointURL("http", configuration.kurStrictAlias), kurResponseCAPubs: "RequireAbsent",
 			},
 		} {
 			Expect(kubectlApply(ejbcaNamespace, issuer.manifest())).To(Succeed())
@@ -229,11 +230,11 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 	})
 
 	It("updates a client-mode certificate with KUR and a new private key", func() {
-		renewThroughKUR(configuration, ejbcaKURAlwaysIssuer, configuration.kurAlwaysIdentity, "Always", true)
+		renewThroughKUR(configuration, ejbcaKURAlwaysIssuer, configuration.kurAlwaysIdentity, "Always", true, false)
 	})
 
-	It("updates a client-mode certificate with KUR and the existing private key", func() {
-		renewThroughKUR(configuration, ejbcaKURNeverIssuer, configuration.kurNeverIdentity, "Never", false)
+	It("updates a client-mode certificate with KUR under RFC 9483 validation", func() {
+		renewThroughKUR(configuration, ejbcaKURNeverIssuer, configuration.kurNeverIdentity, "Never", false, true)
 	})
 
 	It("records a completed transaction for every enrollment", func() {
@@ -296,6 +297,7 @@ func readEjbcaConfiguration() ejbcaConfiguration {
 		signatureAlias:    readEjbcaFile(directory, "signature-alias"),
 		kurInitialAlias:   readEjbcaFile(directory, "kur-initial-alias"),
 		kurAlias:          readEjbcaFile(directory, "kur-alias"),
+		kurStrictAlias:    readEjbcaFile(directory, "kur-strict-alias"),
 		kurAlwaysIdentity: readEjbcaFile(directory, "kur-always-identity"),
 		kurNeverIdentity:  readEjbcaFile(directory, "kur-never-identity"),
 		pbmReference:      readEjbcaFile(directory, "pbm-reference"),
@@ -365,7 +367,7 @@ func enrollThrough(issuer string, certificate string) string {
 }
 
 // renewThroughKUR proves two cert-manager revisions use the selected workload-key rotation behavior.
-func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificate string, rotationPolicy string, expectKeyChange bool) {
+func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificate string, rotationPolicy string, expectKeyChange bool, enableRFC9483 bool) {
 	By("requesting the initial P10CR certificate from the client-mode alias")
 	Expect(kubectlApply(ejbcaNamespace, ejbcaKURCertificateManifest(certificate, rotationPolicy, issuer))).To(Succeed())
 	Eventually(func(g Gomega) {
@@ -377,6 +379,13 @@ func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificat
 	Expect(err).NotTo(HaveOccurred())
 	initialCertificate, err := parseCertificate(initialSecret["tls.crt"])
 	Expect(err).NotTo(HaveOccurred())
+	if enableRFC9483 {
+		// EJBCA returns certReqId 0 for P10CR, so strict validation begins only after its initial enrollment.
+		By("enabling RFC 9483 validation before KUR")
+		_, err = utils.Run(exec.Command("kubectl", "patch", "cmpissuer", issuer, "-n", ejbcaNamespace, "--type=merge", "-p", `{"spec":{"protocol":{"validationProfile":"RFC9483"}}}`))
+		Expect(err).NotTo(HaveOccurred())
+		expectNamespacedIssuerCondition(ejbcaNamespace, issuer, "True", "")
+	}
 
 	By("changing a non-identity Certificate field to trigger revision two")
 	_, err = utils.Run(exec.Command("kubectl", "patch", "certificate", certificate, "-n", ejbcaNamespace, "--type=merge", "-p", `{"spec":{"duration":"2161h"}}`))
