@@ -249,18 +249,25 @@ spec:
                     enum:
                     - P10CR
                     type: string
+                  kurResponseCaPubs:
+                    description: |-
+                      KURResponseCAPubs controls KUP caPubs handling when ValidationProfile is Interoperable.
+                      Omit it or set Accept to parse the certificates as untrusted chain candidates. RequireAbsent
+                      rejects the response. RFC9483 always requires absence and does not permit Accept.
+                    enum:
+                    - Accept
+                    - RequireAbsent
+                    type: string
                   macResponseProtection:
-                    default: AllowSignature
                     description: |-
                       MACResponseProtection selects which response protection answers a PasswordBasedMac request.
-                      AllowSignature, the default, accepts either MAC-based protection or a signature whose signer
+                      AllowSignature accepts either MAC-based protection or a signature whose signer
                       chains to cmpTrust and whose sender names spec.protocol.recipient, which is the same authority
-                      check a Signature issuer already relies on for every response. RFC 9483 section 5 permits that
-                      substitution and many servers send it, including any EJBCA CMP alias left at its own default of
-                      responseprotection signature. Strict requires MAC-based protection throughout, so the shared
-                      secret authenticates every message of the operation rather than only the request. Set it where
-                      the trust anchor is shared with authorities that must not be able to answer, or to conform to a
-                      profile that requires one protection type for a whole operation.
+                      check a Signature issuer already relies on for every response. Many servers send this, including
+                      an EJBCA CMP alias left at its responseprotection signature default. Strict requires MAC-based
+                      protection throughout, so the shared secret authenticates every message of the operation rather
+                      than only the request. Omission inherits the validation profile: AllowSignature for Interoperable
+                      and Strict for RFC9483.
                     enum:
                     - Strict
                     - AllowSignature
@@ -296,6 +303,16 @@ spec:
                       for the CMP sender.
                     maxLength: 1024
                     type: string
+                  validationProfile:
+                    default: Interoperable
+                    description: |-
+                      ValidationProfile selects a coherent set of CMP response checks. Interoperable accepts the
+                      reviewed deviations documented for supported servers. RFC9483 pins the P10CR response certReqId
+                      to -1, requires MAC-based responses to MAC-protected operations and requires KUP caPubs absent.
+                    enum:
+                    - Interoperable
+                    - RFC9483
+                    type: string
                   version:
                     default: 2
                     description: Version is the CMP protocol version number.
@@ -309,6 +326,20 @@ spec:
                 - recipient
                 - version
                 type: object
+                x-kubernetes-validations:
+                - message: RFC9483 requires P10CR response certReqId -1
+                  rule: '!has(self.validationProfile) || self.validationProfile !=
+                    ''RFC9483'' || !has(self.p10crResponseCertReqId) || self.p10crResponseCertReqId
+                    == -1'
+                - message: RFC9483 requires MAC-based protection throughout a MAC-protected
+                    operation
+                  rule: '!has(self.validationProfile) || self.validationProfile !=
+                    ''RFC9483'' || !has(self.macResponseProtection) || self.macResponseProtection
+                    == ''Strict'''
+                - message: RFC9483 requires KUP caPubs to be absent
+                  rule: '!has(self.validationProfile) || self.validationProfile !=
+                    ''RFC9483'' || !has(self.kurResponseCaPubs) || self.kurResponseCaPubs
+                    == ''RequireAbsent'''
               transaction:
                 default:
                   maximumDuration: 10m
