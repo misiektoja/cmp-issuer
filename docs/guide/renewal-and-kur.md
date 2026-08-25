@@ -41,11 +41,13 @@ KUR proves two things before the server updates the certificate:
 1. The current valid certificate and private key protect the CMP message.
 2. The requested private key signs CRMF proof of possession.
 
+Each KUR also carries the recommended CRMF `oldCertID` control with the current certificate's exact issuer and serial number. This lets a server select the certificate being replaced even after repeated same-key updates have created several certificates for the same subject and public key.
+
 With `rotationPolicy: Always` these are different keys. With `rotationPolicy: Never` the same key makes both proofs and the server profile must allow same-key update.
 
 cmp-issuer rejects KUR before network traffic when the current certificate is expired, its key does not match, its Key Usage extension forbids digital signatures, the staged key does not match the CSR or the subject or SAN values changed. The CA must reject a revoked current certificate.
 
-A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof. Server policy still decides whether that certificate is eligible for key update.
+A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or `oldCertID`. Server policy still decides whether that certificate is eligible for key update.
 
 No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.
 
