@@ -136,44 +136,38 @@ an external enrollment should not be abandoned halfway through.
 triggers `publish-chart.yml`, which adds the new version to `charts/index.yaml` on the `gh-pages`
 branch, so `helm repo add` picks it up.
 
-The chart archives stay attached to their GitHub Release and the index points at those asset URLs, so
-GitHub Pages serves only `index.yaml`. Existing entries are merged rather than replaced, which keeps
-older versions installable, and the index lives under `charts/` so the documentation site occupies the
-root of the same Pages site.
+The chart archives stay attached to their GitHub Release and the index points at those asset URLs.
+GitHub Pages serves the index plus Artifact Hub repository metadata. Existing entries are merged rather
+than replaced, which keeps older versions installable, and both files live under `charts/` so the
+documentation site occupies the root of the same Pages site.
 
 The first run creates the `gh-pages` branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.
 
 ### Artifact Hub listing
 
-Publishing the Helm index does not automatically register it with Artifact Hub. Registration is a
-one-time publisher action:
-
-1. Sign in to Artifact Hub and create an organization first if the package should belong to one rather
-   than to the individual account. Choose the repository name carefully because Artifact Hub does not
-   allow it to be renamed.
-2. Open the Artifact Hub control panel, add a repository of kind **Helm** and use
-   `https://misiektoja.github.io/cmp-issuer/charts` as its URL.
-3. Wait for the repository to be processed and confirm that `cmp-issuer` appears with its README,
-   versions, install commands, CRDs and per-version change log.
+Publishing the Helm index does not automatically register it with Artifact Hub. The repository is
+registered as `cmp-issuer`, kind **Helm**, with URL
+`https://misiektoja.github.io/cmp-issuer/charts` and repository ID
+`a74e0ed9-3729-471e-954f-6c44806d3fe4`.
 
 Artifact Hub indexes this repository periodically after registration. Publishing a later release and
 updating `charts/index.yaml` is enough to make the new chart version appear. Artifact Hub does not host
 or proxy the chart archive. The package continues to download from the GitHub Release URL recorded in
 the Helm index.
 
-Obtain the **Verified Publisher** badge after the first indexing pass. Copy the repository ID shown on
-its control-panel card into a file served beside `index.yaml`:
+The registered ID is tracked in `charts/artifacthub-repo.yml`. `publish-chart.yml` copies that file
+beside `index.yaml` so Artifact Hub can grant the **Verified Publisher** badge:
 
 ```yaml
-repositoryID: <artifact-hub-repository-id>
+repositoryID: a74e0ed9-3729-471e-954f-6c44806d3fe4
 ```
 
-The public path must be
-`https://misiektoja.github.io/cmp-issuer/charts/artifacthub-repo.yml`. The chart publishing workflow
-preserves existing files on `gh-pages`, so adding this file there does not require rebuilding a chart.
-Artifact Hub applies the badge on a later indexing pass. Official status is a separate optional request
-available after publisher verification.
+The public path is `https://misiektoja.github.io/cmp-issuer/charts/artifacthub-repo.yml`. After this
+metadata reaches the default branch, dispatch **Publish chart repository** with an existing released
+version to publish it immediately, or let the next published release trigger the workflow. Artifact Hub
+applies the badge on a later indexing pass. Official status is a separate optional request available
+after publisher verification.
 
 The listing makes the chart searchable, presents installation instructions and release changes, lets
 users follow new versions and exposes Artifact Hub's image vulnerability report when image discovery
@@ -187,7 +181,7 @@ to `dev` and `main`. On the default branch it also publishes the rendered site t
 `gh-pages` branch, so the documentation and the chart repository share one Pages site.
 
 The publishing step replaces the previous documentation, so a page removed from `docs/` disappears from
-the site, but it leaves `charts/index.yaml` and `.nojekyll` alone. Both publishers take the `gh-pages`
+the site, but it leaves the `charts/` directory and `.nojekyll` alone. Both publishers take the `gh-pages`
 concurrency group, so a release that lands while a documentation change is publishing waits instead of
 racing.
 
