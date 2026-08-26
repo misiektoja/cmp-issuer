@@ -48,8 +48,12 @@ const opensslMockReference = "cmp-issuer-interop-ref"
 // opensslPortOption selects the OpenSSL mock server listen port.
 const opensslPortOption = "-port"
 
-// requireOpenSSLCMP skips the test unless an OpenSSL build with a usable CMP mock server is present.
-func requireOpenSSLCMP(t *testing.T) string {
+// opensslReferenceCertificateOption names the mock server option that validates the oldCertID a KUR
+// carries. OpenSSL added it in 3.2, so an older build cannot provide this coverage.
+const opensslReferenceCertificateOption = "-ref_cert"
+
+// requireOpenSSLCMP skips the test unless an OpenSSL build with a usable CMP mock server and every extra option is present.
+func requireOpenSSLCMP(t *testing.T, extra ...string) string {
 	t.Helper()
 	binary := os.Getenv("OPENSSL_BIN")
 	if binary == "" {
@@ -63,7 +67,7 @@ func requireOpenSSLCMP(t *testing.T) string {
 	if err != nil && len(help) == 0 {
 		t.Skipf("this openssl build has no cmp application, skipping: %v", err)
 	}
-	for _, option := range []string{opensslPortOption, "-poll_count", "-check_after", "-srv_secret"} {
+	for _, option := range append([]string{opensslPortOption, "-poll_count", "-check_after", "-srv_secret"}, extra...) {
 		if !bytes.Contains(help, []byte(option)) {
 			t.Skipf("this openssl cmp application lacks %s, skipping", option)
 		}
@@ -155,7 +159,7 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 // startOpenSSLKURMockServer runs an independently authenticated signature-protected KUR responder.
 func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate) string {
 	t.Helper()
-	binary := requireOpenSSLCMP(t)
+	binary := requireOpenSSLCMP(t, opensslReferenceCertificateOption)
 	dir := t.TempDir()
 	caKeyDER, err := x509.MarshalPKCS8PrivateKey(pki.CAKey)
 	if err != nil {
@@ -167,7 +171,7 @@ func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certific
 	currentPath := writePEM(t, dir, "ref_cert.pem", "CERTIFICATE", current.Raw)
 	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
 	port := freePort(t)
-	arguments := []string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, "-ref_cert", currentPath, "-rsp_cert", issuedPath, "-rsp_extracerts", certificatePath, "-max_msgs", "0"}
+	arguments := []string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, opensslReferenceCertificateOption, currentPath, "-rsp_cert", issuedPath, "-rsp_extracerts", certificatePath, "-max_msgs", "0"}
 	command := exec.Command(binary, arguments...)
 	output := &bytes.Buffer{}
 	command.Stdout = output
