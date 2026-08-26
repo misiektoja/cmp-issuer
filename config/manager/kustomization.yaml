@@ -7,4 +7,4 @@ images:
 # applies to building or applying config/default straight from a clone.
 - name: controller
   newName: ghcr.io/misiektoja/cmp-issuer
-  newTag: v0.1.0
+  newTag: v0.2.0
