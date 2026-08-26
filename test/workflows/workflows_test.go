@@ -301,3 +301,28 @@ func TestReleaseWorkflowPublishesChecksumsAndArtifactProvenance(t *testing.T) {
 		t.Errorf("%s: archives, checksums, attestation and upload are not ordered safely", path)
 	}
 }
+
+// TestPublishChartWorkflowPublishesArtifactHubMetadata keeps publisher verification beside the Helm index.
+func TestPublishChartWorkflowPublishesArtifactHubMetadata(t *testing.T) {
+	path := filepath.Join(workflowDir, "publish-chart.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	workflow := string(content)
+	for _, required := range []string{
+		"cp charts/artifacthub-repo.yml published/charts/artifacthub-repo.yml",
+		"git -C published add charts/index.yaml charts/artifacthub-repo.yml .nojekyll",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Errorf("%s does not publish Artifact Hub metadata with the chart index: missing %q", path, required)
+		}
+	}
+	metadata, err := os.ReadFile("../../charts/artifacthub-repo.yml")
+	if err != nil {
+		t.Fatalf("read Artifact Hub metadata: %v", err)
+	}
+	if !strings.Contains(string(metadata), "repositoryID: a74e0ed9-3729-471e-954f-6c44806d3fe4") {
+		t.Error("Artifact Hub metadata does not identify the registered cmp-issuer repository")
+	}
+}
