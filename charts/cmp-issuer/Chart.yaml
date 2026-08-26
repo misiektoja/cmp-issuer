@@ -8,8 +8,8 @@ type: application
 ## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
 ## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
 ## tag the registry does not have.
-version: 0.1.0
-appVersion: "v0.1.0"
+version: 0.2.0
+appVersion: "v0.2.0"
 
 ## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
 ## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
@@ -56,6 +56,8 @@ annotations:
       url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
     - name: Issues
       url: https://github.com/misiektoja/cmp-issuer/issues
+    - name: support
+      url: https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md
   artifacthub.io/crds: |
     - kind: CMPIssuer
       version: v1alpha1
@@ -74,14 +76,12 @@ annotations:
       description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
   artifacthub.io/changes: |
     - kind: added
-      description: CMPv2 enrollment and renewal for cert-manager through CMPIssuer and CMPClusterIssuer
+      description: True CMP Key Update Request renewal with current-certificate authentication, CRMF proof of possession and oldCertID
     - kind: added
-      description: Mandatory CMP message protection with PasswordBasedMac or a certificate signature
+      description: Separate renewal endpoints for CMP servers that use different aliases for enrollment and key update
     - kind: added
-      description: Asynchronous enrollment polled to completion and resumable across a controller restart
-    - kind: added
-      description: Credential Secret reads bounded to the namespaces named in credentialNamespaces
-    - kind: added
-      description: Prometheus metrics for enrollment counts, durations and classified failures
-    - kind: added
-      description: Helm chart, self-contained installer manifest and air-gapped bundle install routes
+      description: Interoperable and RFC 9483 response validation profiles with focused compatibility controls
+    - kind: changed
+      description: KUR workload keys are read only after cert-manager ownership, revision and Secret state validation
+    - kind: changed
+      description: Release downloads include complete source archives, checksums and build provenance attestations
