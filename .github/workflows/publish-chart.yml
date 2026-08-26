@@ -4,10 +4,10 @@
 # that packaged chart to the Helm repository index once the release is published, so that
 # `helm repo add` serves it. It is inert until a release is published by hand or it is dispatched.
 #
-# The chart archives stay attached to their GitHub Release. Only `index.yaml` lives on the `gh-pages`
-# branch, under `charts/`, so the documentation site published by `docs.yml` occupies the root of the
-# same Pages site. That workflow leaves `charts/` alone, and both take the same concurrency group so
-# they never push to the branch at the same time.
+# The chart archives stay attached to their GitHub Release. The index and Artifact Hub repository
+# metadata live on the `gh-pages` branch under `charts/`, so the documentation site published by
+# `docs.yml` occupies the root of the same Pages site. That workflow leaves `charts/` alone, and both
+# take the same concurrency group so they never push to the branch at the same time.
 name: Publish chart repository
 
 on:
@@ -81,6 +81,7 @@ jobs:
             echo "gh-pages does not exist yet, starting a new chart repository"
           fi
           mkdir -p published/charts
+          cp charts/artifacthub-repo.yml published/charts/artifacthub-repo.yml
           # Pages would otherwise run the content through Jekyll, which drops files it does not expect.
           touch published/.nojekyll
 
@@ -99,11 +100,11 @@ jobs:
             $merge
           cp staging/index.yaml published/charts/index.yaml
 
-      - name: Publish the index
+      - name: Publish the index and repository metadata
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          git -C published add charts/index.yaml .nojekyll
+          git -C published add charts/index.yaml charts/artifacthub-repo.yml .nojekyll
           if git -C published diff --quiet --cached; then
             echo "index already current, nothing to publish"
             exit 0
