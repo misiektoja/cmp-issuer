@@ -144,6 +144,42 @@ root of the same Pages site.
 The first run creates the `gh-pages` branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.
 
+### Artifact Hub listing
+
+Publishing the Helm index does not automatically register it with Artifact Hub. Registration is a
+one-time publisher action:
+
+1. Sign in to Artifact Hub and create an organization first if the package should belong to one rather
+   than to the individual account. Choose the repository name carefully because Artifact Hub does not
+   allow it to be renamed.
+2. Open the Artifact Hub control panel, add a repository of kind **Helm** and use
+   `https://misiektoja.github.io/cmp-issuer/charts` as its URL.
+3. Wait for the repository to be processed and confirm that `cmp-issuer` appears with its README,
+   versions, install commands, CRDs and per-version change log.
+
+Artifact Hub indexes this repository periodically after registration. Publishing a later release and
+updating `charts/index.yaml` is enough to make the new chart version appear. Artifact Hub does not host
+or proxy the chart archive. The package continues to download from the GitHub Release URL recorded in
+the Helm index.
+
+Obtain the **Verified Publisher** badge after the first indexing pass. Copy the repository ID shown on
+its control-panel card into a file served beside `index.yaml`:
+
+```yaml
+repositoryID: <artifact-hub-repository-id>
+```
+
+The public path must be
+`https://misiektoja.github.io/cmp-issuer/charts/artifacthub-repo.yml`. The chart publishing workflow
+preserves existing files on `gh-pages`, so adding this file there does not require rebuilding a chart.
+Artifact Hub applies the badge on a later indexing pass. Official status is a separate optional request
+available after publisher verification.
+
+The listing makes the chart searchable, presents installation instructions and release changes, lets
+users follow new versions and exposes Artifact Hub's image vulnerability report when image discovery
+succeeds. Repository ownership also enables tracking errors and alerts from the publisher control
+panel.
+
 ## Documentation site
 
 `docs.yml` runs the strict MkDocs build for documentation-related changes on pull requests and pushes
