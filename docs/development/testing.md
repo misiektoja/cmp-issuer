@@ -223,6 +223,8 @@ Pull requests run lint, govulncheck and the credential scan. Pushes to `dev` and
 generate the SBOM and build and scan the container image. The weekly schedule repeats the full set so a
 newly disclosed vulnerability is found without a source change.
 
+`.gitleaks.toml` extends the default rule set. It allowlists `local/`, `bin/`, `dist/` and `site/` by path, and it allowlists Go identifier names so that the generic credential rule does not report a camelCase or snake_case parameter such as `enableRFC9483` that happens to sit next to a word like `key`. That allowlist is scoped to Go files and to the identifier shape alone, so a high-entropy literal in the same file is still reported. Add a new entry only for a confirmed false positive, and keep it narrow enough that a real credential in the same position would still fail the scan.
+
 `make go-patch-check` reports whether `go.mod` still names the newest Go patch in the release series it targets and `make go-patch-update` moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. `go-patch.yml` runs the same check weekly and opens the bump as a pull request against `dev`. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.
 
 golangci-lint is built with the logcheck module plugin, which `.custom-gcl.yml` pins to an exact
