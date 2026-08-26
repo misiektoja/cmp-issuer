@@ -45,9 +45,9 @@ checksums and signed build provenance. These checks keep metadata changes review
 
 ## OpenSSL CMP interoperability
 
-CI runs delayed transaction, delayed confirmation, pinned transaction and KUR flows against the OpenSSL 3.6 CMP mock. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
+CI runs delayed transaction, delayed confirmation, pinned transaction and KUR flows against the OpenSSL CMP mock. The KUR flows have the mock check the oldCertID the request carries, which needs the `-ref_cert` option that OpenSSL added in 3.2, so the workflow installs a current OpenSSL rather than using the runner's 3.0 package. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
 
-Locally set `OPENSSL_BIN` to select a non-default OpenSSL binary. The test skips when OpenSSL is missing.
+Locally set `OPENSSL_BIN` to select a non-default OpenSSL binary. The test skips when OpenSSL is missing, and the KUR flows skip on their own when the build predates `-ref_cert` while the other flows still run.
 
 The mock uses one transaction per TCP connection. A pooling proxy forwards tests without changing CMP bytes.
 
