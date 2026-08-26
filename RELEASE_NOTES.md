@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.2.0] - TBD
+## [0.2.0] - 26 Aug 2026
 
 True CMP key update is now available for cert-manager renewals while repeat P10CR remains the compatibility default. This release also carries the repository metadata and release-download improvements prepared for the skipped 0.1.1 version.
 
