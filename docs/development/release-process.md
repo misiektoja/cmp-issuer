@@ -50,11 +50,13 @@ Each release publishes:
 | Helm chart | `dist/cmp-issuer-<chart version>.tgz`, packaged from `charts/cmp-issuer` and indexed into the chart repository |
 | SBOM | CycloneDX at `dist/cmp-issuer-<version>-sbom.cdx.json` |
 | Air-gapped bundle | `cmp-issuer-<version>-airgap.tar.gz`, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the bill of materials, the notices and an `INSTALL.txt` |
-| Checksums | SHA-256 manifest at `cmp-issuer-<version>_SHA256SUMS.txt` covering every attached payload |
+| Artifact provenance | Signed Sigstore bundle for the installer, chart, SBOM, air-gapped bundle, source archives and checksum manifest, attached as `cmp-issuer-<version>.intoto.jsonl` |
+| Checksums | SHA-256 manifest at `cmp-issuer-<version>_SHA256SUMS.txt` covering the installer, chart, SBOM, image provenance bundle, air-gapped bundle and both source archives |
 
 GitHub build provenance attestations cover the installer, chart, SBOM, air-gapped bundle, both source
 archives and the checksum manifest. Verify one with `gh attestation verify <file> --repo
-misiektoja/cmp-issuer`. The image has its separate registry attestation and attached Sigstore bundle.
+misiektoja/cmp-issuer`, or offline against the attached `cmp-issuer-<version>.intoto.jsonl` bundle with
+`--bundle`. The image has its separate registry attestation and attached Sigstore bundle.
 
 The image is pushed and exported to the OCI archive by a single `make docker-release` build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
