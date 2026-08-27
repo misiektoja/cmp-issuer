@@ -17,7 +17,7 @@ Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrol
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-Initial enrollment uses P10CR. Renewal can repeat P10CR for compatibility or use certificate-authenticated KUR with CRMF proof of possession.
+Initial enrollment uses P10CR. A renewal re-enrolls with P10CR by default or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
@@ -96,6 +96,7 @@ spec:
   protocol:
     version: 2
     initialEnrollment: P10CR
+    renewal: P10CR
     recipient: CN=Example CA,O=Example
     confirmation: Explicit
   protection:
@@ -116,6 +117,10 @@ kubectl get cmpissuers -n demo
 NAME          READY
 demo-issuer   True
 ```
+
+`renewal` decides what a cert-manager renewal sends. It defaults to another P10CR enrollment. Set it to
+`KUR` when the CMP profile requires a true key update, as described in
+[Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/).
 
 Request a certificate:
 
@@ -148,53 +153,43 @@ demo-tls   True    demo-tls   12s
 
 ## How it works
 
-**Enrollment.** The controller watches approved `CertificateRequest` resources, forwards the signed
-PKCS #10 request in a protected P10CR and returns the issued chain to cert-manager. `initialEnrollment`
-accepts only `P10CR`.
+**Enrollment.** cert-manager creates the private key and the PKCS #10 request. The controller picks up
+the approved `CertificateRequest`, sends the request to your CMP server in a protected P10CR and hands
+the issued chain back to cert-manager. `initialEnrollment` accepts only `P10CR` for now.
 
-**Renewal.** `spec.protocol.renewal` defaults to repeat P10CR. Set it to `KUR` when the CMP profile
-requires true key update. KUR protects the request with the current valid certificate and proves
-possession of cert-manager's requested key. A separate CMP alias can be selected with
-`spec.endpoint.renewalUrl`.
+**Renewal.** A renewal sends another P10CR unless you set `spec.protocol.renewal` to `KUR`.
+KUR authenticates the request using the current valid certificate and proves possession of the key that
+cert-manager requested. This meets the expectations of CMP profiles requiring a true key update. Renewals
+can go to their own CMP alias with `spec.endpoint.renewalUrl`.
 
-**Built on cert-manager's own reconciliation library.** Approval, denial, retry classification, Ready
-conditions and Events come from [issuer-lib](https://github.com/cert-manager/issuer-lib), maintained by
-the cert-manager project, pinned to an exact version and upgraded deliberately rather than
-automatically. The Kubernetes `CertificateSigningRequest` controller it also offers is disabled, so
-cmp-issuer signs only through CMP. See
-[ADR 0002](https://misiektoja.github.io/cmp-issuer/adr/0002-issuer-lib/).
+**Slow or queued requests.** When the CA cannot issue right away it answers `waiting` and the issuer
+polls until the certificate arrives. Every transaction is recorded in a `CMPTransaction` before the
+first message goes out, so a controller restart resumes that transaction instead of enrolling a second
+time. Follow them with `kubectl get cmptransactions -A`.
 
-**Asynchronous transactions.** Certificate authorities that queue requests answer with `waiting` instead
-of a certificate, and the issuer polls with `pollReq` until the certificate arrives. Each transaction is
-recorded in a `CMPTransaction` before the first message is sent, so a controller restart resumes the
-existing transaction rather than enrolling a second time. Follow progress with
-`kubectl get cmptransactions -A`.
+**Private keys and secrets.** P10CR never reads workload private keys. KUR reads only the current and
+staged keys of the certificate being renewed, after checking the controlling cert-manager `Certificate`,
+its owner UID, revision, issuer reference and Secret ownership. The controller reads Secrets only in the
+namespaces you name at install time. TLS trust and CMP response trust are configured separately and
+every response must come from the authority set as `recipient`.
 
-**Security boundaries.** P10CR never reads workload private keys. KUR reads the exact current and staged
-keys only after validating the controlling cert-manager `Certificate`, owner UID, revision, issuer
-reference and Secret ownership state. Secret access is namespace bounded. TLS trust and CMP response
-trust are configured separately and every response must be sent by the authority configured as
-`recipient`.
+**CMP server differences.** `spec.protocol.validationProfile` defaults to `Interoperable`, which tolerates
+the deviations real CMP servers show. It accepts `certReqId` `-1` or `0` in a P10CR response, echoes the
+received value back in `certConf` and treats KUP `caPubs` as untrusted chain candidates rather than
+trust anchors. Choose `RFC9483` for the strict checks or pin a single behavior you already know, such as
+`spec.protocol.p10crResponseCertReqId`.
 
-**Response compatibility.** The issuer accepts `certReqId` `-1` or `0` in P10CR CP responses, echoes the
-received value in `certConf` and rejects anything else. Pin one value with
-`spec.protocol.p10crResponseCertReqId` when a server's behavior is known.
-
-`spec.protocol.validationProfile` defaults to `Interoperable`. In that profile KUP `caPubs` are
-accepted only as untrusted chain candidates and never as trust anchors. Select `RFC9483` to pin P10CR
-responses to `certReqId` `-1`, require MAC responses to MAC-protected requests and reject KUP
-`caPubs`. Each control also has a focused override for server-specific deployments.
-
-**Observability.** Each completed enrollment writes one `Issued certificate` log line carrying the
-subject, serial, validity and issuing CA. The controller also publishes its own Prometheus metrics next
-to the controller-runtime and Go defaults, counting enrollments, durations and classified failures per
-issuer, with renewals separated from first enrollments. See
+**Logs and metrics.** Each completed enrollment writes one `Issued certificate` log line with the
+subject, serial, validity and issuing CA. Prometheus metrics count enrollments, durations and classified
+failures per issuer, with renewals kept separate from first enrollments. See
 [Metrics](https://misiektoja.github.io/cmp-issuer/operations/metrics/).
 
-**Verification.** Pull requests run unit, protocol, controller, envtest, OpenSSL and lint checks, with
-full chart validation only when chart or build inputs change. Pushes to `dev` and `main` add the
-three-version Kind matrix, EJBCA and hosted Nokia NCM interoperability, vulnerability scanning, an SBOM
-and a credential scan. Results against real CMP servers are in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
+**Built on cert-manager's own library.** Approval, denial, retry classification, Ready conditions and
+Events come from [issuer-lib](https://github.com/cert-manager/issuer-lib), maintained by the
+cert-manager project and pinned to an exact version. See
+[ADR 0002](https://misiektoja.github.io/cmp-issuer/adr/0002-issuer-lib/).
+
+**Real-world interoperability.** cmp-issuer is tested against real PKI and CMP server implementations to verify that it works beyond synthetic test environments. This includes interoperability testing with EJBCA and Nokia NCM, with results and known compatibility details published in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
 
 ## Documentation
 
@@ -216,7 +211,7 @@ Full documentation is at
 
 ## Support
 
-[SUPPORT.md](SUPPORT.md) routes usage questions, bug reports, feature requests and security reports. Check the documentation and collect the sanitized version, resource status and controller log before posting.
+[SUPPORT.md](SUPPORT.md) directs usage questions, bug reports, feature requests and security reports. Check the documentation and gather the sanitized version, resource status and controller log before posting.
 
 ## License
 
