@@ -46,7 +46,7 @@ entries:
           url: https://github.com/misiektoja/cmp-issuer/issues
     apiVersion: v2
     appVersion: v0.1.0
-    created: "2026-08-21T23:42:13.26045631Z"
+    created: "2026-08-27T13:16:03.733496321Z"
     description: Cert-manager external issuer for Certificate Management Protocol
       (CMP) servers
     digest: 7fecf2614244e51b7beba1a02f47f753173355e84d268bb21723a8448a1f2322
@@ -74,4 +74,4 @@ entries:
     urls:
     - https://github.com/misiektoja/cmp-issuer/releases/download/v0.1.0/cmp-issuer-0.1.0.tgz
     version: 0.1.0
-generated: "2026-08-21T23:42:13.259540228Z"
+generated: "2026-08-27T13:16:03.732249278Z"
