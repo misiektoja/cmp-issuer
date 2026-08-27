@@ -32,11 +32,14 @@ jobs:
       # The runner image ships OpenSSL 3.0, whose CMP mock server cannot check the oldCertID a KUR
       # carries because it has no -ref_cert option. OpenSSL added that option in 3.2, so the KUR
       # interoperability coverage needs a newer build than the distribution package provides. The
-      # Homebrew bottle is prebuilt, and OPENSSL_BIN points the test at it.
+      # Homebrew bottle is prebuilt, and OPENSSL_BIN points the test at it. The runner image installs
+      # Homebrew without putting it on PATH, so the shell environment has to be loaded first.
       - name: Install a CMP-capable OpenSSL
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
+          if [ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]; then echo "the runner image no longer ships Homebrew, so the OpenSSL install needs another source" >&2; exit 1; fi
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           brew install openssl@3
           binary="$(brew --prefix openssl@3)/bin/openssl"
           if ! "$binary" cmp -help 2>&1 | grep -q -- "-ref_cert"; then echo "the installed OpenSSL has no -ref_cert option, so the KUR interoperability coverage would disappear" >&2; exit 1; fi
