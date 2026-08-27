@@ -32,9 +32,12 @@ Each release also carries the installer manifest, the packaged Helm chart and a 
 An air-gapped bundle is attached too, carrying the same image as an OCI archive next to the chart and the installer. It is exported by the build that pushes the image, not rebuilt afterwards, so the digest inside the archive is the digest the attestation covers. See [installing without registry access](installation.md#install-without-registry-access).
 
 Release-named ZIP and tar archives contain the complete source repository, including tests,
-documentation and CI configuration. A SHA-256 manifest covers every attached payload. GitHub build
-provenance attestations cover the installer, chart, SBOM, air-gapped bundle, source archives and
-checksum manifest, so each can be tied back to the tagged workflow run independently of the image.
+documentation and CI configuration. A SHA-256 manifest covers the installer, chart, SBOM, image
+provenance bundle, air-gapped bundle and both source archives. GitHub build provenance attestations
+cover the installer, chart, SBOM, air-gapped bundle, source archives and checksum manifest, so each can
+be tied back to the tagged workflow run independently of the image. That second Sigstore bundle is
+attached as `cmp-issuer-<version>.intoto.jsonl`, so those artifacts can be verified from the release
+page alone, without calling the GitHub attestations API.
 
 ## Supply chain checks
 
