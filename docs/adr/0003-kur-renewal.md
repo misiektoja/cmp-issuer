@@ -44,7 +44,7 @@ Bind unfinished KUR state to the UID and resourceVersion of the current and stag
 
 KUR needs `get` access to the owning `Certificate` and `get` access to both workload Secrets. Certificate access is cluster-wide but read-only. Secret access remains namespace bounded through the existing credential-reader RoleBindings. A `CMPClusterIssuer` using KUR therefore needs each workload namespace added to `credentialNamespaces` or bound manually.
 
-P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep repeat P10CR renewal unless an operator selects KUR.
+P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep renewing through P10CR re-enrollment unless an operator selects KUR.
 
 Same-key KUR remains server-profile dependent. The server is also responsible for checking revocation of the old certificate.
 
