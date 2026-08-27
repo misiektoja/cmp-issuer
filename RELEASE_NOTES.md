@@ -23,7 +23,7 @@ True CMP key update is now available for cert-manager renewals while P10CR re-en
 
 * **Know where to get help** - `SUPPORT.md` explains where to ask questions, report bugs, request features and privately report security issues.
 * **Consistent repository formatting** - `.editorconfig` and optional pre-commit hooks keep files consistently formatted and catch common mistakes such as accidentally committing private keys.
-* **Verify release downloads** - Releases include source archives, SHA-256 checksums and GitHub build provenance so downloaded artifacts can be verified.
+* **Verify release downloads** - Releases include source archives, SHA-256 checksums and GitHub build provenance so downloaded artifacts can be verified. Both signed provenance bundles are attached to the release itself, `cmp-issuer-<version>.intoto.jsonl` for the installer, chart, SBOM, air-gapped bundle and source archives plus `cmp-issuer-<version>-provenance.sigstore.json` for the image, so `gh attestation verify --bundle` works from the release page without calling the GitHub attestations API.
 
 ## [0.1.0] - 22 Aug 2026
 
