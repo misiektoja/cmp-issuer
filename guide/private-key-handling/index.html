@@ -596,7 +596,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -688,6 +688,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#kur-two-narrowly-authorized-key-proofs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KUR: two narrowly authorized key proofs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#annotation-is-not-authorization" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -699,10 +710,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#future-crmf-and-ir" class="md-nav__link">
+  <a href="#future-ir" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Future CRMF and IR
+        Future IR
       
     </span>
   </a>
@@ -1502,6 +1513,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1547,6 +1586,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#kur-two-narrowly-authorized-key-proofs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KUR: two narrowly authorized key proofs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#annotation-is-not-authorization" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1558,10 +1608,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#future-crmf-and-ir" class="md-nav__link">
+  <a href="#future-ir" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Future CRMF and IR
+        Future IR
       
     </span>
   </a>
@@ -1600,7 +1650,7 @@
 
 
 <h1 id="cert-manager-private-key-handling">cert-manager private-key handling<a class="headerlink" href="#cert-manager-private-key-handling" title="Permanent link">&para;</a></h1>
-<p>cmp-issuer integrates with cert-manager external issuers. Private-key access policy differs between P10CR today and planned CRMF operations.</p>
+<p>cmp-issuer integrates with cert-manager external issuers. Private-key access depends on the selected CMP operation.</p>
 <h2 id="p10cr-no-workload-private-key-access">P10CR: no workload private-key access<a class="headerlink" href="#p10cr-no-workload-private-key-access" title="Permanent link">&para;</a></h2>
 <p>For P10CR initial enrollment cert-manager signs a PKCS #10 CSR with the workload private key and passes only the CSR bytes to the external issuer.</p>
 <p>cmp-issuer:</p>
@@ -1612,11 +1662,14 @@
 </ul>
 <p>The end-to-end suite covers this boundary: a crafted annotation pointing at a sentinel Secret leaves that Secret unchanged while enrollment still succeeds.</p>
 <p>RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.</p>
+<h2 id="kur-two-narrowly-authorized-key-proofs">KUR: two narrowly authorized key proofs<a class="headerlink" href="#kur-two-narrowly-authorized-key-proofs" title="Permanent link">&para;</a></h2>
+<p>KUR reads the current workload key and the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling <code>Certificate</code> name and UID, immediately previous revision, issuer reference, current output Secret, <code>status.nextPrivateKeySecretName</code>, staged Secret owner and next-key label, CSR signature and public-key equality.</p>
+<p>The current key protects the CMP message with the certificate being updated. The requested key signs CRMF proof of possession. With <code>rotationPolicy: Never</code> both roles can use the same key material.</p>
+<p>Only <code>tls.key</code> is parsed from the staged Secret. The current Secret contributes <code>tls.crt</code> and <code>tls.key</code>. Their UID and resourceVersion values are bound into the durable transaction configuration digest.</p>
 <h2 id="annotation-is-not-authorization">Annotation is not authorization<a class="headerlink" href="#annotation-is-not-authorization" title="Permanent link">&para;</a></h2>
-<p><code>cert-manager.io/private-key-secret-name</code> names where cert-manager stores the workload key. It is not permission for the external issuer to read that Secret. Future CRMF support must not treat the annotation alone as sufficient authorization.</p>
-<h2 id="future-crmf-and-ir">Future CRMF and IR<a class="headerlink" href="#future-crmf-and-ir" title="Permanent link">&para;</a></h2>
-<p>Initial Registration with CRMF requires proof of possession over the workload private key. A future design must validate the owning <code>Certificate</code>, revision, issuer reference, expected Secret state, owner references, labels, CSR signature and public-key equality before reading only <code>tls.key</code>.</p>
-<p>IR and true KUR remain <strong>Planned</strong>. See <a href="../renewal-and-kur/">P10CR renewal and KUR roadmap</a>.</p>
+<p><code>cert-manager.io/private-key-secret-name</code> names where cert-manager stores the workload key. It is not permission for the external issuer to read that Secret. cmp-issuer uses it only after the value matches the authenticated <code>Certificate.status.nextPrivateKeySecretName</code> and the Secret's owner and label.</p>
+<h2 id="future-ir">Future IR<a class="headerlink" href="#future-ir" title="Permanent link">&para;</a></h2>
+<p>Initial Registration with CRMF requires proof of possession over the workload private key. IR remains planned and can reuse the KUR authorization boundary only after its separate API and protocol design is accepted.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../security/threat-model/">Threat model</a></li>

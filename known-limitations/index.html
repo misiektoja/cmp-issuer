@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1550,6 +1550,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1700,7 +1728,7 @@
 <h1 id="known-limitations">Known limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h1>
 <p>Behavior to plan around in the current release. Each item states what is not covered and the failure it can produce.</p>
 <h2 id="transaction-durability">Transaction durability<a class="headerlink" href="#transaction-durability" title="Permanent link">&para;</a></h2>
-<p>cmp-issuer records the transaction identifier, issuer and credential configuration identity and the issued chain in <code>CMPTransaction</code>, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.</p>
+<p>cmp-issuer records the operation, transaction identifier, issuer and Secret configuration identity plus the issued chain in <code>CMPTransaction</code>, so an asynchronous enrollment survives a controller restart and an interrupted attempt resumes under its original transaction identifier rather than starting a new one. The gaps below remain.</p>
 <h3 id="a-lost-enrollment-response-cannot-be-recovered">A lost enrollment response cannot be recovered<a class="headerlink" href="#a-lost-enrollment-response-cannot-be-recovered" title="Permanent link">&para;</a></h3>
 <p>If the controller stops after sending an enrollment and the response never arrives, retrying under the recorded transaction identifier reliably prevents a second certificate but does not retrieve the first one. Neither tested server answers the repeat from its existing transaction: Nokia NCM 26.7 refuses it with <code>transactionIdInUse</code> and EJBCA CE 9.3.7 refuses it with <code>badRequest</code>. The <code>CertificateRequest</code> fails and cert-manager enrolls again under a new transaction identifier, which succeeds. The certificate the server issued for the lost response is orphaned and counts against any issuance quota or audit trail the certificate authority keeps.</p>
 <h3 id="coarse-progress-reporting">Coarse progress reporting<a class="headerlink" href="#coarse-progress-reporting" title="Permanent link">&para;</a></h3>
@@ -1721,8 +1749,12 @@
 <td>Planned</td>
 </tr>
 <tr>
-<td>KUR</td>
-<td>Planned</td>
+<td>KUR with a changed subject or SAN</td>
+<td>Unsupported by design. Use P10CR where the server permits re-enrollment or wait for planned CR support</td>
+</tr>
+<tr>
+<td>KUR after the old certificate expires</td>
+<td>Unsupported by RFC profile requirements. Renew while it is still valid</td>
 </tr>
 <tr>
 <td>PBMAC1</td>

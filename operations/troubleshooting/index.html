@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1607,6 +1607,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2069,6 +2097,26 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>Server returned an unexpected identifier; adjust <code>p10crResponseCertReqId</code> or use default</td>
 </tr>
 <tr>
+<td>KUR requires a certificate revision greater than one</td>
+<td>A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager <code>Certificate</code></td>
+</tr>
+<tr>
+<td>KUR current or staged Secret is not available</td>
+<td>The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect <code>Certificate.status.nextPrivateKeySecretName</code></td>
+</tr>
+<tr>
+<td>KUR certificate identity</td>
+<td>The renewal CSR changed the subject or SAN set. Use the P10CR compatibility mode where the CA permits re-enrollment or wait for CR support</td>
+</tr>
+<tr>
+<td>KUP caPubs must be absent</td>
+<td><code>validationProfile</code> is <code>RFC9483</code> or <code>kurResponseCaPubs</code> is <code>RequireAbsent</code>, but the server delivered CA certificates in that field. Configure the server to omit them or use the default <code>Interoperable</code> profile, which treats them only as untrusted chain candidates</td>
+</tr>
+<tr>
+<td>KUR certReqId mismatch</td>
+<td>The KUP did not use the fixed KUR identifier <code>0</code>. Correct the CMP server profile</td>
+</tr>
+<tr>
 <td>Response protection / trust</td>
 <td>Wrong CMP trust anchors or unexpected signer</td>
 </tr>
@@ -2127,6 +2175,11 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>Wrong protection</td>
 <td>Alias authentication modules</td>
 <td>Confirm alias uses HMAC for PBM and EndEntityCertificate for signature</td>
+</tr>
+<tr>
+<td>KUR reaches the initial alias</td>
+<td>Key update needs a separate client-mode alias</td>
+<td>Set <code>endpoint.renewalUrl</code> to the alias with <code>EndEntityCertificate</code> and Automatic Key Update enabled</td>
 </tr>
 </tbody>
 </table>

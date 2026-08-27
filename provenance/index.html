@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1513,6 +1513,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1656,7 +1684,7 @@
 <tr>
 <td><a href="https://www.rfc-editor.org/rfc/rfc9483.html">RFC 9483</a></td>
 <td>IETF Trust legal provisions</td>
-<td>Lightweight CMP profile and P10CR <code>certReqId</code> rules</td>
+<td>Lightweight CMP profile, P10CR <code>certReqId</code> rules and KUR profile requirements</td>
 </tr>
 <tr>
 <td><a href="https://www.etsi.org/deliver/etsi_ts/133300_133399/133310/18.08.00_60/ts_133310v180800p.pdf">3GPP TS 33.310 V18.8.0</a></td>
@@ -1701,6 +1729,10 @@
 <p>A release publishes a multi-architecture manager image for <code>linux/amd64</code> and <code>linux/arm64</code> to the GitHub Container Registry. A signed build provenance attestation is generated for the published image digest and pushed alongside it, so a consumer can verify which workflow, commit and repository produced the image. The same Sigstore bundle is attached to the GitHub Release as <code>cmp-issuer-&lt;version&gt;-provenance.sigstore.json</code>, so verification does not depend on discovering the registry attachment.</p>
 <p>Each release also carries the installer manifest, the packaged Helm chart and a CycloneDX bill of materials generated from the Go module graph with license information. The air-gapped bundle carries the same bill of materials, so a cluster with no route to the release page can still audit what the image was built from.</p>
 <p>An air-gapped bundle is attached too, carrying the same image as an OCI archive next to the chart and the installer. It is exported by the build that pushes the image, not rebuilt afterwards, so the digest inside the archive is the digest the attestation covers. See <a href="../installation/#install-without-registry-access">installing without registry access</a>.</p>
+<p>Release-named ZIP and tar archives contain the complete source repository, including tests,
+documentation and CI configuration. A SHA-256 manifest covers every attached payload. GitHub build
+provenance attestations cover the installer, chart, SBOM, air-gapped bundle, source archives and
+checksum manifest, so each can be tied back to the tagged workflow run independently of the image.</p>
 <h2 id="supply-chain-checks">Supply chain checks<a class="headerlink" href="#supply-chain-checks" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1750,6 +1782,11 @@
 <td>Workflow supply chain</td>
 <td><code>test/workflows</code></td>
 <td>Commit-SHA action pinning, least-privilege token scopes and no interpolated shell</td>
+</tr>
+<tr>
+<td>Repository metadata</td>
+<td><code>test/repository</code></td>
+<td>Governance files, citation release binding, editor rules, tracked text hygiene and local hook policy</td>
 </tr>
 <tr>
 <td>Toolchain currency</td>

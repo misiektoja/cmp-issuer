@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1285,6 +1285,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#editor-settings-and-local-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor settings and local hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#local-controller" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1557,6 +1568,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1617,6 +1656,17 @@
     <span class="md-ellipsis">
       
         Common commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editor-settings-and-local-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor settings and local hooks
       
     </span>
   </a>
@@ -1762,6 +1812,10 @@
 <td>Preconfigured CMP server image that the enrollment tests start</td>
 </tr>
 <tr>
+<td><code>test/repository/</code></td>
+<td>Repository metadata and whitespace contracts</td>
+</tr>
+<tr>
 <td><code>test/workflows/</code></td>
 <td>Supply chain checks over the GitHub Actions workflow definitions</td>
 </tr>
@@ -1782,6 +1836,13 @@ make<span class="w"> </span>clean<span class="w">           </span><span class="
 <p><code>make clean</code> keeps the tool binaries downloaded into <code>bin/</code>, so the next build does not re-download the toolchain. <code>make clean-tools</code> removes those as well and <code>make clean-all</code> does both.</p>
 <p>After editing <code>*_types.go</code> run <code>make manifests generate</code>. After editing Go sources run <code>make lint-fix test</code>.</p>
 <p><code>make lint</code> lints the GitHub Actions workflows as well, so a mistyped trigger or a bad expression is reported before a push rather than by a workflow run that has already started. <code>lint-fix</code> and <code>lint-config</code> stay Go-only. actionlint runs shellcheck over <code>run:</code> blocks when shellcheck is on PATH, which it is on the GitHub-hosted runners, so install it locally to see the same findings CI does.</p>
+<h2 id="editor-settings-and-local-hooks">Editor settings and local hooks<a class="headerlink" href="#editor-settings-and-local-hooks" title="Permanent link">&para;</a></h2>
+<p><a href="https://github.com/misiektoja/cmp-issuer/blob/main/.editorconfig"><code>.editorconfig</code></a> records the measured repository style: UTF-8 and LF throughout, tabs for Go and Make recipes plus two-space indentation for YAML, TOML, shell and the other structured text files. It also preserves meaningful Markdown trailing spaces and the verbatim <code>LICENSE</code> text.</p>
+<p>The optional <a href="https://github.com/misiektoja/cmp-issuer/blob/main/.pre-commit-config.yaml">pre-commit configuration</a> checks those whitespace rules, YAML, TOML, merge markers, file size and private keys. It deliberately uses no Go hook, so enabling it does not download or build a second Go toolchain:</p>
+<div class="highlight"><pre><span></span><code>pre-commit<span class="w"> </span>install
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+</code></pre></div>
+<p><code>make lint</code> remains the authoritative local equivalent of the CI lint job.</p>
 <h2 id="local-controller">Local controller<a class="headerlink" href="#local-controller" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>run
 </code></pre></div>

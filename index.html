@@ -361,6 +361,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -683,7 +694,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1498,6 +1509,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1575,6 +1614,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1606,7 +1656,7 @@
 servers.</p>
 <p>Point a cert-manager <code>Certificate</code> at a <code>CMPIssuer</code> and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.</p>
 <p>CMP message protection is mandatory. HTTP and HTTPS are both supported.</p>
-<p>Currently, enrollment and renewal are supported using PasswordBasedMac (PSK) or certificate-based signature protection for CMP P10CR requests.</p>
+<p>Initial enrollment uses P10CR. Renewal can repeat P10CR for compatibility or use certificate-authenticated KUR with CRMF proof of possession.</p>
 <h2 id="start-here">Start here<a class="headerlink" href="#start-here" title="Permanent link">&para;</a></h2>
 <p><strong><a href="getting-started/">Getting started</a></strong> walks from an empty cluster to an issued certificate in five
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.</p>
@@ -1630,6 +1680,10 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 <tr>
 <td>Understand the request lifecycle</td>
 <td><a href="guide/enrollment/">Enrollment</a></td>
+</tr>
+<tr>
+<td>Configure renewal as P10CR or KUR</td>
+<td><a href="guide/renewal-and-kur/">Renewal with P10CR or KUR</a></td>
 </tr>
 <tr>
 <td>Choose a protection mode</td>
@@ -1660,6 +1714,10 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 <td><a href="operations/troubleshooting/">Troubleshooting</a></td>
 </tr>
 <tr>
+<td>Ask for help or report a problem</td>
+<td><a href="https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md">Support</a></td>
+</tr>
+<tr>
 <td>Understand what is not done yet</td>
 <td><a href="known-limitations/">Known limitations</a></td>
 </tr>
@@ -1672,13 +1730,15 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 <li><a href="guide/transaction-recovery/">Transaction recovery</a> - what survives a controller restart</li>
 <li><a href="security/security-model/">Security model</a> and <a href="security/threat-model/">Threat model</a></li>
 <li><a href="provenance/">Provenance and supply chain</a></li>
-<li><a href="adr/0001-cmp-library/">CMP library selection</a> and <a href="adr/0002-issuer-lib/">issuer reconciliation library</a></li>
+<li><a href="adr/0001-cmp-library/">CMP library selection</a>, <a href="adr/0002-issuer-lib/">issuer reconciliation library</a> and <a href="adr/0003-kur-renewal/">KUR renewal design</a></li>
 </ul>
 <h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="development/development/">Development</a> and <a href="development/testing/">Testing</a></li>
 <li>Source and issues: <a href="https://github.com/misiektoja/cmp-issuer">github.com/misiektoja/cmp-issuer</a></li>
 </ul>
+<h2 id="support">Support<a class="headerlink" href="#support" title="Permanent link">&para;</a></h2>
+<p><a href="https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md">SUPPORT.md</a> routes usage questions, bug reports, feature requests and private security reports. Check the documentation and collect sanitized diagnostics before posting.</p>
 
 
 

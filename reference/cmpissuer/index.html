@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1607,6 +1607,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1888,6 +1916,12 @@
 <td>Complete HTTP or HTTPS CMP URL</td>
 </tr>
 <tr>
+<td><code>renewalUrl</code></td>
+<td>no</td>
+<td><code>url</code></td>
+<td>Complete HTTP or HTTPS URL used only for KUR</td>
+</tr>
+<tr>
 <td><code>timeout</code></td>
 <td>yes</td>
 <td><code>30s</code></td>
@@ -1925,6 +1959,24 @@
 <td>Only <code>P10CR</code> is implemented</td>
 </tr>
 <tr>
+<td><code>renewal</code></td>
+<td>no</td>
+<td><code>P10CR</code></td>
+<td><code>P10CR</code> repeats enrollment. <code>KUR</code> uses the current certificate and CRMF proof of possession for later cert-manager revisions</td>
+</tr>
+<tr>
+<td><code>validationProfile</code></td>
+<td>no</td>
+<td><code>Interoperable</code></td>
+<td><code>Interoperable</code> uses safe receiver compatibility defaults. <code>RFC9483</code> pins P10CR response <code>certReqId</code> to <code>-1</code>, requires MAC-based responses to MAC-protected operations and requires KUP <code>caPubs</code> absent</td>
+</tr>
+<tr>
+<td><code>kurResponseCaPubs</code></td>
+<td>no</td>
+<td>inherit profile</td>
+<td><code>Accept</code> treats KUP <code>caPubs</code> as untrusted chain candidates. <code>RequireAbsent</code> rejects any KUP that contains them</td>
+</tr>
+<tr>
 <td><code>recipient</code></td>
 <td>yes</td>
 <td></td>
@@ -1939,14 +1991,14 @@
 <tr>
 <td><code>p10crResponseCertReqId</code></td>
 <td>no</td>
-<td>accept <code>-1</code> or <code>0</code></td>
-<td>Pin <code>-1</code> or <code>0</code> when the server behavior is known</td>
+<td>inherit profile</td>
+<td><code>Interoperable</code> accepts <code>-1</code> or <code>0</code>. <code>RFC9483</code> requires <code>-1</code>. Pin either value for a known server under the interoperable profile</td>
 </tr>
 <tr>
 <td><code>macResponseProtection</code></td>
 <td>no</td>
-<td><code>AllowSignature</code></td>
-<td><code>AllowSignature</code> accepts either MAC-based protection or a signed response whose signer chains to <code>cmpTrust</code> and whose sender is <code>recipient</code>. <code>Strict</code> requires MAC-based protection throughout, so the shared secret authenticates the response as well as the request</td>
+<td>inherit profile</td>
+<td><code>Interoperable</code> uses <code>AllowSignature</code>, which accepts either MAC-based protection or a signed response whose signer chains to <code>cmpTrust</code> and whose sender is <code>recipient</code>. <code>RFC9483</code> uses <code>Strict</code>, which requires MAC-based protection throughout</td>
 </tr>
 <tr>
 <td><code>certProfile</code></td>
@@ -2051,7 +2103,7 @@
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
 <p>Ready condition follows issuer-lib conventions. When credential or trust Secrets are unreadable the message names the Secret.</p>
 <h2 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h2>
-<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
+<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact current and staged workload Secret reads needed when <code>renewal: KUR</code> is selected. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../cmpclusterissuer/">CMPClusterIssuer</a> for cluster-scoped issuers</li>

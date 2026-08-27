@@ -27,7 +27,7 @@
     
     
       
-        <title>P10CR renewal and KUR roadmap - cmp-issuer</title>
+        <title>Renewal with P10CR or KUR - cmp-issuer</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#p10cr-renewal-and-kur-roadmap" class="md-skip">
+        <a href="#renewal-with-p10cr-or-kur" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              P10CR renewal and KUR roadmap
+              Renewal with P10CR or KUR
             
           </span>
         </div>
@@ -605,7 +605,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -623,7 +623,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -657,22 +657,49 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="cert-manager renewal">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#both-private-key-rotation-policies-work-where-the-server-allows-re-enrollment" class="md-nav__link">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p10cr-compatibility-renewal" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Both private key rotation policies work where the server allows re-enrollment
+        P10CR compatibility renewal
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#true-kur-renewal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        True KUR renewal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-validation-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response validation profiles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workload-secret-authorization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workload Secret authorization
+      
+    </span>
+  </a>
   
 </li>
       
@@ -681,28 +708,6 @@
     <span class="md-ellipsis">
       
         Nokia NCM REST renewal
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#planned-true-kur" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Planned: true KUR
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#planned-ir-and-crmf" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Planned: IR and CRMF
       
     </span>
   </a>
@@ -1530,6 +1535,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1572,22 +1605,49 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="cert-manager renewal">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#both-private-key-rotation-policies-work-where-the-server-allows-re-enrollment" class="md-nav__link">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#p10cr-compatibility-renewal" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Both private key rotation policies work where the server allows re-enrollment
+        P10CR compatibility renewal
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#true-kur-renewal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        True KUR renewal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-validation-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response validation profiles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workload-secret-authorization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workload Secret authorization
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1596,28 +1656,6 @@
     <span class="md-ellipsis">
       
         Nokia NCM REST renewal
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#planned-true-kur" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Planned: true KUR
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#planned-ir-and-crmf" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Planned: IR and CRMF
       
     </span>
   </a>
@@ -1655,36 +1693,45 @@
   
 
 
-<h1 id="p10cr-renewal-and-kur-roadmap">P10CR renewal and KUR roadmap<a class="headerlink" href="#p10cr-renewal-and-kur-roadmap" title="Permanent link">&para;</a></h1>
-<p>cmp-issuer implements enrollment through P10CR and renews the same way, by sending a fresh P10CR. It implements <strong>no CMP Key Update Request</strong>, so cert-manager renewal and KUR stay distinct concepts here.</p>
+<h1 id="renewal-with-p10cr-or-kur">Renewal with P10CR or KUR<a class="headerlink" href="#renewal-with-p10cr-or-kur" title="Permanent link">&para;</a></h1>
+<p>cert-manager decides when to renew a <code>Certificate</code>. cmp-issuer decides which CMP operation performs that renewal through <code>spec.protocol.renewal</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">endpoint</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://ca.example.test/cmp/initial</span>
+<span class="w">    </span><span class="nt">renewalUrl</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://ca.example.test/cmp/key-update</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">initialEnrollment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">P10CR</span>
+<span class="w">    </span><span class="nt">renewal</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KUR</span>
+</code></pre></div>
+<p><code>renewalUrl</code> is optional. Omit it when one CMP endpoint accepts both P10CR and KUR.</p>
 <h2 id="cert-manager-renewal">cert-manager renewal<a class="headerlink" href="#cert-manager-renewal" title="Permanent link">&para;</a></h2>
-<p>When a <code>Certificate</code> nears expiry cert-manager may create a new <code>CertificateRequest</code> for the same identity. cmp-issuer sends another P10CR with a fresh CSR.</p>
-<p>Whether that succeeds depends entirely on the CMP server profile:</p>
+<p>When a <code>Certificate</code> nears expiry cert-manager creates a new <code>CertificateRequest</code>. Revision one always uses P10CR. Later revisions use the configured renewal operation.</p>
 <table>
 <thead>
 <tr>
-<th>Server behavior</th>
-<th>Outcome</th>
+<th><code>renewal</code></th>
+<th>CMP operation</th>
+<th>Workload key access</th>
+<th>Server requirement</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Allows repeat P10CR for the same identity</td>
-<td>Renewal succeeds</td>
+<td><code>P10CR</code> or omitted</td>
+<td>Fresh P10CR</td>
+<td>None</td>
+<td>Repeat enrollment for the same identity</td>
 </tr>
 <tr>
-<td>One-time enrollment code (EJBCA client mode)</td>
-<td>Fails until the end entity is reset</td>
-</tr>
-<tr>
-<td>Requires KUR with proof of possession</td>
-<td><strong>Unsupported</strong> today</td>
+<td><code>KUR</code></td>
+<td>Certificate-authenticated KUR</td>
+<td>Current and staged keys</td>
+<td>KUR enabled for the existing certificate</td>
 </tr>
 </tbody>
 </table>
-<p>cmp-issuer does <strong>not</strong> implement KUR. Repeat P10CR is not KUR even when it works.</p>
-<h3 id="both-private-key-rotation-policies-work-where-the-server-allows-re-enrollment">Both private key rotation policies work where the server allows re-enrollment<a class="headerlink" href="#both-private-key-rotation-policies-work-where-the-server-allows-re-enrollment" title="Permanent link">&para;</a></h3>
-<p>Renewal was exercised against Nokia NCM 26.7 through cert-manager, with <code>cmctl renew</code>, for both values of <code>privateKey.rotationPolicy</code>:</p>
+<h2 id="p10cr-compatibility-renewal">P10CR compatibility renewal<a class="headerlink" href="#p10cr-compatibility-renewal" title="Permanent link">&para;</a></h2>
+<p>P10CR is the default for compatibility. It was exercised against Nokia NCM 26.7 through cert-manager with both values of <code>privateKey.rotationPolicy</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1706,15 +1753,44 @@
 </tr>
 </tbody>
 </table>
-<p>Each renewal is a <strong>new CMP transaction with a fresh identifier</strong>, not a repeat of the earlier one, which is why it does not draw the <code>transactionIdInUse</code> refusal that an actual retransmission gets. See <a href="../transaction-recovery/">transaction recovery</a> for that distinction.</p>
-<p>The controller reads no private key in either case. Under <code>Never</code> cert-manager reuses the key it already holds and signs the new CSR itself, exactly as it does for the first enrollment.</p>
-<p>A server whose profile authorizes enrollment once per identity refuses the second request. That is a property of the profile, not of cmp-issuer, and the failure is reported as a CMP rejection with the server's own <code>failInfo</code>.</p>
+<p>Each renewal is a new CMP transaction with a fresh identifier. It is not a retransmission of the earlier transaction. The controller reads no workload private key in this mode.</p>
+<h2 id="true-kur-renewal">True KUR renewal<a class="headerlink" href="#true-kur-renewal" title="Permanent link">&para;</a></h2>
+<p>KUR proves two things before the server updates the certificate:</p>
+<ol>
+<li>The current valid certificate and private key protect the CMP message.</li>
+<li>The requested private key signs CRMF proof of possession.</li>
+</ol>
+<p>Each KUR also carries the recommended CRMF <code>oldCertID</code> control with the current certificate's exact issuer and serial number. This lets a server select the certificate being replaced even after repeated same-key updates have created several certificates for the same subject and public key.</p>
+<p>With <code>rotationPolicy: Always</code> these are different keys. With <code>rotationPolicy: Never</code> the same key makes both proofs and the server profile must allow same-key update.</p>
+<p>cmp-issuer rejects KUR before network traffic when the current certificate is expired, its key does not match, its Key Usage extension forbids digital signatures, the staged key does not match the CSR or the subject or SAN values changed. The CA must reject a revoked current certificate.</p>
+<p>A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or <code>oldCertID</code>. Server policy still decides whether that certificate is eligible for key update.</p>
+<p>No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.</p>
+<h2 id="response-validation-profiles">Response validation profiles<a class="headerlink" href="#response-validation-profiles" title="Permanent link">&para;</a></h2>
+<p><code>spec.protocol.validationProfile</code> defaults to <code>Interoperable</code>. This accepts KUP <code>caPubs</code> because CMP
+servers including EJBCA and Nokia NCM can legitimately be configured to deliver CA certificates there.
+Those certificates are untrusted chain candidates only. They cannot add a trust root and the issued
+chain must still terminate at <code>spec.cmpTrust</code>.</p>
+<p>Use the RFC 9483 receiver rules for the implemented operations with:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">validationProfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RFC9483</span>
+</code></pre></div>
+<p>This pins P10CR CP <code>certReqId</code> to <code>-1</code>, requires MAC-based responses throughout a MAC-protected
+operation and requires KUP <code>caPubs</code> absent. Tested NCM and EJBCA versions return P10CR <code>certReqId</code> <code>0</code>,
+so the complete profile rejects their initial enrollment behavior. Use the default profile with a
+focused setting when only one rule is required:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">kurResponseCaPubs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RequireAbsent</span>
+</code></pre></div>
+<p>The focused values are <code>kurResponseCaPubs: Accept | RequireAbsent</code>,
+<code>macResponseProtection: AllowSignature | Strict</code> and <code>p10crResponseCertReqId: -1 | 0</code>.</p>
+<h2 id="workload-secret-authorization">Workload Secret authorization<a class="headerlink" href="#workload-secret-authorization" title="Permanent link">&para;</a></h2>
+<p>KUR does not trust <code>cert-manager.io/private-key-secret-name</code> by itself. Before reading either key cmp-issuer verifies the controlling <code>Certificate</code>, owner UID, immediately previous revision, issuer reference, current output Secret, <code>status.nextPrivateKeySecretName</code>, staged Secret owner and label, CSR signature and public-key equality.</p>
+<p>The current and staged Secret UID and resourceVersion values are included in the transaction configuration digest. Rotation during an unfinished KUR stops it before more CMP traffic.</p>
+<p>See <a href="../private-key-handling/">Private-key handling</a> and <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
 <h2 id="nokia-ncm-rest-renewal">Nokia NCM REST renewal<a class="headerlink" href="#nokia-ncm-rest-renewal" title="Permanent link">&para;</a></h2>
-<p>Some Nokia deployments expose certificate renewal through NCM REST APIs. That path is unrelated to CMP KUR and is <strong>Unsupported</strong> by cmp-issuer.</p>
-<h2 id="planned-true-kur">Planned: true KUR<a class="headerlink" href="#planned-true-kur" title="Permanent link">&para;</a></h2>
-<p>A future release may implement CMPv2 KUR with CRMF proof of possession. That requires reading the workload private key under strict authorization rules described in <a href="../private-key-handling/">Private-key handling</a>.</p>
-<h2 id="planned-ir-and-crmf">Planned: IR and CRMF<a class="headerlink" href="#planned-ir-and-crmf" title="Permanent link">&para;</a></h2>
-<p>Initial Registration with CRMF (<code>IR</code>) is also planned and shares the private-key access design.</p>
+<p>Some Nokia deployments expose certificate renewal through NCM REST APIs. That path is unrelated to CMP KUR and is unsupported by cmp-issuer.</p>
 <h2 id="support-matrix">Support matrix<a class="headerlink" href="#support-matrix" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1730,11 +1806,11 @@
 </tr>
 <tr>
 <td>P10CR repeat enrollment</td>
-<td>Server dependent, not KUR. Verified against NCM 26.7 for both rotation policies</td>
+<td>Server dependent. Verified against NCM 26.7 for both rotation policies</td>
 </tr>
 <tr>
 <td>KUR</td>
-<td>Planned</td>
+<td>Implemented for unchanged subject and SANs. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 with both rotation policies</td>
 </tr>
 <tr>
 <td>IR (CRMF)</td>
@@ -1746,7 +1822,7 @@
 </tr>
 </tbody>
 </table>
-<p>See <a href="../../support-matrix/">Support matrix</a>.</p>
+<p>See <a href="../../interoperability/tested-pkis/">Tested PKIs</a> for server-specific validation and configuration.</p>
 
 
 

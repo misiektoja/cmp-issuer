@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1491,6 +1491,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1603,11 +1631,11 @@ runtime and client-go families, cmp-issuer publishes what its own enrollments di
 </tr>
 </tbody>
 </table>
-<p><code>operation</code> separates the first issuance of a certificate from a re-enrollment. cert-manager stamps
+<p><code>operation</code> separates the first issuance of a certificate from a renewal. cert-manager stamps
 each <code>CertificateRequest</code> with the revision it will become, so anything past the first is a renewal. A
-<code>CertificateRequest</code> written by hand carries no revision and counts as an enrollment. Note that
-cmp-issuer renews by sending a fresh P10CR rather than a CMP Key Update Request, so a renewal is the
-same protocol exchange as an enrollment. See <a href="../../guide/renewal-and-kur/">P10CR renewal and KUR</a>.</p>
+<code>CertificateRequest</code> written by hand carries no revision and counts as an enrollment. Renewal can use
+repeat P10CR or KUR. This metric label describes certificate lifecycle intent rather than the CMP body.
+See <a href="../../guide/renewal-and-kur/">Renewal with P10CR or KUR</a>.</p>
 <h2 id="what-is-published">What is published<a class="headerlink" href="#what-is-published" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

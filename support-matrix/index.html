@@ -718,7 +718,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1533,6 +1533,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1718,13 +1746,13 @@
 </tr>
 <tr>
 <td>CMPv2 KUR (true key update)</td>
-<td>Planned</td>
-<td>Distinct from cert-manager renewal or P10CR re-enrollment</td>
+<td>Implemented, Interoperability tested</td>
+<td>Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3</td>
 </tr>
 <tr>
 <td>cert-manager Certificate renewal</td>
-<td>Implemented as repeat P10CR, not KUR</td>
-<td>Succeeds only where the server allows re-enrollment of an identity. Verified against NCM 26.7 with <code>rotationPolicy</code> <code>Always</code> and <code>Never</code></td>
+<td>Implemented as selectable P10CR or KUR</td>
+<td>P10CR is the compatibility default. KUR is opt-in through <code>protocol.renewal</code></td>
 </tr>
 <tr>
 <td>Explicit <code>certConf</code> confirmation</td>
@@ -1870,12 +1898,32 @@
 <tr>
 <td><code>p10crResponseCertReqId</code> pin</td>
 <td>Implemented</td>
-<td>Accept <code>-1</code> or <code>0</code> by default</td>
+<td>Interoperable profile accepts <code>-1</code> or <code>0</code>. RFC 9483 profile requires <code>-1</code></td>
+</tr>
+<tr>
+<td><code>protocol.renewal</code></td>
+<td>Implemented</td>
+<td><code>P10CR</code> by default or <code>KUR</code> for later cert-manager revisions</td>
+</tr>
+<tr>
+<td><code>protocol.validationProfile</code></td>
+<td>Implemented</td>
+<td><code>Interoperable</code> by default or bundled RFC 9483 receiver checks for implemented P10CR and KUR flows</td>
+</tr>
+<tr>
+<td><code>protocol.kurResponseCaPubs</code></td>
+<td>Implemented</td>
+<td>Accept untrusted KUP chain candidates by default or require the field absent</td>
+</tr>
+<tr>
+<td><code>endpoint.renewalUrl</code></td>
+<td>Implemented</td>
+<td>Optional KUR endpoint for servers with separate initial and key-update aliases</td>
 </tr>
 <tr>
 <td><code>macResponseProtection</code></td>
 <td>Implemented, Interoperability tested</td>
-<td><code>AllowSignature</code> by default, so a signed answer to a <code>PasswordBasedMac</code> request is accepted when it chains to the CMP trust anchor and names the recipient. <code>Strict</code> requires MAC-based protection throughout</td>
+<td>Interoperable profile uses <code>AllowSignature</code>, so a signed answer to a <code>PasswordBasedMac</code> request is accepted when it chains to the CMP trust anchor and names the recipient. RFC 9483 uses <code>Strict</code></td>
 </tr>
 <tr>
 <td>Endpoint reachability in issuer readiness</td>

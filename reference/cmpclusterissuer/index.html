@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1535,6 +1535,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1763,7 +1791,7 @@ same name. Change both together if you retarget the manifest.</p>
 </tbody>
 </table>
 <h2 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h2>
-<p>The base install grants Secret read access in <code>cmp-issuer-system</code> through a RoleBinding to the <code>cmp-issuer-credential-reader</code> ClusterRole. No per-namespace RoleBinding is required for cluster issuers.</p>
+<p>The base install grants credential Secret read access in <code>cmp-issuer-system</code> through a RoleBinding to the <code>cmp-issuer-credential-reader</code> ClusterRole. P10CR needs no workload namespace access. A cluster issuer configured with <code>protocol.renewal: KUR</code> also needs this RoleBinding in every workload namespace because KUR reads the authorized current and staged private keys. Add those namespaces to <code>credentialNamespaces</code> or bind them manually.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../cmpissuer/">CMPIssuer</a></li>

@@ -10,13 +10,11 @@
       
       
       
-        <link rel="canonical" href="https://misiektoja.github.io/cmp-issuer/guide/message-protection/">
+        <link rel="canonical" href="https://misiektoja.github.io/cmp-issuer/adr/0003-kur-renewal/">
       
       
-        <link rel="prev" href="../enrollment/">
+        <link rel="prev" href="../0002-issuer-lib/">
       
-      
-        <link rel="next" href="../cmp-response-trust/">
       
       
         
@@ -27,7 +25,7 @@
     
     
       
-        <title>Message protection - cmp-issuer</title>
+        <title>KUR renewal - cmp-issuer</title>
       
     
     
@@ -78,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#message-protection" class="md-skip">
+        <a href="#adr-0003-select-renewal-operation-explicitly" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Message protection
+              KUR renewal
             
           </span>
         </div>
@@ -392,8 +390,6 @@
       
   
   
-    
-  
   
   
     
@@ -406,11 +402,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
           <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
@@ -431,7 +427,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -449,7 +445,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../enrollment/" class="md-nav__link">
+      <a href="../../guide/enrollment/" class="md-nav__link">
         
   
   
@@ -474,37 +470,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Message protection
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../guide/message-protection/" class="md-nav__link">
         
   
   
@@ -520,220 +489,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#passwordbasedmac" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PasswordBasedMac
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PasswordBasedMac">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#secret-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Secret format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#issuer-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Issuer configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#algorithm-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Algorithm fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#response-protection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Response protection
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#server-setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Server setup
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#signature-protection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Signature protection
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Signature protection">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#secret-format_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Secret format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#issuer-configuration_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Issuer configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#extracerts-layout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        extraCerts layout
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ejbca-client-mode" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EJBCA client mode
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-gets-protected" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What gets protected
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-gets-validated" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What gets validated
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What gets validated">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#confirmation-signer-retention" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Confirmation signer retention
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#credential-rotation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credential rotation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-pages" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related pages
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -746,7 +501,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cmp-response-trust/" class="md-nav__link">
+      <a href="../../guide/cmp-response-trust/" class="md-nav__link">
         
   
   
@@ -774,7 +529,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../transport/" class="md-nav__link">
+      <a href="../../guide/transport/" class="md-nav__link">
         
   
   
@@ -802,7 +557,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../transaction-recovery/" class="md-nav__link">
+      <a href="../../guide/transaction-recovery/" class="md-nav__link">
         
   
   
@@ -830,7 +585,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../renewal-and-kur/" class="md-nav__link">
+      <a href="../../guide/renewal-and-kur/" class="md-nav__link">
         
   
   
@@ -858,7 +613,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../private-key-handling/" class="md-nav__link">
+      <a href="../../guide/private-key-handling/" class="md-nav__link">
         
   
   
@@ -1548,8 +1303,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -1560,11 +1317,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" checked>
         
           
           <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="">
@@ -1585,7 +1342,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1603,7 +1360,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0001-cmp-library/" class="md-nav__link">
+      <a href="../0001-cmp-library/" class="md-nav__link">
         
   
   
@@ -1631,7 +1388,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0002-issuer-lib/" class="md-nav__link">
+      <a href="../0002-issuer-lib/" class="md-nav__link">
         
   
   
@@ -1656,10 +1413,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1675,6 +1459,59 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1714,143 +1551,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#passwordbasedmac" class="md-nav__link">
+  <a href="#context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        PasswordBasedMac
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PasswordBasedMac">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#secret-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Secret format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#issuer-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Issuer configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#algorithm-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Algorithm fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#response-protection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Response protection
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#server-setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Server setup
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#signature-protection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Signature protection
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Signature protection">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#secret-format_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Secret format
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#issuer-configuration_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Issuer configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#extracerts-layout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        extraCerts layout
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ejbca-client-mode" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EJBCA client mode
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-gets-protected" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What gets protected
+        Context
       
     </span>
   </a>
@@ -1858,38 +1562,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-gets-validated" class="md-nav__link">
+  <a href="#decision" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What gets validated
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="What gets validated">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#confirmation-signer-retention" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Confirmation signer retention
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#credential-rotation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credential rotation
+        Decision
       
     </span>
   </a>
@@ -1897,10 +1573,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related-pages" class="md-nav__link">
+  <a href="#consequences" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related pages
+        Consequences
       
     </span>
   </a>
@@ -1927,236 +1603,42 @@
   
 
 
-<h1 id="message-protection">Message protection<a class="headerlink" href="#message-protection" title="Permanent link">&para;</a></h1>
-<p>Every CMP request and response must carry PKIProtection. Unprotected messages are rejected, and
-transport encryption does not replace message protection, so an HTTP endpoint is still authenticated.</p>
-<p>cmp-issuer supports two protection modes, configured in <code>spec.protection.type</code>:</p>
-<table>
-<thead>
-<tr>
-<th>Mode</th>
-<th>RFC basis</th>
-<th>Credential</th>
-<th>Use it when</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PasswordBasedMac</code></td>
-<td>RFC 4210 PasswordBasedMac</td>
-<td>Shared reference and secret</td>
-<td>The server issued you an enrollment code</td>
-</tr>
-<tr>
-<td><code>Signature</code></td>
-<td>RFC 4210 certificate-based protection</td>
-<td>Bootstrap certificate and private key</td>
-<td>The device or workload already holds an identity the server trusts</td>
-</tr>
-</tbody>
-</table>
-<p>The selected mode protects initial P10CR and compatibility P10CR renewal. Response validation is
-identical for both modes.</p>
-<p>KUR always uses the current workload certificate and private key for request protection as required by
-the CMP profile. This replaces the configured bootstrap or shared-secret request protection only for
-the KUR exchange. The configured CMP trust policy still validates every response.</p>
-<h2 id="passwordbasedmac">PasswordBasedMac<a class="headerlink" href="#passwordbasedmac" title="Permanent link">&para;</a></h2>
-<h3 id="secret-format">Secret format<a class="headerlink" href="#secret-format" title="Permanent link">&para;</a></h3>
-<p>Create a Secret in the issuer's namespace:</p>
-<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
-<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
-<span class="nt">metadata</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-pbm-credentials</span>
-<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Opaque</span>
-<span class="nt">stringData</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">reference</span><span class="p">:</span><span class="w"> </span><span class="s">"&lt;server-assigned-reference&gt;"</span>
-<span class="w">  </span><span class="nt">secret</span><span class="p">:</span><span class="w"> </span><span class="s">"&lt;shared-secret&gt;"</span>
-</code></pre></div>
-<p>Default keys are <code>reference</code> and <code>secret</code>. Override them with <code>referenceKey</code> and <code>secretKey</code>.</p>
-<h3 id="issuer-configuration">Issuer configuration<a class="headerlink" href="#issuer-configuration" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">protection</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PasswordBasedMac</span>
-<span class="w">    </span><span class="nt">passwordBasedMac</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">secretRef</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-pbm-credentials</span>
-<span class="w">      </span><span class="nt">referenceKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">reference</span>
-<span class="w">      </span><span class="nt">secretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret</span>
-<span class="w">      </span><span class="nt">algorithm</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">owf</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SHA256</span>
-<span class="w">        </span><span class="nt">mac</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">HMACSHA256</span>
-<span class="w">        </span><span class="nt">iterationCount</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
-</code></pre></div>
-<h3 id="algorithm-fields">Algorithm fields<a class="headerlink" href="#algorithm-fields" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Allowed values</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>owf</code></td>
-<td><code>SHA256</code></td>
-<td><code>SHA256</code></td>
-</tr>
-<tr>
-<td><code>mac</code></td>
-<td><code>HMACSHA256</code></td>
-<td><code>HMACSHA256</code></td>
-</tr>
-<tr>
-<td><code>iterationCount</code></td>
-<td>100-1048575</td>
-<td>1024</td>
-</tr>
-</tbody>
-</table>
-<p>These must match the server's PBM profile. cmp-issuer does not negotiate weaker algorithms, and PBMAC1
-is planned rather than implemented.</p>
-<h3 id="response-protection">Response protection<a class="headerlink" href="#response-protection" title="Permanent link">&para;</a></h3>
-<p>Many servers sign every response regardless of how the request was protected. EJBCA does this on any
-CMP alias left at its own default of <code>responseprotection</code> <code>signature</code>. For interoperability,
-<code>spec.protocol.macResponseProtection</code> defaults to <code>AllowSignature</code> and both a MAC-protected and a
-signed response are accepted. This is not the RFC 9483 profile behavior, which requires MAC-based
-protection throughout a MAC-protected operation.</p>
-<p>Accepting a signature does not weaken the response to an unauthenticated one. The signer must chain to
-<code>spec.cmpTrust.caSecretRef</code> and the response sender must name <code>spec.protocol.recipient</code>, which is the
-same authority check a <code>Signature</code> issuer already relies on for every response it receives.</p>
-<p>Require MAC-based protection throughout with:</p>
-<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">macResponseProtection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Strict</span>
-</code></pre></div>
-<p>Then the shared secret authenticates the response as well as the request, and a signature is rejected
-however well it verifies. Set this where the CMP trust anchor is shared with authorities that must not
-be able to answer for the recipient, or to conform to a profile that requires one protection type for a
-whole PKI management operation. Confirm the server protects its answers with the shared secret before
-turning it on, since a server that signs them will have issued the certificate before the response is
-rejected.</p>
-<p>Setting <code>spec.protocol.validationProfile</code> to <code>RFC9483</code> enables <code>Strict</code> behavior implicitly. An
-explicit <code>AllowSignature</code> conflicts with that profile and is rejected by API validation.</p>
-<h3 id="server-setup">Server setup<a class="headerlink" href="#server-setup" title="Permanent link">&para;</a></h3>
-<p>The reference and secret must exist on the CMP server before enrollment. cmp-issuer does not register
-credentials over CMP.</p>
-<p>EJBCA client mode treats the enrollment code as a one-time credential. After issuance the end entity
-moves to <code>GENERATED</code> and refuses further requests until an administrator resets it. See
-<a href="../../interoperability/tested-pkis/">Tested PKIs</a>.</p>
-<h2 id="signature-protection">Signature protection<a class="headerlink" href="#signature-protection" title="Permanent link">&para;</a></h2>
-<h3 id="secret-format_1">Secret format<a class="headerlink" href="#secret-format_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
-<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
-<span class="nt">metadata</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-signature-credentials</span>
-<span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kubernetes.io/tls</span>
-<span class="nt">stringData</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">tls.crt</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-<span class="w">    </span><span class="no">-----BEGIN CERTIFICATE-----</span>
-<span class="w">    </span><span class="no">...</span>
-<span class="w">    </span><span class="no">-----END CERTIFICATE-----</span>
-<span class="w">  </span><span class="nt">tls.key</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-<span class="w">    </span><span class="no">-----BEGIN PRIVATE KEY-----</span>
-<span class="w">    </span><span class="no">...</span>
-<span class="w">    </span><span class="no">-----END PRIVATE KEY-----</span>
-<span class="w">  </span><span class="nt">ca.crt</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
-<span class="w">    </span><span class="no">-----BEGIN CERTIFICATE-----</span>
-<span class="w">    </span><span class="no">... optional intermediate chain ...</span>
-<span class="w">    </span><span class="no">-----END CERTIFICATE-----</span>
-</code></pre></div>
-<table>
-<thead>
-<tr>
-<th>Key</th>
-<th>Required</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>tls.crt</code></td>
-<td>yes</td>
-<td>Protection certificate (default <code>certificateKey</code>)</td>
-</tr>
-<tr>
-<td><code>tls.key</code></td>
-<td>yes</td>
-<td>Protection private key (default <code>privateKeyKey</code>)</td>
-</tr>
-<tr>
-<td><code>ca.crt</code></td>
-<td>optional</td>
-<td>Intermediate chain sent in <code>extraCerts</code> (default <code>chainKey</code>)</td>
-</tr>
-</tbody>
-</table>
-<p>Custom key names are set with <code>certificateKey</code>, <code>privateKeyKey</code> and <code>chainKey</code>.</p>
-<h3 id="issuer-configuration_1">Issuer configuration<a class="headerlink" href="#issuer-configuration_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">protection</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Signature</span>
-<span class="w">    </span><span class="nt">signature</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">secretRef</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-signature-credentials</span>
-<span class="w">      </span><span class="nt">certificateKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tls.crt</span>
-<span class="w">      </span><span class="nt">privateKeyKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tls.key</span>
-<span class="w">      </span><span class="nt">chainKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ca.crt</span>
-</code></pre></div>
-<h3 id="extracerts-layout">extraCerts layout<a class="headerlink" href="#extracerts-layout" title="Permanent link">&para;</a></h3>
-<p>cmp-issuer sends the protection end-entity certificate first, followed by the configured intermediates.
-Some servers resolve the signing certificate from <code>extraCerts</code> using <code>senderKID</code>, and Nokia NCM requires the
-end-entity certificate to appear there for P10CR.</p>
-<h3 id="ejbca-client-mode">EJBCA client mode<a class="headerlink" href="#ejbca-client-mode" title="Permanent link">&para;</a></h3>
-<p>EJBCA resolves the authenticating certificate from its own database, so the credential needs only
-<code>tls.crt</code> and <code>tls.key</code> and <code>chainKey</code> may be omitted.</p>
-<p>Client mode enrolls only the identity that owns the authenticating certificate, and the requested
-subject DN must match the registered end entity. A signature-protected issuer therefore issues for its
-bootstrap identity rather than arbitrary workload names, unless the server profile allows otherwise.</p>
-<h2 id="what-gets-protected">What gets protected<a class="headerlink" href="#what-gets-protected" title="Permanent link">&para;</a></h2>
-<p>The signer protects every message it sends:</p>
+<h1 id="adr-0003-select-renewal-operation-explicitly">ADR 0003: Select renewal operation explicitly<a class="headerlink" href="#adr-0003-select-renewal-operation-explicitly" title="Permanent link">&para;</a></h1>
 <ul>
-<li>P10CR enrollment requests</li>
-<li>KUR requests with the current workload certificate</li>
-<li><code>pollReq</code> messages during asynchronous transactions</li>
-<li><code>certConf</code> confirmation messages when explicit confirmation is configured</li>
+<li>Status: Accepted</li>
+<li>Date: 2026-08-24</li>
 </ul>
-<h2 id="what-gets-validated">What gets validated<a class="headerlink" href="#what-gets-validated" title="Permanent link">&para;</a></h2>
-<p>Before accepting a certificate the signer validates:</p>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>cert-manager renewal describes when a new certificate is needed. It does not select a CMP request body. cmp-issuer originally sent a fresh P10CR for every revision. That works only when the server profile allows repeat enrollment for the same identity.</p>
+<p>CMP KUR is a different operation. RFC 9483 requires the still-valid certificate being updated to protect the request. CRMF proof of possession must be made with the requested key. This means a rotating renewal uses two keys while same-key renewal uses one key for both proofs.</p>
+<p>A certificate's original enrollment syntax does not prevent a later KUR. A P10CR-issued certificate can authenticate KUR when the server can find it and its profile allows key update. EJBCA client mode was validated with a P10CR endpoint for revision one and a separate certificate-authenticated KUR endpoint for later revisions. Nokia NCM was validated with both operations on one endpoint.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p>Add <code>spec.protocol.renewal</code> with values <code>P10CR</code> and <code>KUR</code>. <code>P10CR</code> remains the default. Initial issuance remains P10CR in both modes.</p>
+<p>Add optional <code>spec.endpoint.renewalUrl</code>. When set, KUR uses this URL while P10CR uses <code>spec.endpoint.url</code>. When omitted, both operations use the primary URL. This supports servers such as EJBCA where initial enrollment and key update use separate CMP aliases.</p>
+<p>Select the operation before creating a <code>CMPTransaction</code> and persist it in <code>spec.operation</code>. Never fall back from KUR to P10CR after a send. A timeout can be ambiguous and changing operations could issue another certificate.</p>
+<p>Default response validation to <code>spec.protocol.validationProfile: Interoperable</code>. KUP <code>caPubs</code> and
+<code>extraCerts</code> are untrusted chain-building candidates under this profile. They never extend configured
+CMP trust. Add <code>RFC9483</code> as a bundled receiver profile that pins P10CR CP <code>certReqId</code> to <code>-1</code>, requires
+MAC protection throughout a MAC-protected operation and requires KUP <code>caPubs</code> absent. Keep focused
+controls for deployments that need only one rule.</p>
+<p>Authorize workload key reads through cert-manager state rather than through an annotation alone. The signer validates all of the following before it reads either workload Secret:</p>
 <ul>
-<li>Response PKIProtection algorithm and integrity</li>
-<li>Signer trust against <code>spec.cmpTrust</code></li>
-<li>That the response sender names the configured <code>recipient</code></li>
-<li>Transaction identifier and nonces</li>
-<li>P10CR <code>certReqId</code> against policy or KUR <code>certReqId</code> fixed at <code>0</code></li>
-<li>Exactly one <code>CertResponse</code> in CP or KUP</li>
-<li>KUP <code>caPubs</code> according to the selected validation profile</li>
-<li>That the issued public key matches the CSR</li>
-<li>A leaf-first chain that validates against CMP trust</li>
+<li>A controlling <code>cert-manager.io/v1</code> <code>Certificate</code> owner with the exact name and UID</li>
+<li>A renewal revision that immediately follows <code>Certificate.status.revision</code></li>
+<li>The same issuer reference on the <code>Certificate</code></li>
+<li>The current Secret selected by <code>Certificate.spec.secretName</code></li>
+<li>The staged Secret selected by both <code>Certificate.status.nextPrivateKeySecretName</code> and the CertificateRequest annotation</li>
+<li>The staged Secret's controlling owner and cert-manager next-key label</li>
+<li>The current certificate and key pair</li>
+<li>The staged private key and signed CSR public key</li>
 </ul>
-<p>Protected error responses are verified the same way. A verification failure fails the
-<code>CertificateRequest</code> and stores no certificate.</p>
-<p>The default <code>Interoperable</code> profile accepts certificates from KUP <code>caPubs</code> and <code>extraCerts</code> only as
-untrusted candidates for building the issued chain. They never become trust anchors. The completed
-chain must still validate to a CA from <code>spec.cmpTrust</code>. Set <code>kurResponseCaPubs: RequireAbsent</code> for only
-the RFC 9483 KUP rule or select <code>validationProfile: RFC9483</code> to enable the bundled checks.</p>
-<h3 id="confirmation-signer-retention">Confirmation signer retention<a class="headerlink" href="#confirmation-signer-retention" title="Permanent link">&para;</a></h3>
-<p>Some servers omit <code>extraCerts</code> and <code>senderKID</code> from <code>pkiConf</code>. cmp-issuer retains the signer certificate
-already validated when <code>cp</code> was accepted and verifies the linked <code>pkiConf</code> against it. Invalid
-confirmation protection is still rejected. See <a href="../../interoperability/tested-pkis/">Tested PKIs</a> for Nokia NCM
-behavior.</p>
-<h2 id="credential-rotation">Credential rotation<a class="headerlink" href="#credential-rotation" title="Permanent link">&para;</a></h2>
-<p>Credentials are reloaded from the Secret on every reconcile. Rotating a Secret during an open
-transaction invalidates in-flight protection and the transaction fails within <code>maximumDuration</code>. The
-transaction configuration digest records the UID and resourceVersion of every referenced credential
-Secret. For KUR it also records both workload Secrets. cmp-issuer stops the unfinished transaction
-before sending more CMP traffic when any of those values changes. See <a href="../../known-limitations/">Known limitations</a>.</p>
-<h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../cmp-response-trust/">CMP response trust</a></li>
-<li><a href="../enrollment/">Enrollment</a></li>
-<li><a href="../../interoperability/tested-pkis/">Tested PKIs</a></li>
-</ul>
+<p>KUR is rejected locally when the old certificate is not currently valid, its Key Usage extension forbids digital signatures or the CSR changes the subject or subject alternative names.</p>
+<p>Bind unfinished KUR state to the UID and resourceVersion of the current and staged workload Secrets in the transaction configuration digest. A change stops the transaction before more CMP traffic.</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<p>KUR needs <code>get</code> access to the owning <code>Certificate</code> and <code>get</code> access to both workload Secrets. Certificate access is cluster-wide but read-only. Secret access remains namespace bounded through the existing credential-reader RoleBindings. A <code>CMPClusterIssuer</code> using KUR therefore needs each workload namespace added to <code>credentialNamespaces</code> or bound manually.</p>
+<p>P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep repeat P10CR renewal unless an operator selects KUR.</p>
+<p>Same-key KUR remains server-profile dependent. The server is also responsible for checking revocation of the old certificate.</p>
+<p>IR is not part of this decision. It may reuse this authorization boundary in a later release.</p>
 
 
 

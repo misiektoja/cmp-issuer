@@ -759,7 +759,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1574,6 +1574,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1804,11 +1832,11 @@
 </tr>
 <tr>
 <td><code>configurationDigest</code></td>
-<td>SHA-256 identity of that issuer generation and the credential Secret versions it loaded</td>
+<td>SHA-256 identity of that issuer generation and every credential or KUR workload Secret version it loaded</td>
 </tr>
 <tr>
 <td><code>operation</code></td>
-<td>CMP operation, currently <code>P10CR</code></td>
+<td>CMP operation selected before sending, <code>P10CR</code> or <code>KUR</code></td>
 </tr>
 <tr>
 <td><code>protocolVersion</code></td>
@@ -1925,6 +1953,7 @@
 </table>
 <p>Neither server issued a second certificate. Both answers are protected and echo the transaction identifier and nonce, so the refusal is authenticated rather than guessed. The request then <strong>fails permanently</strong>, and cert-manager enrolls again under a new transaction identifier. The certificate created by the lost response is orphaned and never used, because the controller never received it.</p>
 <p>Reusing the recorded identifier rather than generating a fresh one is what makes this outcome reliable. A new identifier presents the retry to the server as an unrelated enrollment, which is accepted and yields a second certificate.</p>
+<p>KUR never falls back to P10CR after an ambiguous send. The operation is recorded with the transaction and a retry repeats only KUR under the same identifier.</p>
 <h3 id="crash-between-issuance-and-storage">Crash between issuance and storage<a class="headerlink" href="#crash-between-issuance-and-storage" title="Permanent link">&para;</a></h3>
 <p>If the controller stops after the server issued the certificate but before cert-manager stored it, the recorded chain is returned on the next reconcile. No second enrollment is sent and no certificate is lost.</p>
 <h3 id="issuer-or-credential-changes-mid-transaction">Issuer or credential changes mid-transaction<a class="headerlink" href="#issuer-or-credential-changes-mid-transaction" title="Permanent link">&para;</a></h3>

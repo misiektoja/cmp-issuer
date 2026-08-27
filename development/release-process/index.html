@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1371,6 +1371,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Chart repository">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#artifact-hub-listing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifact Hub listing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1568,6 +1585,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1664,6 +1709,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Chart repository">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#artifact-hub-listing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifact Hub listing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1774,6 +1836,10 @@ never rebuilt, since its image and provenance attestation are in the registry an
 <td>Signed Sigstore bundle for the image digest, pushed to GHCR and attached as <code>cmp-issuer-&lt;version&gt;-provenance.sigstore.json</code></td>
 </tr>
 <tr>
+<td>Source archives</td>
+<td>Complete repository as <code>cmp-issuer-&lt;version&gt;-source.zip</code> and <code>cmp-issuer-&lt;version&gt;-source.tar.gz</code>, including tests, documentation and CI configuration</td>
+</tr>
+<tr>
 <td>Installer manifest</td>
 <td><code>dist/cmp-issuer-&lt;version&gt;-install.yaml</code> from Kustomize</td>
 </tr>
@@ -1789,8 +1855,15 @@ never rebuilt, since its image and provenance attestation are in the registry an
 <td>Air-gapped bundle</td>
 <td><code>cmp-issuer-&lt;version&gt;-airgap.tar.gz</code>, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the bill of materials, the notices and an <code>INSTALL.txt</code></td>
 </tr>
+<tr>
+<td>Checksums</td>
+<td>SHA-256 manifest at <code>cmp-issuer-&lt;version&gt;_SHA256SUMS.txt</code> covering every attached payload</td>
+</tr>
 </tbody>
 </table>
+<p>GitHub build provenance attestations cover the installer, chart, SBOM, air-gapped bundle, both source
+archives and the checksum manifest. Verify one with <code>gh attestation verify &lt;file&gt; --repo
+misiektoja/cmp-issuer</code>. The image has its separate registry attestation and attached Sigstore bundle.</p>
 <p>The image is pushed and exported to the OCI archive by a single <code>make docker-release</code> build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
 <code>make release-bundle VERSION=&lt;version&gt;</code> then assembles the tarball from what is already in <code>dist</code>, so
@@ -1801,6 +1874,9 @@ releases can share a file name and a file copied out of <code>dist</code> still 
 <code>VERSION</code> to the tag carried by <code>IMG</code>, for example:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>docker-archive<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>ghcr.io/misiektoja/cmp-issuer:v0.1.0<span class="w"> </span><span class="nv">VERSION</span><span class="o">=</span>v0.1.0
 </code></pre></div>
+<p>After the other payloads have been built, <code>make release-checksums VERSION=&lt;version&gt;</code> creates both
+complete source archives and the checksum manifest. The release workflow runs it before requesting
+artifact provenance and uploading the exact release-named files.</p>
 <p>The names come from one block at the top of the supply chain section of the <code>Makefile</code>, so a new
 artifact is named alongside the existing ones rather than inline in the target that writes it. Two of
 them do not carry the release tag verbatim:</p>
@@ -1900,18 +1976,40 @@ an external enrollment should not be abandoned halfway through.</p>
 <p><code>release.yml</code> packages the chart and attaches it to a draft GitHub Release. Publishing that release
 triggers <code>publish-chart.yml</code>, which adds the new version to <code>charts/index.yaml</code> on the <code>gh-pages</code>
 branch, so <code>helm repo add</code> picks it up.</p>
-<p>The chart archives stay attached to their GitHub Release and the index points at those asset URLs, so
-GitHub Pages serves only <code>index.yaml</code>. Existing entries are merged rather than replaced, which keeps
-older versions installable, and the index lives under <code>charts/</code> so the documentation site occupies the
-root of the same Pages site.</p>
+<p>The chart archives stay attached to their GitHub Release and the index points at those asset URLs.
+GitHub Pages serves the index plus Artifact Hub repository metadata. Existing entries are merged rather
+than replaced, which keeps older versions installable, and both files live under <code>charts/</code> so the
+documentation site occupies the root of the same Pages site.</p>
 <p>The first run creates the <code>gh-pages</code> branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.</p>
+<h3 id="artifact-hub-listing">Artifact Hub listing<a class="headerlink" href="#artifact-hub-listing" title="Permanent link">&para;</a></h3>
+<p>Publishing the Helm index does not automatically register it with Artifact Hub. The repository is
+registered as <code>cmp-issuer</code>, kind <strong>Helm</strong>, with URL
+<code>https://misiektoja.github.io/cmp-issuer/charts</code> and repository ID
+<code>a74e0ed9-3729-471e-954f-6c44806d3fe4</code>.</p>
+<p>Artifact Hub indexes this repository periodically after registration. Publishing a later release and
+updating <code>charts/index.yaml</code> is enough to make the new chart version appear. Artifact Hub does not host
+or proxy the chart archive. The package continues to download from the GitHub Release URL recorded in
+the Helm index.</p>
+<p>The registered ID is tracked in <code>charts/artifacthub-repo.yml</code>. <code>publish-chart.yml</code> copies that file
+beside <code>index.yaml</code> so Artifact Hub can grant the <strong>Verified Publisher</strong> badge:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">repositoryID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">a74e0ed9-3729-471e-954f-6c44806d3fe4</span>
+</code></pre></div>
+<p>The public path is <code>https://misiektoja.github.io/cmp-issuer/charts/artifacthub-repo.yml</code>. After this
+metadata reaches the default branch, dispatch <strong>Publish chart repository</strong> with an existing released
+version to publish it immediately, or let the next published release trigger the workflow. Artifact Hub
+applies the badge on a later indexing pass. Official status is a separate optional request available
+after publisher verification.</p>
+<p>The listing makes the chart searchable, presents installation instructions and release changes, lets
+users follow new versions and exposes Artifact Hub's image vulnerability report when image discovery
+succeeds. Repository ownership also enables tracking errors and alerts from the publisher control
+panel.</p>
 <h2 id="documentation-site">Documentation site<a class="headerlink" href="#documentation-site" title="Permanent link">&para;</a></h2>
 <p><code>docs.yml</code> runs the strict MkDocs build for documentation-related changes on pull requests and pushes
 to <code>dev</code> and <code>main</code>. On the default branch it also publishes the rendered site to the root of the
 <code>gh-pages</code> branch, so the documentation and the chart repository share one Pages site.</p>
 <p>The publishing step replaces the previous documentation, so a page removed from <code>docs/</code> disappears from
-the site, but it leaves <code>charts/index.yaml</code> and <code>.nojekyll</code> alone. Both publishers take the <code>gh-pages</code>
+the site, but it leaves the <code>charts/</code> directory and <code>.nojekyll</code> alone. Both publishers take the <code>gh-pages</code>
 concurrency group, so a release that lands while a documentation change is publishing waits instead of
 racing.</p>
 <h2 id="pre-release-checklist">Pre-release checklist<a class="headerlink" href="#pre-release-checklist" title="Permanent link">&para;</a></h2>
@@ -1932,6 +2030,7 @@ racing.</p>
 <p>Consumers can verify:</p>
 <ul>
 <li>Image digest against the provenance attestation in GHCR or the signed Sigstore bundle attached to the release</li>
+<li>Release payloads against <code>cmp-issuer-&lt;version&gt;_SHA256SUMS.txt</code> and their GitHub build provenance attestations</li>
 <li>Module vulnerabilities with published SBOM and govulncheck results</li>
 <li>Absence of leaked credentials via gitleaks history scan</li>
 </ul>

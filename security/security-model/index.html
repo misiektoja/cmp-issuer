@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1524,6 +1524,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1660,7 +1688,7 @@
 </tr>
 <tr>
 <td>Protect workload keys</td>
-<td>P10CR never reads private-key Secrets</td>
+<td>P10CR never reads workload keys. KUR authenticates the cert-manager ownership chain before reading the exact current and staged Secrets</td>
 </tr>
 <tr>
 <td>Reject forged CMP responses</td>
@@ -1690,7 +1718,8 @@
     RBAC[RBAC]
     CR[CertificateRequest]
     ISS[CMPIssuer]
-    SEC[Credential Secrets]
+    SEC[Credential and workload Secrets]
+    CERT[Certificate ownership state]
   end
   subgraph cmp [CMP]
     MSG[Protected CMP messages]
@@ -1698,6 +1727,7 @@
   end
   RBAC --&gt; SEC
   ISS --&gt; SEC
+  CERT --&gt;|authorizes KUR key reads| SEC
   CR --&gt;|approved CSR only| MSG
   MSG --&gt; CA
 </code></pre></div>
@@ -1725,6 +1755,10 @@
 <td>cert-manager</td>
 </tr>
 <tr>
+<td>KUR Secret selection and key proof validation</td>
+<td>cmp-issuer after cert-manager ownership checks</td>
+</tr>
+<tr>
 <td>CMP enrollment and validation</td>
 <td>cmp-issuer</td>
 </tr>
@@ -1738,7 +1772,7 @@
 <ul>
 <li>The CMP encoding layer is a pre-v1 library kept behind project-owned interfaces, maintained by this project's author and validated independently of its own checks. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>.</li>
 <li>CMP interoperability depends on server configuration.</li>
-<li>A <code>CMPTransaction</code> records the transaction identifier, nonces, issuer identity, credential Secret versions and the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to <code>cmptransactions</code> as narrowly as you grant it to <code>certificaterequests</code>.</li>
+<li>A <code>CMPTransaction</code> records the transaction identifier, nonces, issuer identity, credential and KUR workload Secret versions plus the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to <code>cmptransactions</code> as narrowly as you grant it to <code>certificaterequests</code>.</li>
 <li>Transaction persistence gaps leave specific ambiguous failure modes open. See <a href="../../known-limitations/">Known limitations</a>.</li>
 </ul>
 <h2 id="supply-chain">Supply chain<a class="headerlink" href="#supply-chain" title="Permanent link">&para;</a></h2>

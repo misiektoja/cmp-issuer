@@ -594,7 +594,7 @@
   <span class="md-ellipsis">
     
   
-    P10CR renewal and KUR roadmap
+    Renewal with P10CR or KUR
   
 
     
@@ -1602,6 +1602,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0003-kur-renewal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KUR renewal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1830,9 +1858,14 @@ instead of a commit SHA, that drops the version comment which makes a pinned SHA
 interpolates a <code>${{ }}</code> expression into a <code>run:</code> block instead of passing the value through <code>env</code>, or
 that adds a workflow with no top-level <code>permissions</code> key. These are the conventions every workflow here
 already follows, and nothing else enforces them.</p>
+<p><code>test/repository</code> checks the repository itself: governance and support files, citation identity and its
+released version, EditorConfig settings, tracked-file whitespace, Git line-ending and binary rules plus
+the toolchain-free pre-commit hooks. The workflow suite separately requires release source archives,
+checksums and signed build provenance. These checks keep metadata changes reviewable through the same
+<code>make test</code> command as the Go behavior.</p>
 <h2 id="openssl-cmp-interoperability">OpenSSL CMP interoperability<a class="headerlink" href="#openssl-cmp-interoperability" title="Permanent link">&para;</a></h2>
-<p>CI runs delayed transaction, delayed confirmation and pinned transaction flows against the OpenSSL 3.6 CMP mock. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.</p>
-<p>Locally set <code>OPENSSL_BIN</code> to select a non-default OpenSSL binary. The test skips when OpenSSL is missing.</p>
+<p>CI runs delayed transaction, delayed confirmation, pinned transaction and KUR flows against the OpenSSL CMP mock. The KUR flows have the mock check the oldCertID the request carries, which needs the <code>-ref_cert</code> option that OpenSSL added in 3.2, so the workflow installs a current OpenSSL rather than using the runner's 3.0 package. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.</p>
+<p>Locally set <code>OPENSSL_BIN</code> to select a non-default OpenSSL binary. The test skips when OpenSSL is missing, and the KUR flows skip on their own when the build predates <code>-ref_cert</code> while the other flows still run.</p>
 <p>The mock uses one transaction per TCP connection. A pooling proxy forwards tests without changing CMP bytes.</p>
 <h2 id="kind-e2e-suite">Kind e2e suite<a class="headerlink" href="#kind-e2e-suite" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>test-e2e
@@ -1920,6 +1953,14 @@ reported on the development branch before release:</p>
 <tr>
 <td>Certificate signature over HTTP</td>
 <td><code>Signature</code> protected P10CR using a registration certificate</td>
+</tr>
+<tr>
+<td>KUR with key rotation</td>
+<td>P10CR revision one then certificate-authenticated KUR with a new requested key</td>
+</tr>
+<tr>
+<td>KUR with key reuse</td>
+<td>P10CR revision one then certificate-authenticated KUR with the existing key</td>
 </tr>
 <tr>
 <td>Transaction records</td>
@@ -2116,6 +2157,7 @@ make<span class="w"> </span>scan-image<span class="w"> </span><span class="nv">I
 <p>Pull requests run lint, govulncheck and the credential scan. Pushes to <code>dev</code> and <code>main</code> additionally
 generate the SBOM and build and scan the container image. The weekly schedule repeats the full set so a
 newly disclosed vulnerability is found without a source change.</p>
+<p><code>.gitleaks.toml</code> extends the default rule set. It allowlists <code>local/</code>, <code>bin/</code>, <code>dist/</code> and <code>site/</code> by path, and it allowlists Go identifier names so that the generic credential rule does not report a camelCase or snake_case parameter such as <code>enableRFC9483</code> that happens to sit next to a word like <code>key</code>. That allowlist is scoped to Go files and to the identifier shape alone, so a high-entropy literal in the same file is still reported. Add a new entry only for a confirmed false positive, and keep it narrow enough that a real credential in the same position would still fail the scan.</p>
 <p><code>make go-patch-check</code> reports whether <code>go.mod</code> still names the newest Go patch in the release series it targets and <code>make go-patch-update</code> moves it there. Standard library security fixes ship in patch releases, so a module left on an older patch has govulncheck report them even though no dependency changed. <code>go-patch.yml</code> runs the same check weekly and opens the bump as a pull request against <code>dev</code>. The release series is never advanced automatically, because a minor bump is a compatibility decision rather than a security one.</p>
 <p>golangci-lint is built with the logcheck module plugin, which <code>.custom-gcl.yml</code> pins to an exact
 version so that a fresh run analyses the code with the same reviewed plugin as the last one. Editing
