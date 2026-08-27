@@ -11,7 +11,7 @@ authors:
     alias: misiektoja
     email: misiektoja-github@rm-rf.ninja
 version: "0.2.0"
-date-released: 2026-08-26
+date-released: 2026-08-28
 license: Apache-2.0
 repository-code: "https://github.com/misiektoja/cmp-issuer"
 url: "https://misiektoja.github.io/cmp-issuer/"
