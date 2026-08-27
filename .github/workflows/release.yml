@@ -197,6 +197,7 @@ jobs:
 
       # Lets consumers verify that every installable artifact and source archive came from this run.
       - name: Attest the release artifacts' build provenance
+        id: artifacts
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
@@ -207,6 +208,16 @@ jobs:
             dist/cmp-issuer-${{ steps.release.outputs.version }}-source.zip
             dist/cmp-issuer-${{ steps.release.outputs.version }}-source.tar.gz
             dist/cmp-issuer-${{ steps.release.outputs.version }}_SHA256SUMS.txt
+
+      # Publishing the bundle next to the artifacts lets an offline verifier check their provenance
+      # without calling the attestations API. The .intoto.jsonl name is also the one supply chain
+      # scanners look for when deciding whether a release carries provenance at all, so the image
+      # bundle staged above as a .sigstore.json file does not stand in for it.
+      - name: Stage the signed artifact provenance for the release
+        env:
+          ARTIFACT_BUNDLE: ${{ steps.artifacts.outputs.bundle-path }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: cp "$ARTIFACT_BUNDLE" "dist/cmp-issuer-${VERSION}.intoto.jsonl"
 
       - name: Publish the release assets
         env:
@@ -229,4 +240,4 @@ jobs:
           # Every asset is named after the release rather than matched by a glob, so a stale file left
           # in dist by an earlier run of this workflow cannot be attached to this one. The chart is the
           # exception to the v prefix, because a Helm chart version has to be bare SemVer.
-          gh release upload "$VERSION" "dist/cmp-issuer-${VERSION}-install.yaml" "dist/cmp-issuer-${VERSION}-sbom.cdx.json" "dist/cmp-issuer-${VERSION}-provenance.sigstore.json" "dist/cmp-issuer-${VERSION#v}.tgz" "dist/cmp-issuer-${VERSION}-airgap.tar.gz" "dist/cmp-issuer-${VERSION}-source.zip" "dist/cmp-issuer-${VERSION}-source.tar.gz" "dist/cmp-issuer-${VERSION}_SHA256SUMS.txt" --clobber
+          gh release upload "$VERSION" "dist/cmp-issuer-${VERSION}-install.yaml" "dist/cmp-issuer-${VERSION}-sbom.cdx.json" "dist/cmp-issuer-${VERSION}-provenance.sigstore.json" "dist/cmp-issuer-${VERSION}.intoto.jsonl" "dist/cmp-issuer-${VERSION#v}.tgz" "dist/cmp-issuer-${VERSION}-airgap.tar.gz" "dist/cmp-issuer-${VERSION}-source.zip" "dist/cmp-issuer-${VERSION}-source.tar.gz" "dist/cmp-issuer-${VERSION}_SHA256SUMS.txt" --clobber
