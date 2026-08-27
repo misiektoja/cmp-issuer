@@ -2,29 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.2.0] - 26 Aug 2026
+## [0.2.0] - 28 Aug 2026
 
-True CMP key update is now available for cert-manager renewals while repeat P10CR remains the compatibility default. This release also carries the repository metadata and release-download improvements prepared for the skipped 0.1.1 version.
+True CMP key update is now available for cert-manager renewals while P10CR re-enrollment remains the compatibility default. This release also introduces the repository metadata and release-download improvements.
 
 ### Certificate management
 
-* **Renew certificates with true KUR** - Set `spec.protocol.renewal` to `KUR` to authenticate renewal with the current valid certificate, identify it by issuer and serial through CRMF `oldCertID` and prove possession of cert-manager's requested key. Initial issuance remains P10CR. New-key and repeated same-key renewal were verified against Nokia NCM 26.7, with new-key and same-key coverage against EJBCA Community Edition 9.3.7 and OpenSSL 3.6.3.
-* **Use separate enrollment and renewal endpoints** - Optional `spec.endpoint.renewalUrl` routes KUR to a dedicated CMP alias while initial P10CR continues to use `endpoint.url`. Omit it when one endpoint accepts both operations.
-* **Keep existing renewal behavior by default** - Existing issuers continue to use repeat P10CR. KUR never silently falls back to another operation after a send and every transaction records whether it is P10CR or KUR.
-* **Choose interoperable or RFC 9483 response validation** - `spec.protocol.validationProfile` defaults to `Interoperable`, which accepts KUP `caPubs` only as untrusted chain candidates. `RFC9483` bundles strict P10CR identifier, MAC response and KUP `caPubs` checks. Focused settings remain available for mixed server profiles.
+* **Renew certificates using KUR** - Set `spec.protocol.renewal` to `KUR` to renew a certificate using CMP Key Update Request. The current certificate is used to authenticate the renewal. Initial certificate requests still use P10CR. KUR has been tested with Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.3.
+* **Use a separate renewal endpoint** - Set `spec.endpoint.renewalUrl` if your CMP server uses a different endpoint for renewals. Leave it unset if the same endpoint handles both enrollment and renewal.
+* **Existing behavior stays the default** - Existing issuers continue to renew certificates using P10CR unless KUR is explicitly enabled. KUR requests never silently fall back to P10CR.
+* **Choose how strictly responses are validated** - `spec.protocol.validationProfile` defaults to `Interoperable` for compatibility with a wider range of CMP servers. Use `RFC9483` for stricter RFC 9483 validation. Individual validation settings are also available when a server needs a custom combination.
 
 ### Security and reliability
 
-* **Authorize workload key access through cert-manager ownership** - KUR validates the controlling `Certificate`, revision, issuer reference, current output Secret and staged key Secret before reading either key. P10CR keeps its original boundary and never reads workload private keys.
-* **Stop renewal when key state changes mid-transaction** - Current and staged Secret UID plus resourceVersion values are included in the transaction configuration digest. Credential or workload key rotation stops an unfinished transaction before more CMP traffic.
-* **Reject unsafe key-update changes locally** - KUR requires a currently valid certificate that can sign, matching current and requested keys plus unchanged subject and SAN values before sending to the CA.
+* **Only use keys that belong to the certificate being renewed** - KUR checks that the certificate, issuer and Secrets all belong to the expected cert-manager resources before accessing private keys. P10CR continues to work without reading workload private keys.
+* **Stop safely if keys change during renewal** - If a certificate or key Secret changes while a renewal is in progress, the transaction is stopped before sending more requests to the CMP server.
+* **Catch invalid KUR requests before contacting the CA** - KUR checks that the current certificate is still valid, the keys match and the certificate identity has not unexpectedly changed before sending the request.
 
 ### Project maintenance
 
-* **Cite a published cmp-issuer release** - `CITATION.cff` supplies GitHub's citation widget and stays tied by test to the newest dated release notes section.
-* **Find the right support channel** - `SUPPORT.md` routes questions, bug reports, feature requests and private vulnerability reports, with the sanitized deployment details to collect first.
-* **Use the repository's measured editor style** - `.editorconfig` declares LF and UTF-8 throughout, tabs for Go and Make recipes plus two-space indentation for structured configuration and shell files. Optional pre-commit hooks enforce text hygiene and reject private keys without requiring a Go toolchain.
-* **Verify every release download** - Release builds add complete ZIP and tar source archives, a SHA-256 manifest for every attached payload and GitHub build provenance attestations for the downloadable artifacts.
+* **Know where to get help** - `SUPPORT.md` explains where to ask questions, report bugs, request features and privately report security issues.
+* **Consistent repository formatting** - `.editorconfig` and optional pre-commit hooks keep files consistently formatted and catch common mistakes such as accidentally committing private keys.
+* **Verify release downloads** - Releases include source archives, SHA-256 checksums and GitHub build provenance so downloaded artifacts can be verified.
 
 ## [0.1.0] - 22 Aug 2026
 
