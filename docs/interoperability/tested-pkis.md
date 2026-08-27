@@ -42,7 +42,7 @@ NCM answers a repeat of an enrollment it already accepted with a protected error
 
 NCM keys this on the transaction ID rather than on the message content, so any repeat under an identifier it has already answered draws the same protected error regardless of how the message is built. Pinning the transaction ID across a retry is therefore what prevents a duplicate certificate on this server.
 
-### Renewal through repeat P10CR
+### Renewal through P10CR re-enrollment
 
 NCM re-enrolls an identity it has already certified. A cert-manager renewal was exercised for both values of `privateKey.rotationPolicy`: with `Always`, where the CSR carries a new public key, and with `Never`, where it carries the key the first certificate already used. Both produced a new certificate with a new serial number, and the server recorded each as its own transaction answered with a certificate response.
 
