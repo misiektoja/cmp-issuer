@@ -157,13 +157,12 @@ Enrollment against Nokia NCM is verified against a dedicated CMP server, because
 
 ### Enrolling from a hosted NCM instance in CI
 
-`interop-ncm.yml` performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a `CMPIssuer`, enrolls a `Certificate` and inspects the certificate that comes back.
+`interop-ncm.yml` performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a `CMPIssuer`, enrolls a `Certificate` and inspects the certificate that comes back, then renews it through P10CR re-enrollment and renews two further certificates through KUR.
 
 It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
 pushes to `dev` and `main` and once a week, but never for pull requests. Start it from the Actions tab to
-choose different Kubernetes or cert-manager versions and to enable repeat enrollment when the server
-profile allows the same identity to enroll twice. Automatic runs use the default Kind node and
-cert-manager v1.20.3.
+choose different Kubernetes or cert-manager versions. Automatic runs use the default Kind node and
+cert-manager v1.20.3 and cover every enrollment and renewal without further input.
 
 ### What each run covers
 
@@ -175,6 +174,17 @@ One job runs per protection mechanism and transport, so a fully configured endpo
 | **Signature** | request signing certificate, plain transport | request signing certificate, TLS transport |
 
 Each job builds its own Kind cluster, so the four run in parallel and a failure in one does not mask the others. Configure only the transports the server exposes: a missing `NCM_CMP_HTTP_URL` or `NCM_CMP_HTTPS_URL` skips that column rather than failing it. Every job asserts that the endpoint it received actually uses the scheme of its own row, so a secret pasted into the wrong box fails loudly instead of quietly enrolling over HTTP twice.
+
+Every job then renews the enrolled certificate through P10CR re-enrollment and two further certificates
+through KUR, over the transport of its own row. KUR uses a second `CMPIssuer` carrying
+`protocol.renewal: KUR` and the enrollment endpoint, with no `endpoint.renewalUrl`, because NCM answers a
+key update there:
+
+| Renewal | Rotation policy | What it proves |
+| --- | --- | --- |
+| P10CR re-enrollment | `Always` | A fresh PKCS #10 for an already certified identity returns a new certificate |
+| KUR with a new key | `Always` | The update returns a new serial number on a different public key |
+| KUR with the existing key | `Never` | The update returns a new serial number on the exact existing public key, which needs a profile that certifies the same key twice |
 
 ### Configuration
 
@@ -199,8 +209,17 @@ Configure it under **Settings, Secrets and variables, Actions**. A repository wi
 | `NCM_CMP_COMMON_NAME` | no | Common name to enroll. Left unset it becomes `cmp-issuer-test-<UTC YYMMDD-HHMMSS>`, so every run enrolls a distinct identity |
 | `NCM_CMP_COUNTRY` | no | Country requested in the subject, for example `PL`. Omitted entirely when unset |
 | `NCM_CMP_ORGANIZATION` | no | Organization requested in the subject, for example `cmp-issuer`. Omitted entirely when unset |
+| `NCM_CMP_KUR` | no | `false` skips both KUR renewals. Any other value, including unset, runs them |
+| `NCM_CMP_KUR_SAME_KEY` | no | `false` skips only the KUR renewal that reuses the existing key |
+| `NCM_CMP_REENROLL` | no | `false` skips the P10CR re-enrollment. Any other value, including unset, runs it |
 
 Leave `NCM_CMP_COMMON_NAME` unset unless you need a fixed name. A server profile that authorizes an identity to enroll only once refuses every run after the first, and a timestamped name sidesteps that without any server-side cleanup between runs.
+
+The KUR certificates enroll under a generated name and have no variable of their own, because each is a
+second identity alongside the one `NCM_CMP_COMMON_NAME` names. A renewal needs no credential beyond the
+certificate being updated, so all three run wherever an endpoint is configured. Turn one off only for a
+profile that refuses it: `NCM_CMP_REENROLL` where an identity is certified once, `NCM_CMP_KUR` where key
+update is disabled, `NCM_CMP_KUR_SAME_KEY` where the same key cannot be certified twice.
 
 Requesting a country or an organization is a request, not an instruction. A CA that enforces its own subject answers `grantedWithMods`, which the issuer rejects under `policy.grantedModifications: Reject`, so an enrollment that fails only after these variables are set points at the server profile rather than at the issuer. Clear both to fall back to a bare common name.
 
