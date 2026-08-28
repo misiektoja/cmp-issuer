@@ -1636,7 +1636,7 @@ controls for deployments that need only one rule.</p>
 <p>Bind unfinished KUR state to the UID and resourceVersion of the current and staged workload Secrets in the transaction configuration digest. A change stops the transaction before more CMP traffic.</p>
 <h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
 <p>KUR needs <code>get</code> access to the owning <code>Certificate</code> and <code>get</code> access to both workload Secrets. Certificate access is cluster-wide but read-only. Secret access remains namespace bounded through the existing credential-reader RoleBindings. A <code>CMPClusterIssuer</code> using KUR therefore needs each workload namespace added to <code>credentialNamespaces</code> or bound manually.</p>
-<p>P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep repeat P10CR renewal unless an operator selects KUR.</p>
+<p>P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep renewing through P10CR re-enrollment unless an operator selects KUR.</p>
 <p>Same-key KUR remains server-profile dependent. The server is also responsible for checking revocation of the old certificate.</p>
 <p>IR is not part of this decision. It may reuse this authorization boundary in a later release.</p>
 

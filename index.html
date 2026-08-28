@@ -1656,7 +1656,7 @@
 servers.</p>
 <p>Point a cert-manager <code>Certificate</code> at a <code>CMPIssuer</code> and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.</p>
 <p>CMP message protection is mandatory. HTTP and HTTPS are both supported.</p>
-<p>Initial enrollment uses P10CR. Renewal can repeat P10CR for compatibility or use certificate-authenticated KUR with CRMF proof of possession.</p>
+<p>Initial enrollment uses P10CR. A renewal re-enrolls with P10CR by default or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update.</p>
 <h2 id="start-here">Start here<a class="headerlink" href="#start-here" title="Permanent link">&para;</a></h2>
 <p><strong><a href="getting-started/">Getting started</a></strong> walks from an empty cluster to an issued certificate in five
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.</p>

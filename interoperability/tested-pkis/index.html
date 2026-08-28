@@ -957,10 +957,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#renewal-through-repeat-p10cr" class="md-nav__link">
+  <a href="#renewal-through-p10cr-re-enrollment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Renewal through repeat P10CR
+        Renewal through P10CR re-enrollment
       
     </span>
   </a>
@@ -1830,10 +1830,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#renewal-through-repeat-p10cr" class="md-nav__link">
+  <a href="#renewal-through-p10cr-re-enrollment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Renewal through repeat P10CR
+        Renewal through P10CR re-enrollment
       
     </span>
   </a>
@@ -2051,7 +2051,7 @@
 <h3 id="retransmitted-enrollment">Retransmitted enrollment<a class="headerlink" href="#retransmitted-enrollment" title="Permanent link">&para;</a></h3>
 <p>NCM answers a repeat of an enrollment it already accepted with a protected error carrying failInfo <code>transactionIdInUse</code>, and issues no second certificate. It does not return the certificate from the original transaction.</p>
 <p>NCM keys this on the transaction ID rather than on the message content, so any repeat under an identifier it has already answered draws the same protected error regardless of how the message is built. Pinning the transaction ID across a retry is therefore what prevents a duplicate certificate on this server.</p>
-<h3 id="renewal-through-repeat-p10cr">Renewal through repeat P10CR<a class="headerlink" href="#renewal-through-repeat-p10cr" title="Permanent link">&para;</a></h3>
+<h3 id="renewal-through-p10cr-re-enrollment">Renewal through P10CR re-enrollment<a class="headerlink" href="#renewal-through-p10cr-re-enrollment" title="Permanent link">&para;</a></h3>
 <p>NCM re-enrolls an identity it has already certified. A cert-manager renewal was exercised for both values of <code>privateKey.rotationPolicy</code>: with <code>Always</code>, where the CSR carries a new public key, and with <code>Never</code>, where it carries the key the first certificate already used. Both produced a new certificate with a new serial number, and the server recorded each as its own transaction answered with a certificate response.</p>
 <p>This is P10CR re-enrollment rather than KUR. It differs from a retransmission, which reuses the identifier of a transaction NCM has already answered and draws <code>transactionIdInUse</code>.</p>
 <h3 id="kur-renewal">KUR renewal<a class="headerlink" href="#kur-renewal" title="Permanent link">&para;</a></h3>

@@ -1856,14 +1856,19 @@ never rebuilt, since its image and provenance attestation are in the registry an
 <td><code>cmp-issuer-&lt;version&gt;-airgap.tar.gz</code>, unpacking to a directory of the same name, with the image as an OCI archive, the chart, the installer, the bill of materials, the notices and an <code>INSTALL.txt</code></td>
 </tr>
 <tr>
+<td>Artifact provenance</td>
+<td>Signed Sigstore bundle for the installer, chart, SBOM, air-gapped bundle, source archives and checksum manifest, attached as <code>cmp-issuer-&lt;version&gt;.intoto.jsonl</code></td>
+</tr>
+<tr>
 <td>Checksums</td>
-<td>SHA-256 manifest at <code>cmp-issuer-&lt;version&gt;_SHA256SUMS.txt</code> covering every attached payload</td>
+<td>SHA-256 manifest at <code>cmp-issuer-&lt;version&gt;_SHA256SUMS.txt</code> covering the installer, chart, SBOM, image provenance bundle, air-gapped bundle and both source archives</td>
 </tr>
 </tbody>
 </table>
 <p>GitHub build provenance attestations cover the installer, chart, SBOM, air-gapped bundle, both source
 archives and the checksum manifest. Verify one with <code>gh attestation verify &lt;file&gt; --repo
-misiektoja/cmp-issuer</code>. The image has its separate registry attestation and attached Sigstore bundle.</p>
+misiektoja/cmp-issuer</code>, or offline against the attached <code>cmp-issuer-&lt;version&gt;.intoto.jsonl</code> bundle with
+<code>--bundle</code>. The image has its separate registry attestation and attached Sigstore bundle.</p>
 <p>The image is pushed and exported to the OCI archive by a single <code>make docker-release</code> build with two
 exporters, so the bundled archive is the published image rather than a second build of the same source.
 <code>make release-bundle VERSION=&lt;version&gt;</code> then assembles the tarball from what is already in <code>dist</code>, so
