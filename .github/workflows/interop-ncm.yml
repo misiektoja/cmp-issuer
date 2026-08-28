@@ -12,6 +12,24 @@
 # enrollments: PasswordBasedMac over HTTP, PasswordBasedMac over HTTPS, Signature over HTTP and
 # Signature over HTTPS. Configure only the transports the server actually exposes.
 #
+# Every job also renews the enrolled certificate through P10CR re-enrollment, which sends a fresh
+# PKCS #10 for an identity the server has already certified. NCM answers it with a new certificate under
+# a new serial number.
+#
+# Every job also renews two certificates through KUR over the transport it is testing. A KUR is
+# protected by the certificate being updated rather than by the configured credential, so the
+# protection mechanism only decides how the P10CR that issued that certificate was protected. One
+# renewal requests a new key and one reuses the existing key, which needs a profile that certifies the
+# same key twice. Both use the endpoint the initial enrollment used, so no separate key-update URL is
+# configured. Set `NCM_CMP_KUR` to `false` for a profile without key update, or `NCM_CMP_KUR_SAME_KEY`
+# to `false` to keep only the new-key renewal, or `NCM_CMP_REENROLL` to `false` for a profile that
+# certifies an identity only once. All three renewals run by default, so a scheduled run covers both
+# operations without any repository change.
+#
+# Each certificate is updated once, so the CRMF `oldCertID` control is sent but the ambiguity it
+# resolves, a requested key that already carries more than one certificate, is not reached. That case
+# is covered by the OpenSSL mock in `test.yml` and by the EJBCA suite.
+#
 # Repository configuration, all under Settings, Secrets and variables, Actions:
 #
 # | Secret | Required | Contents |
@@ -33,6 +51,13 @@
 # | `NCM_CMP_COMMON_NAME` | no | Common name to enroll. Unset gives `cmp-issuer-test-<UTC YYMMDD-HHMMSS>`, unique per run |
 # | `NCM_CMP_COUNTRY` | no | Country requested in the subject, for example `PL`. Omitted when unset |
 # | `NCM_CMP_ORGANIZATION` | no | Organization requested in the subject, for example `cmp-issuer`. Omitted when unset |
+# | `NCM_CMP_KUR` | no | `false` skips both KUR renewals. Any other value, including unset, runs them |
+# | `NCM_CMP_KUR_SAME_KEY` | no | `false` skips only the KUR renewal that reuses the existing key |
+# | `NCM_CMP_REENROLL` | no | `false` skips the P10CR re-enrollment. Any other value, including unset, runs it |
+#
+# The KUR certificates always enroll under a generated name, because each one is a second identity
+# alongside the certificate `NCM_CMP_COMMON_NAME` names and a profile that authorizes one fixed
+# identity cannot certify it.
 #
 # A CA that enforces its own subject answers `grantedWithMods`, which the issuer rejects under
 # `policy.grantedModifications: Reject`. Clear the country and organization variables if that happens.
@@ -56,11 +81,6 @@ on:
         required: false
         type: string
         default: v1.20.3
-      renewal:
-        description: "Re-enroll the certificate afterwards to exercise repeat P10CR"
-        required: false
-        type: boolean
-        default: false
   schedule:
     - cron: "23 4 * * 2"
 
@@ -88,6 +108,9 @@ jobs:
       signature: ${{ steps.check.outputs.signature }}
       http: ${{ steps.check.outputs.http }}
       https: ${{ steps.check.outputs.https }}
+      kur: ${{ steps.check.outputs.kur }}
+      kursamekey: ${{ steps.check.outputs.kursamekey }}
+      reenroll: ${{ steps.check.outputs.reenroll }}
     steps:
       - name: Report which protection mechanisms and transports are configured
         id: check
@@ -101,6 +124,9 @@ jobs:
           PBM_SECRET: ${{ secrets.NCM_CMP_PBM_SECRET }}
           BOOTSTRAP_CERT: ${{ secrets.NCM_CMP_BOOTSTRAP_CERT }}
           BOOTSTRAP_KEY: ${{ secrets.NCM_CMP_BOOTSTRAP_KEY }}
+          KUR: ${{ vars.NCM_CMP_KUR }}
+          KUR_SAME_KEY: ${{ vars.NCM_CMP_KUR_SAME_KEY }}
+          REENROLL: ${{ vars.NCM_CMP_REENROLL }}
         run: |
           # Only whether each value is present is reported. No value is printed.
           endpoint=true
@@ -134,11 +160,33 @@ jobs:
             signature=true
           fi
 
+          # KUR needs no credential of its own, because the certificate being updated protects the
+          # message, so it runs wherever an endpoint is configured. Only a server profile without key
+          # update, or without same-key update, has to turn it off.
+          kur=true
+          if [ "$KUR" = false ]; then
+            kur=false
+          fi
+          kursamekey=true
+          if [ "$kur" = false ] || [ "$KUR_SAME_KEY" = false ]; then
+            kursamekey=false
+          fi
+
+          # P10CR re-enrollment needs no credential of its own either. NCM re-enrolls an identity it has
+          # already certified, so only a profile that certifies an identity once has to turn this off.
+          reenroll=true
+          if [ "$REENROLL" = false ]; then
+            reenroll=false
+          fi
+
           {
             echo "passwordbasedmac=${passwordbasedmac}"
             echo "signature=${signature}"
             echo "http=${http}"
             echo "https=${https}"
+            echo "kur=${kur}"
+            echo "kursamekey=${kursamekey}"
+            echo "reenroll=${reenroll}"
           } >> "$GITHUB_OUTPUT"
           {
             echo "| Protection | Configured |"
@@ -150,6 +198,12 @@ jobs:
             echo "| --- | --- |"
             echo "| HTTP | ${http} |"
             echo "| HTTPS | ${https} |"
+            echo ""
+            echo "| Renewal | Enabled |"
+            echo "| --- | --- |"
+            echo "| P10CR re-enrollment | ${reenroll} |"
+            echo "| KUR with a new key | ${kur} |"
+            echo "| KUR with the existing key | ${kursamekey} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$https" = true ] && [ -z "$HTTPS_TRUST" ]; then
@@ -161,6 +215,14 @@ jobs:
           if [ "$http" = false ] && [ "$https" = false ]; then
             echo "No NCM endpoint is configured for this repository, so the enrollment jobs are skipped."
           fi
+          if [ "$kur" = false ]; then
+            echo "NCM_CMP_KUR is false, so the enrollments run without a KUR renewal."
+          elif [ "$kursamekey" = false ]; then
+            echo "NCM_CMP_KUR_SAME_KEY is false, so KUR is exercised with a new requested key only."
+          fi
+          if [ "$reenroll" = false ]; then
+            echo "NCM_CMP_REENROLL is false, so the enrollments run without a P10CR re-enrollment."
+          fi
 
   enroll:
     name: Enroll with ${{ matrix.protection }} over ${{ matrix.transport }}
@@ -169,7 +231,7 @@ jobs:
       (needs.preflight.outputs.passwordbasedmac == 'true' || needs.preflight.outputs.signature == 'true')
       && (needs.preflight.outputs.http == 'true' || needs.preflight.outputs.https == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     strategy:
@@ -310,6 +372,7 @@ jobs:
           BOOTSTRAP_CHAIN: ${{ secrets.NCM_CMP_BOOTSTRAP_CHAIN }}
           PROTECTION: ${{ matrix.protection }}
           TRANSPORT: ${{ matrix.transport }}
+          KUR: ${{ needs.preflight.outputs.kur }}
         run: |
           if [ "$TRANSPORT" = HTTPS ]; then
             URL="$HTTPS_URL"
@@ -317,13 +380,16 @@ jobs:
             URL="$HTTP_URL"
           fi
 
-          # The manifest is fed through stdin so the endpoint and the recipient stay out of the log.
-          {
+          # Writes one CMPIssuer named by the first argument that renews with the operation named by
+          # the second. The two issuers describe the same endpoint, protection and trust, so the
+          # description is written once and the renewal operation is the only difference between them.
+          # No renewalUrl is set, because NCM answers a key update on the enrollment endpoint.
+          issuer() {
             cat <<YAML
           apiVersion: certmanager.misiektoja.github.io/v1alpha1
           kind: CMPIssuer
           metadata:
-            name: ncm
+            name: ${1}
             namespace: ${ISSUER_NAMESPACE}
           spec:
             endpoint:
@@ -333,6 +399,7 @@ jobs:
             protocol:
               version: 2
               initialEnrollment: P10CR
+              renewal: ${2}
               recipient: "${RECIPIENT_DN}"
               confirmation: Explicit
           YAML
@@ -385,9 +452,23 @@ jobs:
                   key: ca.crt
           YAML
             fi
+          }
+
+          # The manifests are fed through stdin so the endpoint and the recipient stay out of the log.
+          # The KUR issuer is a second resource rather than a renewal setting on the first, so that the
+          # opt-in re-enrollment below still renews through P10CR.
+          {
+            issuer ncm P10CR
+            if [ "$KUR" = true ]; then
+              echo "---"
+              issuer ncm-kur KUR
+            fi
           } | kubectl apply -f -
 
           kubectl wait cmpissuer/ncm -n "$ISSUER_NAMESPACE" --for condition=Ready --timeout 2m
+          if [ "$KUR" = true ]; then
+            kubectl wait cmpissuer/ncm-kur -n "$ISSUER_NAMESPACE" --for condition=Ready --timeout 2m
+          fi
 
       - name: Confirm the endpoint scheme matches the transport under test
         if: steps.configured.outputs.run == 'true'
@@ -463,10 +544,173 @@ jobs:
           openssl x509 -in issued.pem -noout -subject -issuer -dates -serial
           kubectl get cmptransactions -n "$ISSUER_NAMESPACE" -o wide
 
+      - name: Renew certificates through KUR
+        # cert-manager always issues revision one through P10CR, so each certificate is enrolled first
+        # and then updated. Revision two is triggered by patching the requested duration, which is a
+        # field cmp-issuer never puts on the wire, so the key update reaches NCM with the subject, the
+        # SAN values and the certificate profile of revision one unchanged. KUR refuses a changed
+        # identity before it sends anything, so no other field would do.
+        if: steps.configured.outputs.run == 'true' && needs.preflight.outputs.kur == 'true'
+        env:
+          SAME_KEY: ${{ needs.preflight.outputs.kursamekey }}
+          COUNTRY: ${{ vars.NCM_CMP_COUNTRY }}
+          ORGANIZATION: ${{ vars.NCM_CMP_ORGANIZATION }}
+        run: |
+          # Each KUR certificate carries a generated name for the same reason the enrollment above
+          # does: a profile that certifies an identity once would refuse every run after the first.
+          stamp="$(date -u +%y%m%d-%H%M%S)"
+          work="${RUNNER_TEMP}/kur"
+          mkdir -p "$work"
+
+          # Writes the Certificate named by the first argument with the key rotation policy named by
+          # the second. The subject matches the enrollment above, because a CA that enforces its own
+          # subject answers grantedWithMods, which policy.grantedModifications Reject refuses.
+          kur_certificate() {
+            {
+              cat <<YAML
+          apiVersion: cert-manager.io/v1
+          kind: Certificate
+          metadata:
+            name: ${1}
+            namespace: ${ISSUER_NAMESPACE}
+          spec:
+            secretName: ${1}-tls
+            commonName: "${1}"
+            duration: 2160h
+            revisionHistoryLimit: 2
+          YAML
+              if [ -n "$COUNTRY" ] || [ -n "$ORGANIZATION" ]; then
+                echo "  subject:"
+                if [ -n "$COUNTRY" ]; then
+                  echo "    countries: [\"${COUNTRY}\"]"
+                fi
+                if [ -n "$ORGANIZATION" ]; then
+                  echo "    organizations: [\"${ORGANIZATION}\"]"
+                fi
+              fi
+              cat <<YAML
+            privateKey:
+              algorithm: RSA
+              size: 2048
+              rotationPolicy: ${2}
+            issuerRef:
+              name: ncm-kur
+              kind: CMPIssuer
+              group: certmanager.misiektoja.github.io
+          YAML
+            } | kubectl apply -f -
+          }
+
+          # Enrolls one certificate, updates it through KUR and checks what came back. The third
+          # argument states whether the requested key is expected to change, which is what separates a
+          # new-key update from a same-key update the server may or may not permit.
+          renew_through_kur() {
+            name="$1"
+            rotation="$2"
+            key_changes="$3"
+
+            echo "::group::KUR with rotationPolicy ${rotation} for CN=${name}"
+            kur_certificate "$name" "$rotation"
+            kubectl wait certificate/"$name" -n "$ISSUER_NAMESPACE" --for condition=Ready --timeout 10m
+
+            kubectl get secret "${name}-tls" -n "$ISSUER_NAMESPACE" -o jsonpath='{.data.tls\.crt}' | base64 -d > "${work}/${name}-before.pem"
+            before_key="$(kubectl get secret "${name}-tls" -n "$ISSUER_NAMESPACE" -o jsonpath='{.data.tls\.key}')"
+
+            kubectl patch certificate "$name" -n "$ISSUER_NAMESPACE" --type=merge -p '{"spec":{"duration":"2161h"}}'
+
+            # The Certificate stays Ready on revision one while cert-manager prepares the next
+            # revision, so the revision number rather than the condition alone is what the wait is for.
+            updated=false
+            for _ in $(seq 1 40); do
+              revision="$(kubectl get certificate "$name" -n "$ISSUER_NAMESPACE" -o jsonpath='{.status.revision}' 2>/dev/null || true)"
+              ready="$(kubectl get certificate "$name" -n "$ISSUER_NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+              if [ "$revision" = 2 ] && [ "$ready" = True ]; then
+                updated=true
+                break
+              fi
+              sleep 10
+            done
+            if [ "$updated" != true ]; then
+              echo "::error::the KUR renewal of ${name} did not reach a ready revision two"
+              kubectl describe certificate "$name" -n "$ISSUER_NAMESPACE" || true
+              kubectl describe certificaterequest -n "$ISSUER_NAMESPACE" || true
+              return 1
+            fi
+
+            kubectl get secret "${name}-tls" -n "$ISSUER_NAMESPACE" -o jsonpath='{.data.tls\.crt}' | base64 -d > "${work}/${name}-after.pem"
+            after_key="$(kubectl get secret "${name}-tls" -n "$ISSUER_NAMESPACE" -o jsonpath='{.data.tls\.key}')"
+
+            # A key update has to produce a new certificate. Comparing serial numbers rather than the
+            # stored bytes states that the server issued rather than returned what it had.
+            before_serial="$(openssl x509 -in "${work}/${name}-before.pem" -noout -serial)"
+            after_serial="$(openssl x509 -in "${work}/${name}-after.pem" -noout -serial)"
+            if [ "$before_serial" = "$after_serial" ]; then
+              echo "::error::the KUR renewal of ${name} returned the serial number it already had"
+              return 1
+            fi
+
+            # The public key of the issued certificate is what proves the server honored the requested
+            # key. The stored private key is checked as well, so a cert-manager rotation that did not
+            # happen cannot pass as a server that ignored the request.
+            before_public="$(openssl x509 -in "${work}/${name}-before.pem" -noout -pubkey)"
+            after_public="$(openssl x509 -in "${work}/${name}-after.pem" -noout -pubkey)"
+            if [ "$key_changes" = true ]; then
+              if [ "$before_public" = "$after_public" ] || [ "$before_key" = "$after_key" ]; then
+                echo "::error::rotationPolicy Always renewed ${name} onto the key it already used"
+                return 1
+              fi
+            else
+              if [ "$before_public" != "$after_public" ] || [ "$before_key" != "$after_key" ]; then
+                echo "::error::rotationPolicy Never renewed ${name} onto a different key"
+                return 1
+              fi
+            fi
+
+            openssl x509 -in "${work}/${name}-after.pem" -noout -subject -issuer -dates -serial
+            echo "::endgroup::"
+          }
+
+          renew_through_kur "cmp-issuer-kur-new-${stamp}" Always true
+
+          # A same-key update asks the server to certify a key that already carries a certificate, so it
+          # is separately configurable: a profile can allow key update and still refuse this.
+          if [ "$SAME_KEY" = true ]; then
+            renew_through_kur "cmp-issuer-kur-same-${stamp}" Never false
+          fi
+
+      - name: Check the KUR transactions
+        # The renewal above proves that a new certificate arrived. This proves that KUR is what
+        # fetched it, so a silent fallback to P10CR re-enrollment could not be mistaken for a key update.
+        if: steps.configured.outputs.run == 'true' && needs.preflight.outputs.kur == 'true'
+        env:
+          SAME_KEY: ${{ needs.preflight.outputs.kursamekey }}
+        run: |
+          expected=1
+          if [ "$SAME_KEY" = true ]; then
+            expected=2
+          fi
+
+          phases="$(kubectl get cmptransaction -n "$ISSUER_NAMESPACE" -o jsonpath='{range .items[?(@.spec.operation=="KUR")]}{.status.phase} {end}')"
+          # shellcheck disable=SC2086
+          set -- $phases
+          if [ "$#" -ne "$expected" ]; then
+            echo "::error::expected ${expected} KUR transactions, found $#"
+            kubectl get cmptransaction -n "$ISSUER_NAMESPACE" -o wide || true
+            exit 1
+          fi
+          for phase in "$@"; do
+            if [ "$phase" != Issued ]; then
+              echo "::error::a KUR transaction ended in phase ${phase} rather than Issued"
+              kubectl get cmptransaction -n "$ISSUER_NAMESPACE" -o wide || true
+              exit 1
+            fi
+          done
+          echo "${expected} KUR transactions completed"
+
       - name: Re-enroll the certificate
-        # Repeat P10CR is not KUR and succeeds only where the server profile allows another enrollment
-        # for the same identity, so it is opt-in rather than part of every run.
-        if: steps.configured.outputs.run == 'true' && inputs.renewal == true
+        # P10CR re-enrollment is not KUR. It sends a fresh PKCS #10 for an identity the server has
+        # already certified, so it exercises the compatibility renewal path rather than a key update.
+        if: steps.configured.outputs.run == 'true' && needs.preflight.outputs.reenroll == 'true'
         run: |
           # Deleting the Secret is what cert-manager treats as a lost certificate. With
           # rotationPolicy Always it generates a new key and submits a new CertificateRequest, which
