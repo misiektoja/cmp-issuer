@@ -119,7 +119,7 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | `test-chart.yml` | Helm lint and a complete chart install for chart and build changes |
 | `test-e2e.yml` | Kind e2e suite on `dev` and `main`, once per supported Kubernetes and cert-manager version, plus EJBCA enrollment |
 | `ejbca-test-image.yml` | Publishes the preconfigured CMP server image, rebuilding it only when the upstream release moves |
-| `interop-ncm.yml` | Hosted Nokia NCM enrollment on `dev` and `main`, weekly and by hand |
+| `interop-ncm.yml` | Hosted Nokia NCM enrollment with P10CR and KUR renewal on `dev` and `main`, weekly and by hand |
 | `supply-chain.yml` | govulncheck and gitleaks on pull requests, adding SBOM and image scan on trusted branches |
 | `go-patch.yml` | Weekly check for a newer Go patch in the targeted release series, opening the bump against `dev` |
 | `release.yml` | Build and publish the release artifacts on a version tag |
