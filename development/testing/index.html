@@ -2018,12 +2018,11 @@ build input changes.</p>
 <h2 id="interoperability-against-real-cmp-servers">Interoperability against real CMP servers<a class="headerlink" href="#interoperability-against-real-cmp-servers" title="Permanent link">&para;</a></h2>
 <p>Enrollment against Nokia NCM is verified against a dedicated CMP server, because that product is not distributable as a test image. Outcomes are summarized in <a href="../../interoperability/tested-pkis/">Tested PKIs</a>.</p>
 <h3 id="enrolling-from-a-hosted-ncm-instance-in-ci">Enrolling from a hosted NCM instance in CI<a class="headerlink" href="#enrolling-from-a-hosted-ncm-instance-in-ci" title="Permanent link">&para;</a></h3>
-<p><code>interop-ncm.yml</code> performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a <code>CMPIssuer</code>, enrolls a <code>Certificate</code> and inspects the certificate that comes back.</p>
+<p><code>interop-ncm.yml</code> performs a complete enrollment against a hosted Nokia NCM instance: it creates a Kind cluster, installs cert-manager and cmp-issuer, stores the endpoint credentials, creates a <code>CMPIssuer</code>, enrolls a <code>Certificate</code> and inspects the certificate that comes back, then renews it through P10CR re-enrollment and renews two further certificates through KUR.</p>
 <p>It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
 pushes to <code>dev</code> and <code>main</code> and once a week, but never for pull requests. Start it from the Actions tab to
-choose different Kubernetes or cert-manager versions and to enable repeat enrollment when the server
-profile allows the same identity to enroll twice. Automatic runs use the default Kind node and
-cert-manager v1.20.3.</p>
+choose different Kubernetes or cert-manager versions. Automatic runs use the default Kind node and
+cert-manager v1.20.3 and cover every enrollment and renewal without further input.</p>
 <h3 id="what-each-run-covers">What each run covers<a class="headerlink" href="#what-each-run-covers" title="Permanent link">&para;</a></h3>
 <p>One job runs per protection mechanism and transport, so a fully configured endpoint exercises four independent enrollments:</p>
 <table>
@@ -2048,6 +2047,36 @@ cert-manager v1.20.3.</p>
 </tbody>
 </table>
 <p>Each job builds its own Kind cluster, so the four run in parallel and a failure in one does not mask the others. Configure only the transports the server exposes: a missing <code>NCM_CMP_HTTP_URL</code> or <code>NCM_CMP_HTTPS_URL</code> skips that column rather than failing it. Every job asserts that the endpoint it received actually uses the scheme of its own row, so a secret pasted into the wrong box fails loudly instead of quietly enrolling over HTTP twice.</p>
+<p>Every job then renews the enrolled certificate through P10CR re-enrollment and two further certificates
+through KUR, over the transport of its own row. KUR uses a second <code>CMPIssuer</code> carrying
+<code>protocol.renewal: KUR</code> and the enrollment endpoint, with no <code>endpoint.renewalUrl</code>, because NCM answers a
+key update there:</p>
+<table>
+<thead>
+<tr>
+<th>Renewal</th>
+<th>Rotation policy</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P10CR re-enrollment</td>
+<td><code>Always</code></td>
+<td>A fresh PKCS #10 for an already certified identity returns a new certificate</td>
+</tr>
+<tr>
+<td>KUR with a new key</td>
+<td><code>Always</code></td>
+<td>The update returns a new serial number on a different public key</td>
+</tr>
+<tr>
+<td>KUR with the existing key</td>
+<td><code>Never</code></td>
+<td>The update returns a new serial number on the exact existing public key, which needs a profile that certifies the same key twice</td>
+</tr>
+</tbody>
+</table>
 <h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
 <p>Configure it under <strong>Settings, Secrets and variables, Actions</strong>. A repository without these values reports what is unconfigured and skips the enrollment rather than failing:</p>
 <table>
@@ -2140,9 +2169,29 @@ cert-manager v1.20.3.</p>
 <td>no</td>
 <td>Organization requested in the subject, for example <code>cmp-issuer</code>. Omitted entirely when unset</td>
 </tr>
+<tr>
+<td><code>NCM_CMP_KUR</code></td>
+<td>no</td>
+<td><code>false</code> skips both KUR renewals. Any other value, including unset, runs them</td>
+</tr>
+<tr>
+<td><code>NCM_CMP_KUR_SAME_KEY</code></td>
+<td>no</td>
+<td><code>false</code> skips only the KUR renewal that reuses the existing key</td>
+</tr>
+<tr>
+<td><code>NCM_CMP_REENROLL</code></td>
+<td>no</td>
+<td><code>false</code> skips the P10CR re-enrollment. Any other value, including unset, runs it</td>
+</tr>
 </tbody>
 </table>
 <p>Leave <code>NCM_CMP_COMMON_NAME</code> unset unless you need a fixed name. A server profile that authorizes an identity to enroll only once refuses every run after the first, and a timestamped name sidesteps that without any server-side cleanup between runs.</p>
+<p>The KUR certificates enroll under a generated name and have no variable of their own, because each is a
+second identity alongside the one <code>NCM_CMP_COMMON_NAME</code> names. A renewal needs no credential beyond the
+certificate being updated, so all three run wherever an endpoint is configured. Turn one off only for a
+profile that refuses it: <code>NCM_CMP_REENROLL</code> where an identity is certified once, <code>NCM_CMP_KUR</code> where key
+update is disabled, <code>NCM_CMP_KUR_SAME_KEY</code> where the same key cannot be certified twice.</p>
 <p>Requesting a country or an organization is a request, not an instruction. A CA that enforces its own subject answers <code>grantedWithMods</code>, which the issuer rejects under <code>policy.grantedModifications: Reject</code>, so an enrollment that fails only after these variables are set points at the server profile rather than at the issuer. Clear both to fall back to a bare common name.</p>
 <p><code>NCM_CMP_RESPONSE_TRUST</code> and <code>NCM_CMP_HTTPS_TRUST</code> are two different anchors and are frequently confused. The first is CMP trust, which verifies the signature protecting the response message and the chain that comes back in it. The second is transport trust, which verifies the TLS server certificate and is used only on the HTTPS rows. A server may present a publicly trusted TLS certificate while issuing from a private CA, in which case only the first is needed. See <a href="../../guide/transport/">HTTP and HTTPS transport</a>.</p>
 <p>Every value is written from the environment into a file and read back with <code>--from-file</code>, so no credential reaches a command line, and the endpoint URLs and the recipient are secrets rather than variables so a run against a private instance does not print them.</p>
