@@ -48,11 +48,20 @@ NCM re-enrolls an identity it has already certified. A cert-manager renewal was 
 
 This is P10CR re-enrollment rather than KUR. It differs from a retransmission, which reuses the identifier of a transaction NCM has already answered and draws `transactionIdInUse`.
 
+CI repeats the `Always` case on every run, over every configured transport. The `Never` case remains a lab result.
+
 ### KUR renewal
 
 The same lab profile accepted a P10CR-issued certificate as the authentication credential for later KUR on the same endpoint. Both cert-manager rotation policies completed with explicit confirmation. `Always` produced a new serial and public key while `Never` produced a new serial with the exact existing public key. A repeated same-key KUR without CRMF `oldCertID` was rejected after the key had more than one certificate. Sending the current certificate issuer and serial in `oldCertID` resolved the ambiguity and the next repeated same-key KUR completed. NCM recorded signature-protected `keyUpReq`, `keyUpResp`, `certConfirm` and final confirmation messages.
 
 This verifies both new-key and same-key KUR against the tested profile. Another NCM profile can still disable key update or apply different certificate policy.
+
+CI exercises the new-key and the same-key update after a change lands on `dev` or `main`, once a week
+and on request, over every configured transport. Each of the two certificates enrolls through P10CR and
+is then updated through KUR against a second issuer carrying `protocol.renewal: KUR` and the enrollment
+endpoint, and a run asserts the new serial number, the expected public key and a `CMPTransaction`
+recording the `KUR` operation as `Issued`. Each certificate is updated once, so this coverage stops short
+of the repeated same-key sequence described above, which remains a lab result.
 
 ### Request rate limiting
 
