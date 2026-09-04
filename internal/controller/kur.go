@@ -39,6 +39,9 @@ import (
 	"github.com/misiektoja/cmp-issuer/internal/protocol"
 )
 
+// certificateKind is the cert-manager owner kind that authorizes a KUR renewal.
+const certificateKind = "Certificate"
+
 // kurMaterial contains the two authorized workload key proofs and their Secret identities.
 type kurMaterial struct {
 	Protection          protocol.Protection
@@ -112,6 +115,9 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 	currentSecret, configurationErr := s.readKURSecret(ctx, currentKey, "current certificate Secret")
 	if configurationErr != nil {
 		return kurMaterial{}, configurationErr
+	}
+	if err := currentSecretIssuedForCertificate(currentSecret, certificate); err != nil {
+		return kurMaterial{}, permanentConfiguration("authorize KUR current certificate", err)
 	}
 	stagedKey := types.NamespacedName{Namespace: request.GetNamespace(), Name: stagedName}
 	stagedSecret, configurationErr := s.readKURSecret(ctx, stagedKey, "staged private-key Secret")
@@ -205,7 +211,7 @@ func certificateOwnerReference(request issuersigner.CertificateRequestObject) (m
 		}
 		owner = candidate
 	}
-	if owner == nil || owner.APIVersion != certmanagerv1.SchemeGroupVersion.String() || owner.Kind != "Certificate" || owner.Name == "" || owner.UID == "" {
+	if owner == nil || owner.APIVersion != certmanagerv1.SchemeGroupVersion.String() || owner.Kind != certificateKind || owner.Name == "" || owner.UID == "" {
 		return metav1.OwnerReference{}, fmt.Errorf("CertificateRequest is not controlled by a cert-manager.io/v1 Certificate")
 	}
 	return *owner, nil
@@ -236,11 +242,34 @@ func (s *Signer) readKURSecret(ctx context.Context, key types.NamespacedName, de
 // secretControlledByCertificate verifies the exact controller owner name and UID on a staged key Secret.
 func secretControlledByCertificate(secret *corev1.Secret, certificate *certmanagerv1.Certificate) bool {
 	for _, owner := range secret.OwnerReferences {
-		if owner.Controller != nil && *owner.Controller && owner.APIVersion == certmanagerv1.SchemeGroupVersion.String() && owner.Kind == "Certificate" && owner.Name == certificate.Name && owner.UID == certificate.UID {
+		if owner.Controller != nil && *owner.Controller && owner.APIVersion == certmanagerv1.SchemeGroupVersion.String() && owner.Kind == certificateKind && owner.Name == certificate.Name && owner.UID == certificate.UID {
 			return true
 		}
 	}
 	return false
+}
+
+// currentSecretIssuedForCertificate verifies cert-manager wrote the current output Secret for the
+// owning Certificate. The annotation carries the binding because cert-manager adds a controller owner
+// reference to an output Secret only when it runs with --enable-certificate-owner-ref, so a reference
+// is checked whenever one is present.
+func currentSecretIssuedForCertificate(secret *corev1.Secret, certificate *certmanagerv1.Certificate) error {
+	name, annotated := secret.Annotations[certmanagerv1.CertificateNameKey]
+	if !annotated {
+		return fmt.Errorf("current certificate Secret carries no %s annotation, so cert-manager did not write it for this Certificate", certmanagerv1.CertificateNameKey)
+	}
+	if name != certificate.Name {
+		return fmt.Errorf("current certificate Secret was written for Certificate %q", name)
+	}
+	for _, owner := range secret.OwnerReferences {
+		if owner.Controller == nil || !*owner.Controller {
+			continue
+		}
+		if owner.APIVersion != certmanagerv1.SchemeGroupVersion.String() || owner.Kind != certificateKind || owner.Name != certificate.Name || owner.UID != certificate.UID {
+			return fmt.Errorf("current certificate Secret is controlled by another resource")
+		}
+	}
+	return nil
 }
 
 // parseSecretSigner reads one non-empty Secret key as an unencrypted signing key.
