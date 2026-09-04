@@ -30,7 +30,7 @@ Authorize workload key reads through cert-manager state rather than through an a
 * A controlling `cert-manager.io/v1` `Certificate` owner with the exact name and UID
 * A renewal revision that immediately follows `Certificate.status.revision`
 * The same issuer reference on the `Certificate`
-* The current Secret selected by `Certificate.spec.secretName`
+* The current Secret selected by `Certificate.spec.secretName`, carrying cert-manager's `cert-manager.io/certificate-name` annotation for that `Certificate` and, where cert-manager runs with `--enable-certificate-owner-ref`, controlled by it
 * The staged Secret selected by both `Certificate.status.nextPrivateKeySecretName` and the CertificateRequest annotation
 * The staged Secret's controlling owner and cert-manager next-key label
 * The current certificate and key pair
