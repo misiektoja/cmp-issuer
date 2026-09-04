@@ -17,7 +17,7 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | Threat | Control |
 | --- | --- |
 | Credential exfiltration | Least-privilege Secret RBAC, no secret values in logs or Events and no credentials in command arguments |
-| Workload key exfiltration | P10CR never follows private-key Secret annotations. KUR verifies the controlling Certificate name and UID, revision, issuer reference, current Secret, next-key status, staged Secret owner and label plus CSR key equality before reading either key |
+| Workload key exfiltration | P10CR never follows private-key Secret annotations. KUR verifies the controlling Certificate name and UID, revision, issuer reference, the current Secret and its cert-manager provenance, next-key status, staged Secret owner and label plus CSR key equality before reading either key |
 | Annotation-selected arbitrary Secret read | Treat `cert-manager.io/private-key-secret-name` only as one value in an authenticated cert-manager ownership chain and reject before a Secret read when that chain is absent or inconsistent |
 | KUR authorized with the wrong certificate | Require the current certificate and key to match, require current validity and digital-signature Key Usage when present then preserve the subject and SAN set in the CRMF template |
 | KUR requested-key substitution | Match the staged private key to the signed CSR and use that key for CRMF proof of possession |
@@ -31,6 +31,7 @@ cert-manager approval is a network boundary. Unapproved or denied CertificateReq
 | Redirect or header state injection | Disable HTTP redirects and derive transaction state only from authenticated CMP DER |
 | Resource exhaustion | Bound response size, timeouts, polling, transaction duration and request concurrency |
 | Duplicate enrollment after a restart | Record the transaction identifier plus issuer and credential configuration identity in a `CMPTransaction` before the first message is sent, resume only that bound transaction on the next reconcile and return the recorded chain when the certificate was already issued |
+| Removal of transaction state belonging to another request | Condition every delete of a `CMPTransaction` on the UID that was read, so a record deleted and recreated under the same name keeps the state of the request that created it |
 | Ambiguous timeout on an unanswered enrollment | Pin the transaction identifier before the message reaches the network and retry under it. Both tested servers refuse the repeat under an authenticated error, Nokia NCM 26.7 with `transactionIdInUse` and EJBCA CE 9.3.7 with `badRequest`, and neither issues a second certificate. The request fails permanently and cert-manager enrolls again under a new transaction identifier |
 | Credential or KUR workload key rotation mid-transaction | Record each credential Secret UID and resourceVersion plus each KUR workload Secret UID and key-material digest before the first message, then stop an unfinished transaction before more CMP traffic when any identity changes. The workload digest covers the consumed keys only, so a metadata-only write by another controller does not stop the transaction |
 | Cross-namespace Secret reference | Secret references contain names and keys only. Namespace selection is fixed by issuer scope |
