@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1] - TBD
+
+This release corrects CMP transaction recovery and KUR retry behavior and gives the failure metric label a fixed vocabulary that alerts can match.
+
+### Bug fixes
+
+* **Interrupted confirmations resend `certConf`** - When a server delayed the enrollment and the confirmation that followed was interrupted before the server accepted `certConf`, the resumed transaction polled for an answer to a `certConf` that was never sent and the issued certificate was abandoned. The resumed confirmation sends `certConf`. A transaction that entered this state before the upgrade still fails once and cert-manager enrolls again.
+* **KUR renewals retry temporary Kubernetes API failures** - A temporary failure while reading the owning `Certificate` failed the renewal permanently instead of retrying it. Only an absent `Certificate` is final and every other read failure is retried.
+* **The `failure` metric label uses a fixed vocabulary** - A CMP response setting several failure bits was counted under the combined bit list, so an alert matching one exact name such as `badMessageCheck` could miss it and a server could mint unbounded metric series. The label carries the most security-relevant bit name and the complete bit list stays in the `CMP enrollment failed` log line. Update dashboards that filter on combined label values.
+* **`spec.protocol.certProfile` is documented as reserved** - The field reference presented it as usable while the controller rejects any non-empty value, which made an issuer configured per the documentation permanently NotReady. The documentation and the CRD descriptions mark it reserved and the NCM interoperability workflow no longer offers a variable for it.
+
+### Improvements
+
+* **Unfinished KUR transactions survive metadata-only Secret writes** - The transaction digest identifies both workload Secrets by their UID and the consumed key material instead of resourceVersion, so an annotation or label written by another controller mid-transaction no longer stops the renewal. A key-material change still stops it before more CMP traffic. An unfinished KUR transaction recorded by 0.2.0 fails this check once after the upgrade and cert-manager enrolls again.
+
 ## [0.2.0] - 28 Aug 2026
 
 True CMP key update is now available for cert-manager renewals while P10CR re-enrollment remains the compatibility default. This release also introduces the repository metadata and release-download improvements.
