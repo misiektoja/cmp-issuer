@@ -84,6 +84,8 @@ The focused values are `kurResponseCaPubs: Accept | RequireAbsent`,
 
 KUR does not trust `cert-manager.io/private-key-secret-name` by itself. Before reading either key cmp-issuer verifies the controlling `Certificate`, owner UID, immediately previous revision, issuer reference, current output Secret, `status.nextPrivateKeySecretName`, staged Secret owner and label, CSR signature and public-key equality.
 
+The current output Secret must carry cert-manager's `cert-manager.io/certificate-name` annotation naming the owning `Certificate`. cert-manager writes it whenever it stores an issued certificate. A Secret controlled by a different `Certificate` is refused, which matters when cert-manager runs with `--enable-certificate-owner-ref`.
+
 The current and staged Secret UIDs and a digest of their consumed key material are included in the transaction configuration digest. Key rotation during an unfinished KUR stops it before more CMP traffic. A metadata-only write to either Secret leaves the transaction valid.
 
 See [Private-key handling](private-key-handling.md) and [Credential Secret access](../operations/secret-access.md).
