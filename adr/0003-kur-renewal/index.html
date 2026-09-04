@@ -1626,14 +1626,14 @@ controls for deployments that need only one rule.</p>
 <li>A controlling <code>cert-manager.io/v1</code> <code>Certificate</code> owner with the exact name and UID</li>
 <li>A renewal revision that immediately follows <code>Certificate.status.revision</code></li>
 <li>The same issuer reference on the <code>Certificate</code></li>
-<li>The current Secret selected by <code>Certificate.spec.secretName</code></li>
+<li>The current Secret selected by <code>Certificate.spec.secretName</code>, carrying cert-manager's <code>cert-manager.io/certificate-name</code> annotation for that <code>Certificate</code> and, where cert-manager runs with <code>--enable-certificate-owner-ref</code>, controlled by it</li>
 <li>The staged Secret selected by both <code>Certificate.status.nextPrivateKeySecretName</code> and the CertificateRequest annotation</li>
 <li>The staged Secret's controlling owner and cert-manager next-key label</li>
 <li>The current certificate and key pair</li>
 <li>The staged private key and signed CSR public key</li>
 </ul>
 <p>KUR is rejected locally when the old certificate is not currently valid, its Key Usage extension forbids digital signatures or the CSR changes the subject or subject alternative names.</p>
-<p>Bind unfinished KUR state to the UID and resourceVersion of the current and staged workload Secrets in the transaction configuration digest. A change stops the transaction before more CMP traffic.</p>
+<p>Bind unfinished KUR state to the UID and a digest of the consumed key material of the current and staged workload Secrets in the transaction configuration digest. A key-material change stops the transaction before more CMP traffic, while a metadata-only write by another controller does not.</p>
 <h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
 <p>KUR needs <code>get</code> access to the owning <code>Certificate</code> and <code>get</code> access to both workload Secrets. Certificate access is cluster-wide but read-only. Secret access remains namespace bounded through the existing credential-reader RoleBindings. A <code>CMPClusterIssuer</code> using KUR therefore needs each workload namespace added to <code>credentialNamespaces</code> or bound manually.</p>
 <p>P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep renewing through P10CR re-enrollment unless an operator selects KUR.</p>

@@ -1679,8 +1679,14 @@ See <a href="../../guide/renewal-and-kur/">Renewal with P10CR or KUR</a>.</p>
 </tr>
 </tbody>
 </table>
-<p><code>failure</code> carries the CMP failure name, such as <code>badRequest</code>, <code>badMessageCheck</code>, <code>signerNotTrusted</code> or
-<code>systemUnavail</code>, plus <code>issuerConfiguration</code> for a failure that never reached the server and
+<p><code>failure</code> carries one name from a fixed vocabulary, so a server cannot mint new metric series and an
+alert can match one exact name. A server-reported failure is named by its most security-relevant CMP
+failure bit, checked in the order <code>badMessageCheck</code>, <code>signerNotTrusted</code>, <code>notAuthorized</code>, <code>badPOP</code>,
+<code>badCertTemplate</code>, <code>badAlg</code>, <code>transactionIdInUse</code>, <code>badRequest</code>, <code>systemUnavail</code> and <code>systemFailure</code>,
+with <code>unknownStatus</code> when none of these bits is set. A response that sets several bits is counted
+once under the first matching name and the complete bit list appears in the <code>CMP enrollment failed</code>
+log line. Failures cmp-issuer detects itself keep their own names, such as <code>wrongAuthority</code> or
+<code>certReqIdMismatch</code>, plus <code>issuerConfiguration</code> for a failure that never reached the server and
 <code>unclassified</code> for one that carries no CMP failure information. <code>classification</code> is <code>Permanent</code>,
 <code>Retryable</code>, <code>Security</code> or <code>Unknown</code>, matching the <code>classification</code> field of the <code>CMP enrollment
 failed</code> log line, which also names the protocol step the failure came from.</p>

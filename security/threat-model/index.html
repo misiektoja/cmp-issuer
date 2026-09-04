@@ -1671,7 +1671,7 @@
 </tr>
 <tr>
 <td>Workload key exfiltration</td>
-<td>P10CR never follows private-key Secret annotations. KUR verifies the controlling Certificate name and UID, revision, issuer reference, current Secret, next-key status, staged Secret owner and label plus CSR key equality before reading either key</td>
+<td>P10CR never follows private-key Secret annotations. KUR verifies the controlling Certificate name and UID, revision, issuer reference, the current Secret and its cert-manager provenance, next-key status, staged Secret owner and label plus CSR key equality before reading either key</td>
 </tr>
 <tr>
 <td>Annotation-selected arbitrary Secret read</td>
@@ -1726,12 +1726,16 @@
 <td>Record the transaction identifier plus issuer and credential configuration identity in a <code>CMPTransaction</code> before the first message is sent, resume only that bound transaction on the next reconcile and return the recorded chain when the certificate was already issued</td>
 </tr>
 <tr>
+<td>Removal of transaction state belonging to another request</td>
+<td>Condition every delete of a <code>CMPTransaction</code> on the UID that was read, so a record deleted and recreated under the same name keeps the state of the request that created it</td>
+</tr>
+<tr>
 <td>Ambiguous timeout on an unanswered enrollment</td>
 <td>Pin the transaction identifier before the message reaches the network and retry under it. Both tested servers refuse the repeat under an authenticated error, Nokia NCM 26.7 with <code>transactionIdInUse</code> and EJBCA CE 9.3.7 with <code>badRequest</code>, and neither issues a second certificate. The request fails permanently and cert-manager enrolls again under a new transaction identifier</td>
 </tr>
 <tr>
 <td>Credential or KUR workload key rotation mid-transaction</td>
-<td>Record each Secret UID and resourceVersion before the first message and stop an unfinished transaction before more CMP traffic when any identity changes</td>
+<td>Record each credential Secret UID and resourceVersion plus each KUR workload Secret UID and key-material digest before the first message, then stop an unfinished transaction before more CMP traffic when any identity changes. The workload digest covers the consumed keys only, so a metadata-only write by another controller does not stop the transaction</td>
 </tr>
 <tr>
 <td>Cross-namespace Secret reference</td>

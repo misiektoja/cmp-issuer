@@ -2105,6 +2105,10 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect <code>Certificate.status.nextPrivateKeySecretName</code></td>
 </tr>
 <tr>
+<td>authorize KUR current certificate</td>
+<td>The Secret named by <code>Certificate.spec.secretName</code> is not the output Secret cert-manager wrote for that <code>Certificate</code>. Compare its <code>cert-manager.io/certificate-name</code> annotation and any controller owner reference with the <code>Certificate</code>, and check whether a second <code>Certificate</code> targets the same Secret</td>
+</tr>
+<tr>
 <td>KUR certificate identity</td>
 <td>The renewal CSR changed the subject or SAN set. Use the P10CR compatibility mode where the CA permits re-enrollment or wait for CR support</td>
 </tr>
