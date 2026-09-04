@@ -600,6 +600,57 @@ func TestSignRetriesKURUnderTheRecordedTransactionID(t *testing.T) {
 	}
 }
 
+// failingCertificateReader answers every Certificate read with the configured error and delegates other reads.
+type failingCertificateReader struct {
+	client.Reader
+	err error
+}
+
+// Get returns the configured error for Certificate reads before delegating to the wrapped reader.
+func (r *failingCertificateReader) Get(ctx context.Context, key client.ObjectKey, object client.Object, options ...client.GetOption) error {
+	if _, isCertificate := object.(*certmanagerv1.Certificate); isCertificate {
+		return r.err
+	}
+	return r.Reader.Get(ctx, key, object, options...)
+}
+
+// TestSignClassifiesKURCertificateReadFailures verifies a transient owning-Certificate read failure retries while an absent owner fails permanently.
+func TestSignClassifiesKURCertificateReadFailures(t *testing.T) {
+	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+	issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+	request, certificate, currentSecret, stagedSecret := testKURRequestObjects(t, issuer, true)
+
+	t.Run("transient API failure retries", func(t *testing.T) {
+		kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+		protocolClient := &fakeProtocolClient{}
+		reader := &failingCertificateReader{Reader: kubeClient, err: errors.New("etcdserver: request timed out")}
+		signer := &Signer{KubeClient: reader, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+		_, err := signer.Sign(context.Background(), request, issuer)
+		var pending issuersigner.PendingError
+		if !errors.As(err, &pending) {
+			t.Fatalf("expected a transient Certificate read failure to be retried, got %v", err)
+		}
+		if protocolClient.kurCalls != 0 || protocolClient.calls != 0 {
+			t.Fatal("signer sent CMP traffic after the Certificate read failed")
+		}
+	})
+
+	t.Run("absent owner fails permanently", func(t *testing.T) {
+		kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+		protocolClient := &fakeProtocolClient{}
+		signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+		_, err := signer.Sign(context.Background(), request, issuer)
+		var permanent issuersigner.PermanentError
+		if !errors.As(err, &permanent) {
+			t.Fatalf("expected an absent owning Certificate to fail permanently, got %v", err)
+		}
+		if protocolClient.kurCalls != 0 || protocolClient.calls != 0 {
+			t.Fatal("signer sent CMP traffic without an owning Certificate")
+		}
+	})
+}
+
 // TestSignRejectsAnnotationOnlyKURAuthorization verifies arbitrary private-key annotations cannot trigger Secret reads.
 func TestSignRejectsAnnotationOnlyKURAuthorization(t *testing.T) {
 	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
