@@ -27,8 +27,14 @@ See [Renewal with P10CR or KUR](../guide/renewal-and-kur.md).
 | `cmp_issuer_enrollment_polls_total` | counter | none | Waits for a server that accepted a request but has not returned or confirmed the certificate |
 | `cmp_issuer_enrollment_confirmations_total` | counter | `confirmation` is `Explicit` or `Implicit` | Completed enrollments by whether the server required `certConf` |
 
-`failure` carries the CMP failure name, such as `badRequest`, `badMessageCheck`, `signerNotTrusted` or
-`systemUnavail`, plus `issuerConfiguration` for a failure that never reached the server and
+`failure` carries one name from a fixed vocabulary, so a server cannot mint new metric series and an
+alert can match one exact name. A server-reported failure is named by its most security-relevant CMP
+failure bit, checked in the order `badMessageCheck`, `signerNotTrusted`, `notAuthorized`, `badPOP`,
+`badCertTemplate`, `badAlg`, `transactionIdInUse`, `badRequest`, `systemUnavail` and `systemFailure`,
+with `unknownStatus` when none of these bits is set. A response that sets several bits is counted
+once under the first matching name and the complete bit list appears in the `CMP enrollment failed`
+log line. Failures cmp-issuer detects itself keep their own names, such as `wrongAuthority` or
+`certReqIdMismatch`, plus `issuerConfiguration` for a failure that never reached the server and
 `unclassified` for one that carries no CMP failure information. `classification` is `Permanent`,
 `Retryable`, `Security` or `Unknown`, matching the `classification` field of the `CMP enrollment
 failed` log line, which also names the protocol step the failure came from.
