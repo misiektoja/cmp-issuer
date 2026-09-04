@@ -600,6 +600,73 @@ func TestSignRetriesKURUnderTheRecordedTransactionID(t *testing.T) {
 	}
 }
 
+// TestSignKURWorkloadSecretFingerprint verifies an unfinished KUR transaction survives a
+// metadata-only workload Secret write while a key-material change still stops it.
+func TestSignKURWorkloadSecretFingerprint(t *testing.T) {
+	newFixture := func(t *testing.T) (*Signer, *fakeProtocolClient, client.Client, *cmpv1alpha1.CMPIssuer, *fakeCertificateRequest, *certmanagerv1.Certificate) {
+		t.Helper()
+		auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+		issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+		issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+		request, certificate, currentSecret, stagedSecret := testKURRequestObjects(t, issuer, true)
+		issued := issuedCertificateFor(t, request.details.CSR)
+		kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+		protocolClient := &fakeProtocolClient{queue: []fakeExchange{
+			{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: testHTTPExchangeOperation, Failure: testFailureSystemUnavailable, Err: errors.New("connection refused")}},
+			{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}},
+		}}
+		signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+		if _, err := signer.Sign(context.Background(), request, issuer); err == nil {
+			t.Fatal("expected the first KUR exchange to fail retryably")
+		}
+		return signer, protocolClient, kubeClient, issuer, request, certificate
+	}
+
+	t.Run("metadata-only write survives", func(t *testing.T) {
+		signer, protocolClient, kubeClient, issuer, request, certificate := newFixture(t)
+		currentSecret := &corev1.Secret{}
+		if err := kubeClient.Get(context.Background(), types.NamespacedName{Namespace: testIssuerNamespace, Name: certificate.Spec.SecretName}, currentSecret); err != nil {
+			t.Fatalf("read current Secret: %v", err)
+		}
+		currentSecret.Annotations = map[string]string{"example.test/replicated-at": "sometime"}
+		if err := kubeClient.Update(context.Background(), currentSecret); err != nil {
+			t.Fatalf("annotate current Secret: %v", err)
+		}
+		if _, err := signer.Sign(context.Background(), request, issuer); err != nil {
+			t.Fatalf("expected the annotated Secret to leave the transaction valid, got %v", err)
+		}
+		if protocolClient.kurCalls != 2 {
+			t.Fatalf("expected the KUR retry to be sent, got %d calls", protocolClient.kurCalls)
+		}
+	})
+
+	t.Run("key-material change stops the transaction", func(t *testing.T) {
+		signer, protocolClient, kubeClient, issuer, request, certificate := newFixture(t)
+		currentSecret := &corev1.Secret{}
+		if err := kubeClient.Get(context.Background(), types.NamespacedName{Namespace: testIssuerNamespace, Name: certificate.Spec.SecretName}, currentSecret); err != nil {
+			t.Fatalf("read current Secret: %v", err)
+		}
+		rotatedKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, rotatedCertificatePEM := testKURCertificate(t, rotatedKey)
+		currentSecret.Data[corev1.TLSCertKey] = rotatedCertificatePEM
+		currentSecret.Data[corev1.TLSPrivateKeyKey] = testKURKeyPEM(t, rotatedKey)
+		if err := kubeClient.Update(context.Background(), currentSecret); err != nil {
+			t.Fatalf("rotate current Secret: %v", err)
+		}
+		_, err = signer.Sign(context.Background(), request, issuer)
+		var permanent issuersigner.PermanentError
+		if !errors.As(err, &permanent) || !strings.Contains(err.Error(), "credentials changed") {
+			t.Fatalf("expected the rotated key material to stop the transaction permanently, got %v", err)
+		}
+		if protocolClient.kurCalls != 1 {
+			t.Fatalf("expected no KUR retry after the key rotation, got %d calls", protocolClient.kurCalls)
+		}
+	})
+}
+
 // failingCertificateReader answers every Certificate read with the configured error and delegates other reads.
 type failingCertificateReader struct {
 	client.Reader
