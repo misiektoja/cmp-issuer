@@ -130,9 +130,12 @@ func (t *transactionStore) recordConfirming(ctx context.Context, transaction *cm
 	transaction.Status.Phase = cmpv1alpha1.TransactionPhaseConfirming
 	transaction.Status.IssuedChain = encodeChain(chain)
 	transaction.Status.RecipNonce = pending.RecipNonce
-	if len(pending.RequestNonce) > 0 {
-		transaction.Status.RequestNonce = pending.RequestNonce
-	}
+	// The nonce is assigned unconditionally because its meaning changes here. During enrollment it is
+	// the delayed enrollment request nonce, while in the Confirming phase a non-empty value means
+	// certConf has already been sent and its answer is polled for. Entering this phase with an empty
+	// value must clear a recorded enrollment nonce because a resumed confirmation would otherwise
+	// poll for a certConf that was never sent.
+	transaction.Status.RequestNonce = pending.RequestNonce
 	transaction.Status.CertReqID = &certReqID
 	transaction.Status.LastTransitionTime = metav1.Now()
 	if pending.ResponseSigner != nil {
