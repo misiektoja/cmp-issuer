@@ -590,23 +590,20 @@ func responseGrantsImplicitConfirm(response *pkicmp.PKIMessage) bool {
 	return false
 }
 
-// classifiedFailureBits orders the CMP failure bits a bounded failure name can report, the most
+// classifiedFailureBitOrder orders the CMP failure bits a bounded failure name can report, the most
 // security-relevant first, so a response setting several bits is named by the one that matters most
-// to an operator watching the failure metric.
-var classifiedFailureBits = []struct {
-	bit  pkicmp.PKIFailureInfo
-	name string
-}{
-	{pkicmp.FailBadMessageCheck, "badMessageCheck"},
-	{pkicmp.FailSignerNotTrusted, "signerNotTrusted"},
-	{pkicmp.FailNotAuthorized, "notAuthorized"},
-	{pkicmp.FailBadPOP, "badPOP"},
-	{pkicmp.FailBadCertTemplate, "badCertTemplate"},
-	{pkicmp.FailBadAlg, "badAlg"},
-	{pkicmp.FailTransactionIdInUse, "transactionIdInUse"},
-	{pkicmp.FailBadRequest, "badRequest"},
-	{pkicmp.FailSystemUnavail, "systemUnavail"},
-	{pkicmp.FailSystemFailure, "systemFailure"},
+// to an operator watching the failure metric. A single bit renders as its own name.
+var classifiedFailureBitOrder = []pkicmp.PKIFailureInfo{
+	pkicmp.FailBadMessageCheck,
+	pkicmp.FailSignerNotTrusted,
+	pkicmp.FailNotAuthorized,
+	pkicmp.FailBadPOP,
+	pkicmp.FailBadCertTemplate,
+	pkicmp.FailBadAlg,
+	pkicmp.FailTransactionIdInUse,
+	pkicmp.FailBadRequest,
+	pkicmp.FailSystemUnavail,
+	pkicmp.FailSystemFailure,
 }
 
 // boundedFailureName maps peer-chosen failure bits onto one name from a fixed vocabulary. The name
@@ -614,9 +611,9 @@ var classifiedFailureBits = []struct {
 // new metric series per combination while defeating alerts that match one exact name. The complete
 // bit list stays available in the wrapped status error, which the failure log line carries.
 func boundedFailureName(failInfo pkicmp.PKIFailureInfo) string {
-	for _, candidate := range classifiedFailureBits {
-		if failInfo&candidate.bit != 0 {
-			return candidate.name
+	for _, bit := range classifiedFailureBitOrder {
+		if failInfo&bit != 0 {
+			return bit.String()
 		}
 	}
 	return "unknownStatus"
