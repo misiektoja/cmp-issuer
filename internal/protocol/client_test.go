@@ -35,6 +35,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -638,6 +639,35 @@ func TestRefusedRetransmissionsFailPermanently(t *testing.T) {
 			}
 			if classified.Failure != failInfo.String() {
 				t.Fatalf("expected the failure to report %q, got %q", failInfo.String(), classified.Failure)
+			}
+		})
+	}
+}
+
+// TestClassifyStatusBoundsTheFailureName verifies combined failure bits map onto one name from the
+// fixed vocabulary while the complete bit list stays in the error text.
+func TestClassifyStatusBoundsTheFailureName(t *testing.T) {
+	for name, test := range map[string]struct {
+		failInfo pkicmp.PKIFailureInfo
+		failure  string
+		kind     ErrorKind
+	}{
+		"single bit keeps its name":           {failInfo: pkicmp.FailBadMessageCheck, failure: "badMessageCheck", kind: ErrorKindPermanent},
+		"security bit outranks request bits":  {failInfo: pkicmp.FailBadRequest | pkicmp.FailBadAlg | pkicmp.FailBadMessageCheck, failure: "badMessageCheck", kind: ErrorKindPermanent},
+		"retryable bits stay retryable":       {failInfo: pkicmp.FailSystemUnavail | pkicmp.FailBadTime, failure: "systemUnavail", kind: ErrorKindRetryable},
+		"unclassified bits report one bucket": {failInfo: pkicmp.FailBadTime, failure: "unknownStatus", kind: ErrorKindPermanent},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := classifyStatus(pkicmp.PKIStatusInfo{Status: pkicmp.StatusRejection, FailInfo: test.failInfo})
+			var classified *Error
+			if !errors.As(err, &classified) {
+				t.Fatalf("expected a classified protocol error, got %v", err)
+			}
+			if classified.Kind != test.kind || classified.Failure != test.failure {
+				t.Fatalf("expected %s %q, got %s %q", test.kind, test.failure, classified.Kind, classified.Failure)
+			}
+			if !strings.Contains(err.Error(), test.failInfo.String()) {
+				t.Fatalf("expected the error text to keep the complete bit list %q, got %q", test.failInfo.String(), err.Error())
 			}
 		})
 	}
