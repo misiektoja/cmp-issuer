@@ -89,18 +89,10 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 	if err != nil {
 		return kurMaterial{}, permanentConfiguration("authorize KUR CertificateRequest", err)
 	}
-	certificate := &certmanagerv1.Certificate{}
 	certificateKey := types.NamespacedName{Namespace: request.GetNamespace(), Name: owner.Name}
-	if err := s.KubeClient.Get(ctx, certificateKey, certificate); err != nil {
-		// Only an absent owner is final, because the recorded owner UID cannot return. Any other
-		// failure is API-server state that a later reconcile can succeed against.
-		if apierrors.IsNotFound(err) {
-			return kurMaterial{}, permanentConfiguration("read owning Certificate", err)
-		}
-		return kurMaterial{}, retryableConfiguration("read owning Certificate", err)
-	}
-	if certificate.UID == "" || owner.UID != certificate.UID || certificate.DeletionTimestamp != nil {
-		return kurMaterial{}, permanentConfiguration("authorize KUR CertificateRequest", fmt.Errorf("certificate owner identity is absent, deleted or mismatched"))
+	certificate, configurationErr := s.readOwningCertificate(ctx, certificateKey, owner)
+	if configurationErr != nil {
+		return kurMaterial{}, configurationErr
 	}
 	if certificate.Status.Revision == nil || *certificate.Status.Revision != revision-1 {
 		return kurMaterial{}, permanentConfiguration("authorize KUR CertificateRequest", fmt.Errorf("CertificateRequest revision does not immediately follow the current Certificate revision"))
@@ -156,6 +148,23 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 	}
 	secrets := map[types.NamespacedName]secretFingerprint{currentKey: workloadSecretFingerprint(currentSecret, corev1.TLSCertKey, corev1.TLSPrivateKeyKey), stagedKey: workloadSecretFingerprint(stagedSecret, corev1.TLSPrivateKeyKey)}
 	return kurMaterial{Protection: protocol.Protection{Signature: &protocol.SignatureProtection{PrivateKey: oldKey, Certificate: certificates[0], Chain: certificates[1:]}}, RequestedPrivateKey: requestedKey, Secrets: secrets}, nil
+}
+
+// readOwningCertificate reads the controlling Certificate and confirms it is the recorded live owner.
+func (s *Signer) readOwningCertificate(ctx context.Context, key types.NamespacedName, owner metav1.OwnerReference) (*certmanagerv1.Certificate, *configurationError) {
+	certificate := &certmanagerv1.Certificate{}
+	if err := s.KubeClient.Get(ctx, key, certificate); err != nil {
+		// Only an absent owner is final, because the recorded owner UID cannot return. Any other
+		// failure is API-server state that a later reconcile can succeed against.
+		if apierrors.IsNotFound(err) {
+			return nil, permanentConfiguration("read owning Certificate", err)
+		}
+		return nil, retryableConfiguration("read owning Certificate", err)
+	}
+	if certificate.UID == "" || owner.UID != certificate.UID || certificate.DeletionTimestamp != nil {
+		return nil, permanentConfiguration("authorize KUR CertificateRequest", fmt.Errorf("certificate owner identity is absent, deleted or mismatched"))
+	}
+	return certificate, nil
 }
 
 // workloadSecretFingerprint identifies a workload Secret by its UID and the data keys KUR consumes,
