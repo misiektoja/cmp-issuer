@@ -23,7 +23,7 @@ KUR reads the current workload key and the staged requested key only after it au
 
 The current key protects the CMP message with the certificate being updated. The requested key signs CRMF proof of possession. With `rotationPolicy: Never` both roles can use the same key material.
 
-Only `tls.key` is parsed from the staged Secret. The current Secret contributes `tls.crt` and `tls.key`. Their UID and resourceVersion values are bound into the durable transaction configuration digest.
+Only `tls.key` is parsed from the staged Secret. The current Secret contributes `tls.crt` and `tls.key`. Each Secret's UID and a digest of exactly those data keys are bound into the durable transaction configuration digest, so a change to the key material stops an unfinished transaction while a metadata-only write does not.
 
 ## Annotation is not authorization
 
