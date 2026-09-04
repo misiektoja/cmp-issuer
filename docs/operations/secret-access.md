@@ -64,6 +64,6 @@ P10CR does not require the workload private key and never follows cert-manager's
 
 KUR needs `get` access to the current and staged workload Secrets. The same namespace RoleBinding used for issuer credentials grants that access. For a namespaced `CMPIssuer` the issuer and workload already share a namespace. For a `CMPClusterIssuer` each workload namespace that uses KUR must be listed in `credentialNamespaces` or receive the manual RoleBinding above.
 
-The permission alone does not select a Secret. cmp-issuer first verifies the controlling cert-manager `Certificate`, exact UID, revision, issuer reference, current Secret name, next-key status, staged Secret owner and label plus CSR key equality. An annotation alone cannot authorize a read.
+The permission alone does not select a Secret. cmp-issuer first verifies the controlling cert-manager `Certificate`, exact UID, revision, issuer reference, current Secret name and cert-manager provenance, next-key status, staged Secret owner and label plus CSR key equality. An annotation alone cannot authorize a read.
 
 The manager also has cluster-wide `get` permission for `Certificate` resources so it can authenticate this ownership chain. It does not receive list, watch, create, update or delete permission for Certificates.
