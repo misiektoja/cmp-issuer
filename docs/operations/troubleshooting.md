@@ -186,6 +186,7 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | P10CR CP certReqId | Server returned an unexpected identifier; adjust `p10crResponseCertReqId` or use default |
 | KUR requires a certificate revision greater than one | A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager `Certificate` |
 | KUR current or staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
+| authorize KUR current certificate | The Secret named by `Certificate.spec.secretName` is not the output Secret cert-manager wrote for that `Certificate`. Compare its `cert-manager.io/certificate-name` annotation and any controller owner reference with the `Certificate`, and check whether a second `Certificate` targets the same Secret |
 | KUR certificate identity | The renewal CSR changed the subject or SAN set. Use the P10CR compatibility mode where the CA permits re-enrollment or wait for CR support |
 | KUP caPubs must be absent | `validationProfile` is `RFC9483` or `kurResponseCaPubs` is `RequireAbsent`, but the server delivered CA certificates in that field. Configure the server to omit them or use the default `Interoperable` profile, which treats them only as untrusted chain candidates |
 | KUR certReqId mismatch | The KUP did not use the fixed KUR identifier `0`. Correct the CMP server profile |
