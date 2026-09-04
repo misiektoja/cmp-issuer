@@ -241,19 +241,15 @@ func testKURKeyPEM(t *testing.T, key *ecdsa.PrivateKey) []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyDER})
 }
 
-// testKURCertificate issues a currently valid leaf for the selected workload key and identity.
-func testKURCertificate(t *testing.T, key *ecdsa.PrivateKey) (*x509.Certificate, []byte) {
+// testKURCertificate issues a currently valid leaf PEM for the selected workload key and identity.
+func testKURCertificate(t *testing.T, key *ecdsa.PrivateKey) []byte {
 	t.Helper()
 	template := &x509.Certificate{SerialNumber: big.NewInt(91), Subject: pkix.Name{CommonName: testWorkloadCommonName}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature}
 	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	certificate, err := x509.ParseCertificate(certificateDER)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return certificate, pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER})
+	return pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER})
 }
 
 // testKURRequestObjects builds the cert-manager ownership chain and current and staged key Secrets.
@@ -274,7 +270,7 @@ func testKURRequestObjects(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, rotateKe
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, currentCertificatePEM := testKURCertificate(t, currentKey)
+	currentCertificatePEM := testKURCertificate(t, currentKey)
 	revision := 1
 	nextPrivateKeySecretName := "workload-next-key"
 	certificate := &certmanagerv1.Certificate{ObjectMeta: metav1.ObjectMeta{Name: testWorkloadCommonName, Namespace: testIssuerNamespace, UID: types.UID("22222222-2222-2222-2222-222222222222")}, Spec: certmanagerv1.CertificateSpec{SecretName: "workload-tls", IssuerRef: cmmeta.IssuerReference{Name: issuer.Name, Kind: cmpv1alpha1.TransactionIssuerKindNamespaced, Group: cmpv1alpha1.GroupVersion.Group}}, Status: certmanagerv1.CertificateStatus{Revision: &revision, NextPrivateKeySecretName: &nextPrivateKeySecretName}}
@@ -650,7 +646,7 @@ func TestSignKURWorkloadSecretFingerprint(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, rotatedCertificatePEM := testKURCertificate(t, rotatedKey)
+		rotatedCertificatePEM := testKURCertificate(t, rotatedKey)
 		currentSecret.Data[corev1.TLSCertKey] = rotatedCertificatePEM
 		currentSecret.Data[corev1.TLSPrivateKeyKey] = testKURKeyPEM(t, rotatedKey)
 		if err := kubeClient.Update(context.Background(), currentSecret); err != nil {
