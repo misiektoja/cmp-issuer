@@ -205,7 +205,6 @@ Configure it under **Settings, Secrets and variables, Actions**. A repository wi
 
 | Variable | Required | Contents |
 | --- | --- | --- |
-| `NCM_CMP_CERT_PROFILE` | no | Certificate profile sent as `spec.protocol.certProfile` |
 | `NCM_CMP_COMMON_NAME` | no | Common name to enroll. Left unset it becomes `cmp-issuer-test-<UTC YYMMDD-HHMMSS>`, so every run enrolls a distinct identity |
 | `NCM_CMP_COUNTRY` | no | Country requested in the subject, for example `PL`. Omitted entirely when unset |
 | `NCM_CMP_ORGANIZATION` | no | Organization requested in the subject, for example `cmp-issuer`. Omitted entirely when unset |
