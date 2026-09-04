@@ -47,7 +47,6 @@
 #
 # | Variable | Required | Contents |
 # | --- | --- | --- |
-# | `NCM_CMP_CERT_PROFILE` | no | Certificate profile name sent as `spec.protocol.certProfile` |
 # | `NCM_CMP_COMMON_NAME` | no | Common name to enroll. Unset gives `cmp-issuer-test-<UTC YYMMDD-HHMMSS>`, unique per run |
 # | `NCM_CMP_COUNTRY` | no | Country requested in the subject, for example `PL`. Omitted when unset |
 # | `NCM_CMP_ORGANIZATION` | no | Organization requested in the subject, for example `cmp-issuer`. Omitted when unset |
@@ -367,7 +366,6 @@ jobs:
           HTTP_URL: ${{ secrets.NCM_CMP_HTTP_URL }}
           HTTPS_URL: ${{ secrets.NCM_CMP_HTTPS_URL }}
           RECIPIENT_DN: ${{ secrets.NCM_CMP_RECIPIENT_DN }}
-          CERT_PROFILE: ${{ vars.NCM_CMP_CERT_PROFILE }}
           HTTPS_TRUST: ${{ secrets.NCM_CMP_HTTPS_TRUST }}
           BOOTSTRAP_CHAIN: ${{ secrets.NCM_CMP_BOOTSTRAP_CHAIN }}
           PROTECTION: ${{ matrix.protection }}
@@ -403,9 +401,6 @@ jobs:
               recipient: "${RECIPIENT_DN}"
               confirmation: Explicit
           YAML
-            if [ -n "$CERT_PROFILE" ]; then
-              echo "    certProfile: \"${CERT_PROFILE}\""
-            fi
             if [ "$PROTECTION" = PasswordBasedMac ]; then
               cat <<'YAML'
             protection:
