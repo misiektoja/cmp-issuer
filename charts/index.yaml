@@ -4,6 +4,80 @@ entries:
   - annotations:
       artifacthub.io/category: security
       artifacthub.io/changes: |
+        - kind: fixed
+          description: An interrupted confirmation resends certConf instead of polling for an answer to a certConf that was never sent
+        - kind: fixed
+          description: KUR renewals retry temporary Kubernetes API failures while reading the owning Certificate
+        - kind: fixed
+          description: The failure metric label carries one bit name from a fixed vocabulary instead of a combined bit list
+        - kind: changed
+          description: Unfinished KUR transactions survive metadata-only writes to their workload Secrets
+        - kind: changed
+          description: KUR reads the current key only from a Secret that cert-manager wrote for the owning Certificate
+        - kind: changed
+          description: spec.protocol.certProfile is documented as reserved until its encoding is implemented
+      artifacthub.io/crds: |
+        - kind: CMPIssuer
+          version: v1alpha1
+          name: cmpissuers.certmanager.misiektoja.github.io
+          displayName: CMP Issuer
+          description: Namespaced issuer that enrolls cert-manager certificates from one CMP server
+        - kind: CMPClusterIssuer
+          version: v1alpha1
+          name: cmpclusterissuers.certmanager.misiektoja.github.io
+          displayName: CMP Cluster Issuer
+          description: Cluster-wide issuer that reads its credentials from the controller namespace
+        - kind: CMPTransaction
+          version: v1alpha1
+          name: cmptransactions.certmanager.misiektoja.github.io
+          displayName: CMP Transaction
+          description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://misiektoja.github.io/cmp-issuer/
+        - name: Source
+          url: https://github.com/misiektoja/cmp-issuer
+        - name: Release notes
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/RELEASE_NOTES.md
+        - name: Security policy
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
+        - name: Issues
+          url: https://github.com/misiektoja/cmp-issuer/issues
+        - name: support
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md
+    apiVersion: v2
+    appVersion: v0.2.1
+    created: "2026-09-04T17:43:48.666248933Z"
+    description: Cert-manager issuer for Certificate Management Protocol (CMP) servers
+    digest: 6aa7662f4eb1cef027153c3692a126e41a920f0012e66c75d0134cee4e402c4c
+    home: https://misiektoja.github.io/cmp-issuer/
+    icon: https://raw.githubusercontent.com/misiektoja/cmp-issuer/main/docs/assets/logo.svg
+    keywords:
+    - kubernetes
+    - operator
+    - cert-manager
+    - cmp
+    - cmpv2
+    - rfc4210
+    - pki
+    - certificates
+    - x509
+    - issuer
+    kubeVersion: '>= 1.31.0-0'
+    maintainers:
+    - name: misiektoja
+      url: https://github.com/misiektoja
+    name: cmp-issuer
+    sources:
+    - https://github.com/misiektoja/cmp-issuer
+    type: application
+    urls:
+    - https://github.com/misiektoja/cmp-issuer/releases/download/v0.2.1/cmp-issuer-0.2.1.tgz
+    version: 0.2.1
+  - annotations:
+      artifacthub.io/category: security
+      artifacthub.io/changes: |
         - kind: added
           description: True CMP Key Update Request renewal with current-certificate authentication, CRMF proof of possession and oldCertID
         - kind: added
@@ -146,4 +220,4 @@ entries:
     urls:
     - https://github.com/misiektoja/cmp-issuer/releases/download/v0.1.0/cmp-issuer-0.1.0.tgz
     version: 0.1.0
-generated: "2026-08-28T01:32:04.085422019Z"
+generated: "2026-09-04T17:43:48.66414057Z"
