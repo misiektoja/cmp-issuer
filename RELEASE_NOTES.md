@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [0.2.1] - TBD
 
-This release corrects CMP transaction recovery and KUR retry behavior and gives the failure metric label a fixed vocabulary that alerts can match.
+This release corrects CMP transaction recovery and KUR retry behavior, tightens KUR workload Secret authorization and gives the failure metric label a fixed vocabulary that alerts can match.
 
 ### Bug fixes
 
@@ -16,6 +16,7 @@ This release corrects CMP transaction recovery and KUR retry behavior and gives 
 ### Improvements
 
 * **Unfinished KUR transactions survive metadata-only Secret writes** - The transaction digest identifies both workload Secrets by their UID and the consumed key material instead of resourceVersion, so an annotation or label written by another controller mid-transaction no longer stops the renewal. A key-material change still stops it before more CMP traffic. An unfinished KUR transaction recorded by 0.2.0 fails this check once after the upgrade and cert-manager enrolls again.
+* **KUR reads the current key only from a cert-manager output Secret** - Before the current workload key is read, the Secret named by `Certificate.spec.secretName` must carry cert-manager's `cert-manager.io/certificate-name` annotation for the owning `Certificate`, and a controller owner reference on it must name that same `Certificate`. cert-manager writes the annotation whenever it stores an issued certificate and adds the owner reference only with `--enable-certificate-owner-ref`. A Secret replaced by another tool, or shared with a second `Certificate`, fails the renewal with `authorize KUR current certificate`.
 
 ## [0.2.0] - 28 Aug 2026
 
