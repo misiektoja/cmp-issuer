@@ -53,6 +53,9 @@ const testCMPFailure = "badRequest"
 
 // testCMPOperation is the protocol step the rejection fixtures report the failure against.
 const testCMPOperation = "process PKIStatus"
+
+// testDelayedRequestNonce is the enrollment sender nonce the waiting fixture records for later polls.
+const testDelayedRequestNonce = "request-nonce"
 const testRequestUID = types.UID("11111111-1111-1111-1111-111111111111")
 
 // asyncFixture holds the collaborators of one asynchronous transaction test.
@@ -99,7 +102,7 @@ func (f *asyncFixture) transaction(t *testing.T) *cmpv1alpha1.CMPTransaction {
 
 // waitingResult returns an enrollment outcome that reports a server-side waiting status.
 func waitingResult(certReqID int64, nonce string, checkAfter time.Duration) protocol.EnrollmentResult {
-	return protocol.EnrollmentResult{Pending: &protocol.PendingTransaction{CertReqID: certReqID, RecipNonce: []byte(nonce), CheckAfter: checkAfter, RequestNonce: []byte("request-nonce")}}
+	return protocol.EnrollmentResult{Pending: &protocol.PendingTransaction{CertReqID: certReqID, RecipNonce: []byte(nonce), CheckAfter: checkAfter, RequestNonce: []byte(testDelayedRequestNonce)}}
 }
 
 // requirePending asserts that a Sign call asked for another reconcile after the expected delay.
@@ -167,11 +170,11 @@ func TestSignPollsRecordedTransactionUntilIssued(t *testing.T) {
 	if fixture.protocol.pollRequest.CertReqID != protocol.ResponseCertReqIDStandard {
 		t.Fatalf("expected the poll to carry the recorded certReqId, got %d", fixture.protocol.pollRequest.CertReqID)
 	}
-	if string(fixture.protocol.pollRequest.RequestNonce) != "request-nonce" {
+	if string(fixture.protocol.pollRequest.RequestNonce) != testDelayedRequestNonce {
 		t.Fatalf("expected the poll to carry the recorded request nonce, got %q", fixture.protocol.pollRequest.RequestNonce)
 	}
 	stored := fixture.transaction(t)
-	if string(stored.Status.RequestNonce) != "request-nonce" {
+	if string(stored.Status.RequestNonce) != testDelayedRequestNonce {
 		t.Fatalf("expected the delayed request nonce to be persisted, got %q", stored.Status.RequestNonce)
 	}
 	if string(stored.Status.RecipNonce) != "nonce-two" {
@@ -391,13 +394,13 @@ func TestSignResendsCertConfAfterADelayedEnrollment(t *testing.T) {
 	issued := issuedCertificateFor(t, fixture.request.details.CSR)
 	fixture.protocol.queue = []fakeExchange{
 		{result: waitingResult(protocol.ResponseCertReqIDStandard, "nonce-one", 0)},
-		{result: confirmingResult(issued, "confirm-nonce")},
+		{result: confirmingResult(issued, "cp-nonce")},
 		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: "HTTP exchange", Failure: "systemUnavail"}},
 		{result: protocol.EnrollmentResult{ExplicitConfirmation: true}},
 	}
 
 	requirePending(t, mustFail(fixture.sign(t)), time.Second)
-	if stored := fixture.transaction(t); string(stored.Status.RequestNonce) != "request-nonce" {
+	if stored := fixture.transaction(t); string(stored.Status.RequestNonce) != testDelayedRequestNonce {
 		t.Fatalf("expected the delayed enrollment nonce to be recorded while polling, got %q", stored.Status.RequestNonce)
 	}
 
