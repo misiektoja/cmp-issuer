@@ -690,6 +690,62 @@ func TestSignRetriesEnrollmentUnderTheRecordedTransactionID(t *testing.T) {
 	}
 }
 
+// deleteRecorder captures the preconditions the transaction store attaches to each delete.
+type deleteRecorder struct {
+	client.Client
+	preconditions []*types.UID
+}
+
+// Delete records the UID precondition of a delete before delegating to the fake Kubernetes client.
+func (d *deleteRecorder) Delete(ctx context.Context, object client.Object, options ...client.DeleteOption) error {
+	deleteOptions := &client.DeleteOptions{}
+	deleteOptions.ApplyOptions(options)
+	var uid *types.UID
+	if deleteOptions.Preconditions != nil {
+		uid = deleteOptions.Preconditions.UID
+	}
+	d.preconditions = append(d.preconditions, uid)
+	return d.Client.Delete(ctx, object, options...)
+}
+
+// TestTransactionDeletesNameTheRecordedUID verifies both transaction deletes name the record that was
+// read, so a record deleted and recreated under the same name is not removed for another request.
+func TestTransactionDeletesNameTheRecordedUID(t *testing.T) {
+	ctx := context.Background()
+	completedUID := types.UID("55555555-5555-5555-5555-555555555555")
+	staleUID := types.UID("66666666-6666-6666-6666-666666666666")
+	recorded := &cmpv1alpha1.CMPTransaction{ObjectMeta: metav1.ObjectMeta{Namespace: testIssuerNamespace, Name: testRequestName, UID: completedUID}, Spec: cmpv1alpha1.CMPTransactionSpec{CertificateRequestName: testRequestName, CertificateRequestUID: string(testRequestUID)}}
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(recorded).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+	deletes := &deleteRecorder{Client: kubeClient}
+	store := &transactionStore{reader: kubeClient, writer: deletes}
+
+	loaded, err := store.load(ctx, testIssuerNamespace, testRequestName, testRequestUID)
+	if err != nil || loaded == nil {
+		t.Fatalf("expected the recorded transaction, got %v and %v", loaded, err)
+	}
+	if err := store.remove(ctx, loaded); err != nil {
+		t.Fatalf("remove the completed transaction: %v", err)
+	}
+
+	stale := &cmpv1alpha1.CMPTransaction{ObjectMeta: metav1.ObjectMeta{Namespace: testIssuerNamespace, Name: testRequestName, UID: staleUID}, Spec: cmpv1alpha1.CMPTransactionSpec{CertificateRequestName: testRequestName, CertificateRequestUID: "77777777-7777-7777-7777-777777777777"}}
+	if err := kubeClient.Create(ctx, stale); err != nil {
+		t.Fatalf("record the transaction of another request: %v", err)
+	}
+	discarded, err := store.load(ctx, testIssuerNamespace, testRequestName, testRequestUID)
+	if err != nil || discarded != nil {
+		t.Fatalf("expected the transaction of another request to be discarded, got %v and %v", discarded, err)
+	}
+
+	if len(deletes.preconditions) != 2 {
+		t.Fatalf("expected the completed and the discarded transaction to be deleted, got %d deletes", len(deletes.preconditions))
+	}
+	for index, expected := range []types.UID{completedUID, staleUID} {
+		if deletes.preconditions[index] == nil || *deletes.preconditions[index] != expected {
+			t.Fatalf("expected delete %d to require UID %q, got %v", index, expected, deletes.preconditions[index])
+		}
+	}
+}
+
 // TestSignRemovesStateOnPermanentFailure verifies a rejected transaction leaves no stale state.
 func TestSignRemovesStateOnPermanentFailure(t *testing.T) {
 	fixture := newAsyncFixture(t, []fakeExchange{
