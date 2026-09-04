@@ -590,6 +590,38 @@ func responseGrantsImplicitConfirm(response *pkicmp.PKIMessage) bool {
 	return false
 }
 
+// classifiedFailureBits orders the CMP failure bits a bounded failure name can report, the most
+// security-relevant first, so a response setting several bits is named by the one that matters most
+// to an operator watching the failure metric.
+var classifiedFailureBits = []struct {
+	bit  pkicmp.PKIFailureInfo
+	name string
+}{
+	{pkicmp.FailBadMessageCheck, "badMessageCheck"},
+	{pkicmp.FailSignerNotTrusted, "signerNotTrusted"},
+	{pkicmp.FailNotAuthorized, "notAuthorized"},
+	{pkicmp.FailBadPOP, "badPOP"},
+	{pkicmp.FailBadCertTemplate, "badCertTemplate"},
+	{pkicmp.FailBadAlg, "badAlg"},
+	{pkicmp.FailTransactionIdInUse, "transactionIdInUse"},
+	{pkicmp.FailBadRequest, "badRequest"},
+	{pkicmp.FailSystemUnavail, "systemUnavail"},
+	{pkicmp.FailSystemFailure, "systemFailure"},
+}
+
+// boundedFailureName maps peer-chosen failure bits onto one name from a fixed vocabulary. The name
+// becomes a Prometheus label, and rendering the raw bit combination there would let the peer mint a
+// new metric series per combination while defeating alerts that match one exact name. The complete
+// bit list stays available in the wrapped status error, which the failure log line carries.
+func boundedFailureName(failInfo pkicmp.PKIFailureInfo) string {
+	for _, candidate := range classifiedFailureBits {
+		if failInfo&candidate.bit != 0 {
+			return candidate.name
+		}
+	}
+	return "unknownStatus"
+}
+
 // classifyStatus maps CMP status and failure bits to typed controller behavior.
 func classifyStatus(status pkicmp.PKIStatusInfo) error {
 	if status.Status == pkicmp.StatusAccepted || status.Status == pkicmp.StatusGrantedWithMods {
@@ -604,10 +636,10 @@ func classifyStatus(status pkicmp.PKIStatusInfo) error {
 	// transaction identifier.
 	permanentBits := pkicmp.FailBadPOP | pkicmp.FailBadRequest | pkicmp.FailBadCertTemplate | pkicmp.FailNotAuthorized | pkicmp.FailBadAlg | pkicmp.FailBadMessageCheck | pkicmp.FailSignerNotTrusted | pkicmp.FailTransactionIdInUse
 	if status.FailInfo&permanentBits != 0 {
-		return permanent("process PKIStatus", status.FailInfo.String(), statusErr)
+		return permanent("process PKIStatus", boundedFailureName(status.FailInfo), statusErr)
 	}
 	if status.FailInfo&(pkicmp.FailSystemUnavail|pkicmp.FailSystemFailure) != 0 {
-		return retryable("process PKIStatus", status.FailInfo.String(), statusErr)
+		return retryable("process PKIStatus", boundedFailureName(status.FailInfo), statusErr)
 	}
 	return permanent("process PKIStatus", "unknownStatus", statusErr)
 }
