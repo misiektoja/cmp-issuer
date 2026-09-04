@@ -201,6 +201,46 @@ func mustLoad(t *testing.T, ctx context.Context, store *transactionStore, namesp
 	return loaded
 }
 
+// TestTransactionStoreKeepsRecreatedStateAgainstAPIServer verifies the API server refuses to remove a
+// transaction that was recreated under the same name after the record being removed was read.
+func TestTransactionStoreKeepsRecreatedStateAgainstAPIServer(t *testing.T) {
+	kubeClient := startEnvtest(t)
+	ctx := context.Background()
+	namespace := "cmp-transaction-recreated"
+	if err := kubeClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	store := &transactionStore{reader: kubeClient, writer: kubeClient}
+	completed, err := store.create(ctx, namespace, testRequestName, testRequestUID, time.Now().Add(time.Hour), testTransactionDetail())
+	if err != nil {
+		t.Fatalf("create transaction: %v", err)
+	}
+	if err := kubeClient.Delete(ctx, completed); err != nil {
+		t.Fatalf("delete the recorded transaction: %v", err)
+	}
+	recreated, err := store.create(ctx, namespace, testRequestName, testRequestUID, time.Now().Add(time.Hour), testTransactionDetail())
+	if err != nil {
+		t.Fatalf("recreate the transaction: %v", err)
+	}
+
+	if err := store.remove(ctx, completed); err != nil {
+		t.Fatalf("expected removing a replaced transaction to be tolerated, got %v", err)
+	}
+	stored := &cmpv1alpha1.CMPTransaction{}
+	if err := kubeClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: testRequestName}, stored); err != nil {
+		t.Fatalf("expected the recreated transaction to survive, got %v", err)
+	}
+	if stored.UID != recreated.UID {
+		t.Fatalf("expected the recreated transaction %q, got %q", recreated.UID, stored.UID)
+	}
+	if err := store.remove(ctx, recreated); err != nil {
+		t.Fatalf("remove the recreated transaction: %v", err)
+	}
+	if err := kubeClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: testRequestName}, stored); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the recreated transaction to be removed by its own reconcile, got %v", err)
+	}
+}
+
 // TestTransactionStoreDiscardsForeignStateAgainstAPIServer verifies a reused name is not resumed.
 func TestTransactionStoreDiscardsForeignStateAgainstAPIServer(t *testing.T) {
 	kubeClient := startEnvtest(t)
