@@ -72,8 +72,9 @@ func (t *transactionStore) load(ctx context.Context, namespace string, name stri
 	}
 	if transaction.Spec.CertificateRequestUID != string(uid) {
 		// The name was reused by a recreated CertificateRequest, so the recorded transaction belongs
-		// to a request that no longer exists and must not be resumed.
-		if err := t.writer.Delete(ctx, transaction); err != nil && !apierrors.IsNotFound(err) {
+		// to a request that no longer exists and must not be resumed. A replacement written between the
+		// read and the delete survives and is reported as a conflict that the next reconcile reads again.
+		if err := t.writer.Delete(ctx, transaction, deletePreconditions(transaction)...); err != nil && !apierrors.IsNotFound(err) {
 			return nil, fmt.Errorf("remove stale CMP transaction state: %w", err)
 		}
 		return nil, nil
@@ -189,10 +190,21 @@ func (t *transactionStore) recordPending(ctx context.Context, transaction *cmpv1
 	return nil
 }
 
-// remove deletes transaction state once the transaction reached a terminal outcome.
+// remove deletes transaction state once the transaction reached a terminal outcome. A record already
+// replaced under the same name answers with a conflict and is left to the reconcile that created it.
 func (t *transactionStore) remove(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction) error {
-	if err := t.writer.Delete(ctx, transaction); err != nil && !apierrors.IsNotFound(err) {
+	err := t.writer.Delete(ctx, transaction, deletePreconditions(transaction)...)
+	if err != nil && !apierrors.IsNotFound(err) && !apierrors.IsConflict(err) {
 		return fmt.Errorf("remove CMP transaction state: %w", err)
 	}
 	return nil
+}
+
+// deletePreconditions binds a delete to the exact record that was read, so that a record deleted and
+// recreated under the same name by another writer is never removed on behalf of a different request.
+func deletePreconditions(transaction *cmpv1alpha1.CMPTransaction) []client.DeleteOption {
+	if transaction.UID == "" {
+		return nil
+	}
+	return []client.DeleteOption{client.Preconditions{UID: &transaction.UID}}
 }
