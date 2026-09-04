@@ -469,7 +469,26 @@ type runtimeConfiguration struct {
 	EnrollmentRequest    protocol.EnrollmentRequest
 	Transaction          cmpv1alpha1.TransactionSpec
 	ConfigurationDigest  string
-	ConfigurationSecrets map[types.NamespacedName]*corev1.Secret
+	ConfigurationSecrets map[types.NamespacedName]secretFingerprint
+}
+
+// secretFingerprint identifies the version of one Secret a transaction depends on. A credential
+// Secret carries its resourceVersion, because any write to it is a rotation signal. A KUR workload
+// Secret carries a digest of the key material actually consumed instead, so a metadata-only write by
+// another controller does not fail an unfinished transaction.
+type secretFingerprint struct {
+	UID             string
+	ResourceVersion string
+	DataDigest      string
+}
+
+// credentialFingerprints identifies credential Secrets by their UID and resourceVersion.
+func credentialFingerprints(secrets map[types.NamespacedName]*corev1.Secret) map[types.NamespacedName]secretFingerprint {
+	fingerprints := make(map[types.NamespacedName]secretFingerprint, len(secrets))
+	for key, secret := range secrets {
+		fingerprints[key] = secretFingerprint{UID: string(secret.UID), ResourceVersion: secret.ResourceVersion}
+	}
+	return fingerprints
 }
 
 // configurationError distinguishes immutable spec failures from retryable Secret state.
@@ -558,7 +577,8 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if sender != nil {
 		request.Sender = sender
 	}
-	configurationDigest, err := runtimeConfigurationDigest(issuerReference(issuer), secrets)
+	fingerprints := credentialFingerprints(secrets)
+	configurationDigest, err := runtimeConfigurationDigest(issuerReference(issuer), fingerprints)
 	if err != nil {
 		return runtimeConfiguration{}, permanentConfiguration("identify issuer configuration", err)
 	}
@@ -566,20 +586,23 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if renewalScheme == schemeHTTP {
 		endpointScheme = schemeHTTP
 	}
-	return runtimeConfiguration{EndpointScheme: endpointScheme, RenewalEndpointURL: spec.Endpoint.RenewalURL, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction), ConfigurationDigest: configurationDigest, ConfigurationSecrets: secrets}, nil
+	return runtimeConfiguration{EndpointScheme: endpointScheme, RenewalEndpointURL: spec.Endpoint.RenewalURL, EnrollmentRequest: request, Transaction: transactionLimitsWithDefaults(spec.Transaction), ConfigurationDigest: configurationDigest, ConfigurationSecrets: fingerprints}, nil
 }
 
-// runtimeConfigurationDigest identifies the issuer generation and credential Secret versions used by a transaction.
-func runtimeConfigurationDigest(issuerRef cmpv1alpha1.TransactionIssuerReference, secrets map[types.NamespacedName]*corev1.Secret) (string, error) {
+// runtimeConfigurationDigest identifies the issuer generation and the Secret versions used by a transaction.
+func runtimeConfigurationDigest(issuerRef cmpv1alpha1.TransactionIssuerReference, secrets map[types.NamespacedName]secretFingerprint) (string, error) {
+	// DataDigest is omitted when empty so a digest computed over credential Secrets alone keeps the
+	// encoding of earlier releases, which lets an unfinished P10CR transaction survive an upgrade.
 	type secretIdentity struct {
 		Namespace       string `json:"namespace"`
 		Name            string `json:"name"`
 		UID             string `json:"uid"`
 		ResourceVersion string `json:"resourceVersion"`
+		DataDigest      string `json:"dataDigest,omitempty"`
 	}
 	identities := make([]secretIdentity, 0, len(secrets))
-	for key, secret := range secrets {
-		identities = append(identities, secretIdentity{Namespace: key.Namespace, Name: key.Name, UID: string(secret.UID), ResourceVersion: secret.ResourceVersion})
+	for key, fingerprint := range secrets {
+		identities = append(identities, secretIdentity{Namespace: key.Namespace, Name: key.Name, UID: fingerprint.UID, ResourceVersion: fingerprint.ResourceVersion, DataDigest: fingerprint.DataDigest})
 	}
 	slices.SortFunc(identities, func(left secretIdentity, right secretIdentity) int {
 		if namespaceOrder := strings.Compare(left.Namespace, right.Namespace); namespaceOrder != 0 {
