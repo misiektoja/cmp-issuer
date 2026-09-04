@@ -23,6 +23,7 @@ A transaction that obtained a certificate keeps its record, including the issued
 | Limitation | Status |
 | --- | --- |
 | IR and CRMF | Planned |
+| `spec.protocol.certProfile` | Reserved until its CMP encoding is implemented. A non-empty value makes the issuer NotReady |
 | KUR with a changed subject or SAN | Unsupported by design. Use P10CR where the server permits re-enrollment or wait for planned CR support |
 | KUR after the old certificate expires | Unsupported by RFC profile requirements. Renew while it is still valid |
 | PBMAC1 | Planned |
