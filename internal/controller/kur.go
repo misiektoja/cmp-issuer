@@ -90,7 +90,12 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 	certificate := &certmanagerv1.Certificate{}
 	certificateKey := types.NamespacedName{Namespace: request.GetNamespace(), Name: owner.Name}
 	if err := s.KubeClient.Get(ctx, certificateKey, certificate); err != nil {
-		return kurMaterial{}, permanentConfiguration("read owning Certificate", err)
+		// Only an absent owner is final, because the recorded owner UID cannot return. Any other
+		// failure is API-server state that a later reconcile can succeed against.
+		if apierrors.IsNotFound(err) {
+			return kurMaterial{}, permanentConfiguration("read owning Certificate", err)
+		}
+		return kurMaterial{}, retryableConfiguration("read owning Certificate", err)
 	}
 	if certificate.UID == "" || owner.UID != certificate.UID || certificate.DeletionTimestamp != nil {
 		return kurMaterial{}, permanentConfiguration("authorize KUR CertificateRequest", fmt.Errorf("certificate owner identity is absent, deleted or mismatched"))
