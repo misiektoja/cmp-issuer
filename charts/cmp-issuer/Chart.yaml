@@ -8,8 +8,8 @@ type: application
 ## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
 ## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
 ## tag the registry does not have.
-version: 0.2.0
-appVersion: "v0.2.0"
+version: 0.2.1
+appVersion: "v0.2.1"
 
 ## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
 ## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
@@ -75,13 +75,15 @@ annotations:
       displayName: CMP Transaction
       description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
   artifacthub.io/changes: |
-    - kind: added
-      description: True CMP Key Update Request renewal with current-certificate authentication, CRMF proof of possession and oldCertID
-    - kind: added
-      description: Separate renewal endpoints for CMP servers that use different aliases for enrollment and key update
-    - kind: added
-      description: Interoperable and RFC 9483 response validation profiles with focused compatibility controls
+    - kind: fixed
+      description: An interrupted confirmation resends certConf instead of polling for an answer to a certConf that was never sent
+    - kind: fixed
+      description: KUR renewals retry temporary Kubernetes API failures while reading the owning Certificate
+    - kind: fixed
+      description: The failure metric label carries one bit name from a fixed vocabulary instead of a combined bit list
     - kind: changed
-      description: KUR workload keys are read only after cert-manager ownership, revision and Secret state validation
+      description: Unfinished KUR transactions survive metadata-only writes to their workload Secrets
     - kind: changed
-      description: Release downloads include complete source archives, checksums and build provenance attestations
+      description: KUR reads the current key only from a Secret that cert-manager wrote for the owning Certificate
+    - kind: changed
+      description: spec.protocol.certProfile is documented as reserved until its encoding is implemented
