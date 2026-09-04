@@ -21,6 +21,8 @@ RBAC reinforces the boundary. The controller ClusterRole grants no default Secre
 
 KUR reads the current workload key and the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, immediately previous revision, issuer reference, current output Secret, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
 
+The current output Secret is accepted only when cert-manager's `cert-manager.io/certificate-name` annotation names the owning `Certificate`, and a controller owner reference on it must name that same `Certificate`. cert-manager sets the annotation on every issuance and adds the owner reference only with `--enable-certificate-owner-ref`.
+
 The current key protects the CMP message with the certificate being updated. The requested key signs CRMF proof of possession. With `rotationPolicy: Never` both roles can use the same key material.
 
 Only `tls.key` is parsed from the staged Secret. The current Secret contributes `tls.crt` and `tls.key`. Each Secret's UID and a digest of exactly those data keys are bound into the durable transaction configuration digest, so a change to the key material stops an unfinished transaction while a metadata-only write does not.
