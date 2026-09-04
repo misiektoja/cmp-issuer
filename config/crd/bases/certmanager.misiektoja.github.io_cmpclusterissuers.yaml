@@ -228,8 +228,9 @@ spec:
                 description: Protocol configures the CMP operation and header identities.
                 properties:
                   certProfile:
-                    description: CertProfile is an optional server-side certificate
-                      profile identifier.
+                    description: |-
+                      CertProfile is reserved until its CMP encoding is implemented. The controller rejects a
+                      non-empty value.
                     maxLength: 256
                     type: string
                   confirmation:
