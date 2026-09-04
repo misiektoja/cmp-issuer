@@ -384,6 +384,49 @@ func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
 	}
 }
 
+// TestSignResendsCertConfAfterADelayedEnrollment verifies an interrupted confirmation of a delayed
+// enrollment resends certConf instead of polling for a certConf that was never sent.
+func TestSignResendsCertConfAfterADelayedEnrollment(t *testing.T) {
+	fixture := newAsyncFixture(t, nil)
+	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	fixture.protocol.queue = []fakeExchange{
+		{result: waitingResult(protocol.ResponseCertReqIDStandard, "nonce-one", 0)},
+		{result: confirmingResult(issued, "confirm-nonce")},
+		{err: &protocol.Error{Kind: protocol.ErrorKindRetryable, Operation: "HTTP exchange", Failure: "systemUnavail"}},
+		{result: protocol.EnrollmentResult{ExplicitConfirmation: true}},
+	}
+
+	requirePending(t, mustFail(fixture.sign(t)), time.Second)
+	if stored := fixture.transaction(t); string(stored.Status.RequestNonce) != "request-nonce" {
+		t.Fatalf("expected the delayed enrollment nonce to be recorded while polling, got %q", stored.Status.RequestNonce)
+	}
+
+	// The poll returns the issued certificate and the certConf that follows fails retryably, which
+	// leaves the transaction in the Confirming phase with certConf still unsent.
+	requirePending(t, mustFail(fixture.sign(t)), time.Second)
+	recorded := fixture.transaction(t)
+	if recorded == nil || recorded.Status.Phase != cmpv1alpha1.TransactionPhaseConfirming {
+		t.Fatalf("expected the confirming phase after the interrupted certConf, got %v", recorded)
+	}
+	if len(recorded.Status.RequestNonce) != 0 {
+		t.Fatalf("expected the enrollment nonce to be cleared when confirmation began, got %q", recorded.Status.RequestNonce)
+	}
+
+	bundle, err := fixture.sign(t)
+	if err != nil {
+		t.Fatalf("expected the resumed confirmation to complete, got %v", err)
+	}
+	if fixture.protocol.confirms != 2 {
+		t.Fatalf("expected certConf to be sent again, got %d confirmations", fixture.protocol.confirms)
+	}
+	if nonce := fixture.protocol.confirmRequest.RequestNonce; len(nonce) != 0 {
+		t.Fatalf("expected the resumed confirmation to resend certConf rather than poll, got request nonce %q", nonce)
+	}
+	if len(bundle.ChainPEM) == 0 {
+		t.Fatal("expected the confirmed chain to be returned")
+	}
+}
+
 // TestSignRejectsTransactionFromRecreatedIssuer verifies a reused issuer name cannot resume an old transaction.
 func TestSignRejectsTransactionFromRecreatedIssuer(t *testing.T) {
 	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
