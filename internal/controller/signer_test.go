@@ -275,7 +275,7 @@ func testKURRequestObjects(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, rotateKe
 	nextPrivateKeySecretName := "workload-next-key"
 	certificate := &certmanagerv1.Certificate{ObjectMeta: metav1.ObjectMeta{Name: testWorkloadCommonName, Namespace: testIssuerNamespace, UID: types.UID("22222222-2222-2222-2222-222222222222")}, Spec: certmanagerv1.CertificateSpec{SecretName: "workload-tls", IssuerRef: cmmeta.IssuerReference{Name: issuer.Name, Kind: cmpv1alpha1.TransactionIssuerKindNamespaced, Group: cmpv1alpha1.GroupVersion.Group}}, Status: certmanagerv1.CertificateStatus{Revision: &revision, NextPrivateKeySecretName: &nextPrivateKeySecretName}}
 	controllerReference := *metav1.NewControllerRef(certificate, certmanagerv1.SchemeGroupVersion.WithKind("Certificate"))
-	currentSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: certificate.Spec.SecretName, Namespace: testIssuerNamespace}, Data: map[string][]byte{corev1.TLSCertKey: currentCertificatePEM, corev1.TLSPrivateKeyKey: testKURKeyPEM(t, currentKey)}}
+	currentSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: certificate.Spec.SecretName, Namespace: testIssuerNamespace, Annotations: map[string]string{certmanagerv1.CertificateNameKey: certificate.Name}}, Data: map[string][]byte{corev1.TLSCertKey: currentCertificatePEM, corev1.TLSPrivateKeyKey: testKURKeyPEM(t, currentKey)}}
 	stagedSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: nextPrivateKeySecretName, Namespace: testIssuerNamespace, Labels: map[string]string{certmanagerv1.IsNextPrivateKeySecretLabelKey: "true"}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, Data: map[string][]byte{corev1.TLSPrivateKeyKey: testKURKeyPEM(t, requestedKey)}}
 	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID, Annotations: map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: "2", certmanagerv1.CertificateRequestPrivateKeyAnnotationKey: nextPrivateKeySecretName}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, details: issuersigner.CertificateDetails{CSR: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: requestDER})}}
 	return request, certificate, currentSecret, stagedSecret
@@ -624,7 +624,7 @@ func TestSignKURWorkloadSecretFingerprint(t *testing.T) {
 		if err := kubeClient.Get(context.Background(), types.NamespacedName{Namespace: testIssuerNamespace, Name: certificate.Spec.SecretName}, currentSecret); err != nil {
 			t.Fatalf("read current Secret: %v", err)
 		}
-		currentSecret.Annotations = map[string]string{"example.test/replicated-at": "sometime"}
+		currentSecret.Annotations["example.test/replicated-at"] = "sometime"
 		if err := kubeClient.Update(context.Background(), currentSecret); err != nil {
 			t.Fatalf("annotate current Secret: %v", err)
 		}
@@ -661,6 +661,63 @@ func TestSignKURWorkloadSecretFingerprint(t *testing.T) {
 			t.Fatalf("expected no KUR retry after the key rotation, got %d calls", protocolClient.kurCalls)
 		}
 	})
+}
+
+// TestSignAuthorizesTheKURCurrentSecret verifies the current workload key is read only from the
+// output Secret cert-manager wrote for the owning Certificate.
+func TestSignAuthorizesTheKURCurrentSecret(t *testing.T) {
+	foreign := &certmanagerv1.Certificate{ObjectMeta: metav1.ObjectMeta{Name: "other-workload", Namespace: testIssuerNamespace, UID: types.UID("44444444-4444-4444-4444-444444444444")}}
+	ownerKind := certmanagerv1.SchemeGroupVersion.WithKind(certificateKind)
+	for _, test := range []struct {
+		name       string
+		mutate     func(secret *corev1.Secret, certificate *certmanagerv1.Certificate)
+		authorized bool
+	}{
+		{name: "the annotated output Secret is authorized", authorized: true},
+		{name: "an owned output Secret is authorized", authorized: true, mutate: func(secret *corev1.Secret, certificate *certmanagerv1.Certificate) {
+			secret.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(certificate, ownerKind)}
+		}},
+		{name: "an unannotated Secret is refused", mutate: func(secret *corev1.Secret, _ *certmanagerv1.Certificate) {
+			delete(secret.Annotations, certmanagerv1.CertificateNameKey)
+		}},
+		{name: "a Secret written for another Certificate is refused", mutate: func(secret *corev1.Secret, _ *certmanagerv1.Certificate) {
+			secret.Annotations[certmanagerv1.CertificateNameKey] = foreign.Name
+		}},
+		{name: "a Secret controlled by another Certificate is refused", mutate: func(secret *corev1.Secret, _ *certmanagerv1.Certificate) {
+			secret.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(foreign, ownerKind)}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+			issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+			issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+			request, certificate, currentSecret, stagedSecret := testKURRequestObjects(t, issuer, true)
+			if test.mutate != nil {
+				test.mutate(currentSecret, certificate)
+			}
+			issued := issuedCertificateFor(t, request.details.CSR)
+			kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+			protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}
+			signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+			_, err := signer.Sign(context.Background(), request, issuer)
+			if test.authorized {
+				if err != nil {
+					t.Fatalf("expected the cert-manager output Secret to be authorized, got %v", err)
+				}
+				if protocolClient.kurCalls != 1 {
+					t.Fatalf("expected one KUR call, got %d", protocolClient.kurCalls)
+				}
+				return
+			}
+			var permanent issuersigner.PermanentError
+			if !errors.As(err, &permanent) || !strings.Contains(err.Error(), "authorize KUR current certificate") {
+				t.Fatalf("expected an unauthorized current Secret to fail permanently, got %v", err)
+			}
+			if protocolClient.kurCalls != 0 || protocolClient.calls != 0 {
+				t.Fatal("signer sent CMP traffic with a current Secret it could not attribute to the Certificate")
+			}
+		})
+	}
 }
 
 // failingCertificateReader answers every Certificate read with the configured error and delegates other reads.
