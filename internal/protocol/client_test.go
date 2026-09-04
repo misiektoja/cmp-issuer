@@ -652,8 +652,8 @@ func TestClassifyStatusBoundsTheFailureName(t *testing.T) {
 		failure  string
 		kind     ErrorKind
 	}{
-		"single bit keeps its name":           {failInfo: pkicmp.FailBadMessageCheck, failure: "badMessageCheck", kind: ErrorKindPermanent},
-		"security bit outranks request bits":  {failInfo: pkicmp.FailBadRequest | pkicmp.FailBadAlg | pkicmp.FailBadMessageCheck, failure: "badMessageCheck", kind: ErrorKindPermanent},
+		"single bit keeps its name":           {failInfo: pkicmp.FailBadMessageCheck, failure: testBadMessageCheck, kind: ErrorKindPermanent},
+		"security bit outranks request bits":  {failInfo: pkicmp.FailBadRequest | pkicmp.FailBadAlg | pkicmp.FailBadMessageCheck, failure: testBadMessageCheck, kind: ErrorKindPermanent},
 		"retryable bits stay retryable":       {failInfo: pkicmp.FailSystemUnavail | pkicmp.FailBadTime, failure: "systemUnavail", kind: ErrorKindRetryable},
 		"unclassified bits report one bucket": {failInfo: pkicmp.FailBadTime, failure: "unknownStatus", kind: ErrorKindPermanent},
 	} {
