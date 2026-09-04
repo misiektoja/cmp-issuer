@@ -1,11 +1,11 @@
 module github.com/misiektoja/cmp-issuer
 
-go 1.26.7
+go 1.26.8
 
 require (
 	github.com/cert-manager/cert-manager v1.21.1
 	github.com/cert-manager/issuer-lib v0.12.0
-	github.com/misiektoja/go-pkicmp-ng v0.0.3
+	github.com/misiektoja/go-pkicmp-ng v0.0.4
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/prometheus/client_golang v1.24.1
