@@ -38,7 +38,7 @@ Authorize workload key reads through cert-manager state rather than through an a
 
 KUR is rejected locally when the old certificate is not currently valid, its Key Usage extension forbids digital signatures or the CSR changes the subject or subject alternative names.
 
-Bind unfinished KUR state to the UID and resourceVersion of the current and staged workload Secrets in the transaction configuration digest. A change stops the transaction before more CMP traffic.
+Bind unfinished KUR state to the UID and a digest of the consumed key material of the current and staged workload Secrets in the transaction configuration digest. A key-material change stops the transaction before more CMP traffic, while a metadata-only write by another controller does not.
 
 ## Consequences
 
