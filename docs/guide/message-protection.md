@@ -208,8 +208,10 @@ behavior.
 Credentials are reloaded from the Secret on every reconcile. Rotating a Secret during an open
 transaction invalidates in-flight protection and the transaction fails within `maximumDuration`. The
 transaction configuration digest records the UID and resourceVersion of every referenced credential
-Secret. For KUR it also records both workload Secrets. cmp-issuer stops the unfinished transaction
-before sending more CMP traffic when any of those values changes. See [Known limitations](../known-limitations.md).
+Secret. For KUR it also records both workload Secrets by their UID and a digest of the consumed key
+material, so a metadata-only write to a workload Secret does not stop the transaction. cmp-issuer
+stops the unfinished transaction before sending more CMP traffic when any of those values changes.
+See [Known limitations](../known-limitations.md).
 
 ## Related pages
 
