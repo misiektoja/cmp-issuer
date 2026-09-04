@@ -21,7 +21,9 @@ package controller
 import (
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -41,7 +43,7 @@ import (
 type kurMaterial struct {
 	Protection          protocol.Protection
 	RequestedPrivateKey crypto.Signer
-	Secrets             map[types.NamespacedName]*corev1.Secret
+	Secrets             map[types.NamespacedName]secretFingerprint
 }
 
 // selectedTransactionOperation chooses KUR only for annotated cert-manager renewal revisions.
@@ -152,8 +154,22 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 		}
 		return kurMaterial{}, permanentConfiguration("validate KUR staged private key", err)
 	}
-	secrets := map[types.NamespacedName]*corev1.Secret{currentKey: currentSecret, stagedKey: stagedSecret}
+	secrets := map[types.NamespacedName]secretFingerprint{currentKey: workloadSecretFingerprint(currentSecret, corev1.TLSCertKey, corev1.TLSPrivateKeyKey), stagedKey: workloadSecretFingerprint(stagedSecret, corev1.TLSPrivateKeyKey)}
 	return kurMaterial{Protection: protocol.Protection{Signature: &protocol.SignatureProtection{PrivateKey: oldKey, Certificate: certificates[0], Chain: certificates[1:]}}, RequestedPrivateKey: requestedKey, Secrets: secrets}, nil
+}
+
+// workloadSecretFingerprint identifies a workload Secret by its UID and the data keys KUR consumes,
+// so a metadata-only write to the Secret leaves an unfinished transaction valid while a change to
+// the key material still stops it.
+func workloadSecretFingerprint(secret *corev1.Secret, keys ...string) secretFingerprint {
+	digest := sha256.New()
+	for _, key := range keys {
+		digest.Write([]byte(key))
+		digest.Write([]byte{0})
+		value := sha256.Sum256(secret.Data[key])
+		digest.Write(value[:])
+	}
+	return secretFingerprint{UID: string(secret.UID), DataDigest: hex.EncodeToString(digest.Sum(nil))}
 }
 
 // certificateRequestRevision parses cert-manager's immutable revision annotation.
