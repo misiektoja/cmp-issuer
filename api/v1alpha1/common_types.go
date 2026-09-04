@@ -168,7 +168,8 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=Strict;AllowSignature
 	// +optional
 	MACResponseProtection string `json:"macResponseProtection,omitempty"`
-	// CertProfile is an optional server-side certificate profile identifier.
+	// CertProfile is reserved until its CMP encoding is implemented. The controller rejects a
+	// non-empty value.
 	// +kubebuilder:validation:MaxLength=256
 	// +optional
 	CertProfile string `json:"certProfile,omitempty"`
