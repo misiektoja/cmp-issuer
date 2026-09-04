@@ -67,7 +67,7 @@ spec:
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
 | `p10crResponseCertReqId` | no | inherit profile | `Interoperable` accepts `-1` or `0`. `RFC9483` requires `-1`. Pin either value for a known server under the interoperable profile |
 | `macResponseProtection` | no | inherit profile | `Interoperable` uses `AllowSignature`, which accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `RFC9483` uses `Strict`, which requires MAC-based protection throughout |
-| `certProfile` | no | | Optional server certificate profile |
+| `certProfile` | no | | Reserved until its CMP encoding is implemented. A non-empty value is rejected |
 | `sender` | no | | Optional sender DN |
 
 ### `spec.protection`
