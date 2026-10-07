@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -253,6 +254,27 @@ func TestCertificateLogValuesDescribeTheIssuedLeaf(t *testing.T) {
 	}
 	if values["chainLength"] != 1 {
 		t.Fatalf("unexpected chainLength: %v", values["chainLength"])
+	}
+}
+
+// TestPublicKeyDescriptionNamesMLDSAParameterSets verifies ML-DSA keys are logged by parameter set and encoded size.
+func TestPublicKeyDescriptionNamesMLDSAParameterSets(t *testing.T) {
+	for _, test := range []struct {
+		parameters mldsa.Parameters
+		name       string
+		bits       int
+	}{
+		{parameters: mldsa.MLDSA44(), name: "ML-DSA-44", bits: mldsa.MLDSA44PublicKeySize * 8},
+		{parameters: mldsa.MLDSA65(), name: "ML-DSA-65", bits: mldsa.MLDSA65PublicKeySize * 8},
+		{parameters: mldsa.MLDSA87(), name: "ML-DSA-87", bits: mldsa.MLDSA87PublicKeySize * 8},
+	} {
+		key, err := mldsa.GenerateKey(test.parameters)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if name, bits := publicKeyDescription(key.Public()); name != test.name || bits != test.bits {
+			t.Fatalf("expected %s with %d bits, got %s with %d bits", test.name, test.bits, name, bits)
+		}
 	}
 }
 

@@ -20,8 +20,10 @@ package controller
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -232,7 +234,7 @@ func testScheme(t *testing.T) *runtime.Scheme {
 }
 
 // testKURKeyPEM encodes one private key for a cert-manager TLS Secret.
-func testKURKeyPEM(t *testing.T, key *ecdsa.PrivateKey) []byte {
+func testKURKeyPEM(t *testing.T, key crypto.Signer) []byte {
 	t.Helper()
 	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
@@ -242,7 +244,7 @@ func testKURKeyPEM(t *testing.T, key *ecdsa.PrivateKey) []byte {
 }
 
 // testKURCertificate issues a currently valid leaf PEM for the selected workload key and identity.
-func testKURCertificate(t *testing.T, key *ecdsa.PrivateKey) []byte {
+func testKURCertificate(t *testing.T, key crypto.Signer) []byte {
 	t.Helper()
 	template := &x509.Certificate{SerialNumber: big.NewInt(91), Subject: pkix.Name{CommonName: testWorkloadCommonName}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature}
 	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
@@ -252,20 +254,26 @@ func testKURCertificate(t *testing.T, key *ecdsa.PrivateKey) []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER})
 }
 
-// testKURRequestObjects builds the cert-manager ownership chain and current and staged key Secrets.
+// testKURRequestObjects builds the cert-manager ownership chain and current and staged ECDSA key Secrets.
 func testKURRequestObjects(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, rotateKey bool) (*fakeCertificateRequest, *certmanagerv1.Certificate, *corev1.Secret, *corev1.Secret) {
 	t.Helper()
 	currentKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	requestedKey := currentKey
+	var requestedKey crypto.Signer = currentKey
 	if rotateKey {
 		requestedKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+	return testKURRequestObjectsWithKeys(t, issuer, currentKey, requestedKey)
+}
+
+// testKURRequestObjectsWithKeys builds the cert-manager ownership chain and the current and staged key Secrets for the given keys.
+func testKURRequestObjectsWithKeys(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, currentKey crypto.Signer, requestedKey crypto.Signer) (*fakeCertificateRequest, *certmanagerv1.Certificate, *corev1.Secret, *corev1.Secret) {
+	t.Helper()
 	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: testWorkloadCommonName}}, requestedKey)
 	if err != nil {
 		t.Fatal(err)
@@ -560,6 +568,37 @@ func TestSignUsesKURForCertManagerRenewals(t *testing.T) {
 				t.Fatalf("expected persisted KUR operation and configuration digest, got %q and %q", stored.Spec.Operation, stored.Spec.ConfigurationDigest)
 			}
 		})
+	}
+}
+
+// TestSignUsesKURWithMLDSAWorkloadKeys verifies that ML-DSA keys cert-manager stores in PKCS #8
+// Secrets pass the KUR workload-key checks and reach the protocol client.
+func TestSignUsesKURWithMLDSAWorkloadKeys(t *testing.T) {
+	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+	issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+	currentKey, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestedKey, err := mldsa.GenerateKey(mldsa.MLDSA65())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, certificate, currentSecret, stagedSecret := testKURRequestObjectsWithKeys(t, issuer, currentKey, requestedKey)
+	issued := issuedCertificateFor(t, request.details.CSR)
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+	protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}
+	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+	bundle, err := signer.Sign(context.Background(), request, issuer)
+	if err != nil || len(bundle.ChainPEM) == 0 {
+		t.Fatalf("ML-DSA KUR Sign failed: %v", err)
+	}
+	if protocolClient.kurCalls != 1 || protocolClient.request.Protection.Signature == nil {
+		t.Fatalf("expected one signature-protected KUR call, got %d", protocolClient.kurCalls)
+	}
+	if !protocol.PublicKeysEqual(protocolClient.request.RequestedPrivateKey.Public(), requestedKey.Public()) || !protocol.PublicKeysEqual(protocolClient.request.Protection.Signature.PrivateKey.Public(), currentKey.Public()) {
+		t.Fatal("expected the staged ML-DSA key as the requested key and the current ML-DSA key as the protection key")
 	}
 }
 

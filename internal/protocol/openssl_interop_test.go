@@ -21,6 +21,10 @@ package protocol
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/ed25519"
+	"crypto/mldsa"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -102,8 +106,8 @@ func freePort(t *testing.T) int {
 
 // startOpenSSLMockServer runs the CMP mock server built into the openssl application and returns its address.
 // The mock returns the certificate given to it rather than signing the CSR, so the caller supplies a
-// certificate already issued for the CSR that the test enrolls.
-func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate, polls int) string {
+// certificate already issued for the CSR that the test enrolls. extra adds mock server options.
+func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate, polls int, extra ...string) string {
 	t.Helper()
 	binary := requireOpenSSLCMP(t)
 	dir := t.TempDir()
@@ -115,7 +119,7 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 	certificatePath := writePEM(t, dir, "srv_cert.pem", "CERTIFICATE", pki.CACertificate.Raw)
 	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
 	port := freePort(t)
-	arguments := []string{
+	arguments := append([]string{
 		"cmp", opensslPortOption, fmt.Sprint(port),
 		"-srv_secret", "pass:" + opensslMockPassword,
 		"-srv_ref", opensslMockReference,
@@ -125,7 +129,7 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 		"-poll_count", fmt.Sprint(polls),
 		"-check_after", "1",
 		"-max_msgs", "0",
-	}
+	}, extra...)
 	command := exec.Command(binary, arguments...)
 	output := &bytes.Buffer{}
 	command.Stdout = output
@@ -157,7 +161,8 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 }
 
 // startOpenSSLKURMockServer runs an independently authenticated signature-protected KUR responder.
-func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate) string {
+// extra adds mock server options.
+func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate, extra ...string) string {
 	t.Helper()
 	binary := requireOpenSSLCMP(t, opensslReferenceCertificateOption)
 	dir := t.TempDir()
@@ -171,7 +176,7 @@ func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certific
 	currentPath := writePEM(t, dir, "ref_cert.pem", "CERTIFICATE", current.Raw)
 	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
 	port := freePort(t)
-	arguments := []string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, opensslReferenceCertificateOption, currentPath, "-rsp_cert", issuedPath, "-rsp_extracerts", certificatePath, "-max_msgs", "0"}
+	arguments := append([]string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, opensslReferenceCertificateOption, currentPath, "-rsp_cert", issuedPath, "-rsp_extracerts", certificatePath, "-max_msgs", "0"}, extra...)
 	command := exec.Command(binary, arguments...)
 	output := &bytes.Buffer{}
 	command.Stdout = output
@@ -361,13 +366,7 @@ func TestPinnedTransactionAgainstOpenSSLMockServer(t *testing.T) {
 
 // TestKURAgainstOpenSSLMockServer verifies new-key and same-key CRMF updates with an independent implementation.
 func TestKURAgainstOpenSSLMockServer(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		rotateKey bool
-	}{
-		{name: "new key", rotateKey: true},
-		{name: "same key", rotateKey: false},
-	} {
+	for _, test := range keyRotationCases {
 		t.Run(test.name, func(t *testing.T) {
 			pki := newTestPKI(t)
 			request := kurEnrollmentRequest(t, pki, "", test.rotateKey)
@@ -406,4 +405,124 @@ func TestOpenSSLMockServerReportsVersion(t *testing.T) {
 		t.Fatalf("read the openssl version: %v", err)
 	}
 	t.Logf("CMP interoperability coverage uses %s", strings.TrimSpace(string(version)))
+}
+
+// requireOpenSSLMLDSA skips the test unless the OpenSSL build implements ML-DSA, which it does from 3.5.
+func requireOpenSSLMLDSA(t *testing.T) {
+	t.Helper()
+	binary := requireOpenSSLCMP(t)
+	algorithms, err := exec.Command(binary, "list", "-signature-algorithms").Output()
+	if err != nil || !bytes.Contains(algorithms, []byte("ML-DSA-65")) {
+		t.Skipf("this openssl build does not implement ML-DSA, skipping: %v", err)
+	}
+}
+
+// opensslGrantImplicitConfirmOption makes the OpenSSL mock server grant the implicit confirmation a request asks for.
+const opensslGrantImplicitConfirmOption = "-grant_implicitconf"
+
+// TestMLDSAEnrollmentAgainstOpenSSLMockServer verifies an ML-DSA CSR, an ML-DSA CA and an ML-DSA
+// signed CP against an independent implementation. The OpenSSL mock server ignores hashAlg and checks
+// the certHash of an ML-DSA-signed certificate with SHA-256, while certConf names SHA-512, so the
+// enrollment is confirmed implicitly.
+func TestMLDSAEnrollmentAgainstOpenSSLMockServer(t *testing.T) {
+	requireOpenSSLMLDSA(t)
+	pki := newMLDSAPKI(t)
+	key := newMLDSAKey(t, mldsa.MLDSA65())
+	request := baseEnrollmentRequest(t, pki, "")
+	request.CSRDER = createCSRWithKey(t, "cmp-issuer-mldsa-test", key)
+	request.Protection.Password = &PasswordProtection{Reference: []byte(opensslMockReference), Secret: []byte(opensslMockPassword), IterationCount: 1024}
+	request.TransactionID = []byte("openssl-mldsa-transaction")
+	request.ImplicitConfirm = true
+	certificateRequest, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		t.Fatalf("parse CSR: %v", err)
+	}
+	// The mock server returns this certificate verbatim, so it must already carry the enrolled key.
+	issued := issueLeaf(t, pki, certificateRequest, certificateRequest.PublicKey)
+	proxy, _ := newSingleConnectionProxy(t, startOpenSSLMockServer(t, pki, issued, 0, opensslGrantImplicitConfirmOption))
+	request.EndpointURL = proxy.URL
+	result, err := NewClient().EnrollP10CR(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ML-DSA enrollment returned error: %v", err)
+	}
+	if result.PendingConfirmation != nil || len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+		t.Fatal("expected the implicitly confirmed ML-DSA certificate the mock server was configured to return")
+	}
+}
+
+// TestMLDSAKURAgainstOpenSSLMockServer verifies ML-DSA KUR protection, ML-DSA proof of possession and
+// an ML-DSA-signed KUP against an independent implementation, confirmed implicitly for the reason
+// TestMLDSAEnrollmentAgainstOpenSSLMockServer gives.
+func TestMLDSAKURAgainstOpenSSLMockServer(t *testing.T) {
+	requireOpenSSLMLDSA(t)
+	for _, test := range keyRotationCases {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newMLDSAPKI(t)
+			currentKey := newMLDSAKey(t, mldsa.MLDSA65())
+			requestedKey := currentKey
+			if test.rotateKey {
+				requestedKey = newMLDSAKey(t, mldsa.MLDSA65())
+			}
+			request := kurRequestWithKeys(t, pki, "", currentKey, requestedKey)
+			request.ImplicitConfirm = true
+			certificateRequest, err := x509.ParseCertificateRequest(request.CSRDER)
+			if err != nil {
+				t.Fatalf("parse KUR CSR: %v", err)
+			}
+			issued := issueLeaf(t, pki, certificateRequest, requestedKey.Public())
+			proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued, opensslGrantImplicitConfirmOption))
+			request.EndpointURL = proxy.URL
+			result, err := NewClient().EnrollKUR(context.Background(), request)
+			if err != nil {
+				t.Fatalf("OpenSSL ML-DSA KUR returned error: %v", err)
+			}
+			if result.PendingConfirmation != nil || len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+				t.Fatal("expected the implicitly confirmed ML-DSA KUR certificate configured on the OpenSSL mock server")
+			}
+			sent, err := pkicmp.ParsePKIMessage(forwarded.at(0))
+			if err != nil || sent.Body.Type != pkicmp.BodyTypeKUR {
+				t.Fatalf("expected OpenSSL to accept a KUR body, got %v and %v", sent, err)
+			}
+		})
+	}
+}
+
+// TestEd25519KURAgainstOpenSSLMockServer verifies Ed25519 KUR protection and Ed25519 proof of
+// possession against an independent implementation, which checks the pure Ed25519 signature.
+func TestEd25519KURAgainstOpenSSLMockServer(t *testing.T) {
+	for _, test := range keyRotationCases {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			currentKey := newEd25519Key(t)
+			requestedKey := currentKey
+			if test.rotateKey {
+				requestedKey = newEd25519Key(t)
+			}
+			request := kurRequestWithKeys(t, pki, "", currentKey, requestedKey)
+			certificateRequest, err := x509.ParseCertificateRequest(request.CSRDER)
+			if err != nil {
+				t.Fatalf("parse KUR CSR: %v", err)
+			}
+			issued := issueLeaf(t, pki, certificateRequest, requestedKey.Public())
+			proxy, _ := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued))
+			request.EndpointURL = proxy.URL
+			result, err := NewClient().EnrollKUR(context.Background(), request)
+			if err != nil {
+				t.Fatalf("OpenSSL Ed25519 KUR returned error: %v", err)
+			}
+			if len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+				t.Fatal("expected the Ed25519 KUR certificate configured on the OpenSSL mock server")
+			}
+		})
+	}
+}
+
+// newEd25519Key generates an Ed25519 key for one test.
+func newEd25519Key(t *testing.T) crypto.Signer {
+	t.Helper()
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate Ed25519 key: %v", err)
+	}
+	return key
 }

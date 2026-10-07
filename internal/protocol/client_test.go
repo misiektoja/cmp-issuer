@@ -42,7 +42,10 @@ import (
 	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
 )
 
-const testFailureCertReqIDMismatch = "certReqIdMismatch"
+const (
+	testFailureCertReqIDMismatch = "certReqIdMismatch"
+	testFailurePublicKeyMismatch = "publicKeyMismatch"
+)
 
 // Names used by the response sender comparison tests, modelled on a CA whose subject carries a UID.
 const (
@@ -77,6 +80,15 @@ type mockOptions struct {
 	KUPCAPubs           bool
 	HTTPStatus          int
 	ContentType         string
+	// ResponsePVNO overrides the protocol version of every response, which otherwise repeats the
+	// version of the request as RFC 9810 section 7 requires.
+	ResponsePVNO int
+	// GrantedWithMods answers an enrollment with status grantedWithMods.
+	GrantedWithMods bool
+	// GrantImplicitConfirm grants the implicit confirmation an enrollment asks for.
+	GrantImplicitConfirm bool
+	// FailCertConf answers certConf with an HTTP error and no CMP body.
+	FailCertConf bool
 }
 
 // mockState records authenticated request bodies observed by the mock server.
@@ -85,6 +97,8 @@ type mockState struct {
 	bodyTypes             []pkicmp.BodyType
 	confirmationCertReqID int64
 	confirmationObserved  bool
+	confirmationStatus    pkicmp.CertStatus
+	confirmationPVNO      int
 }
 
 // add records one request body type.
@@ -94,6 +108,13 @@ func (s *mockState) add(bodyType pkicmp.BodyType) {
 	s.bodyTypes = append(s.bodyTypes, bodyType)
 }
 
+// observedBodies returns the recorded request body types in arrival order.
+func (s *mockState) observedBodies() []pkicmp.BodyType {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]pkicmp.BodyType(nil), s.bodyTypes...)
+}
+
 // count returns the number of recorded requests.
 func (s *mockState) count() int {
 	s.mu.Lock()
@@ -101,12 +122,21 @@ func (s *mockState) count() int {
 	return len(s.bodyTypes)
 }
 
-// recordConfirmation records the certReqId sent in certConf.
-func (s *mockState) recordConfirmation(certReqID int64) {
+// recordConfirmation records the CertStatus and protocol version of a certConf.
+func (s *mockState) recordConfirmation(status pkicmp.CertStatus, pvno int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.confirmationCertReqID = certReqID
+	s.confirmationCertReqID = status.CertReqID
 	s.confirmationObserved = true
+	s.confirmationStatus = status
+	s.confirmationPVNO = pvno
+}
+
+// confirmationDetail returns the recorded certConf CertStatus and protocol version.
+func (s *mockState) confirmationDetail() (pkicmp.CertStatus, int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.confirmationStatus, s.confirmationPVNO, s.confirmationObserved
 }
 
 // confirmation returns the recorded certConf identifier.
@@ -123,16 +153,22 @@ func newTestPKI(t *testing.T) testPKI {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bootstrapKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newTestPKIWithKeys(t, caKey, bootstrapKey)
+}
+
+// newTestPKIWithKeys creates a root and a bootstrap certificate for the given CA and bootstrap keys.
+func newTestPKIWithKeys(t *testing.T, caKey crypto.Signer, bootstrapKey crypto.Signer) testPKI {
+	t.Helper()
 	caTemplate := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "CMP Test Root"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour), KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature, BasicConstraintsValid: true, IsCA: true, SubjectKeyId: []byte{1, 2, 3}}
 	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, caKey.Public(), caKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	caCertificate, err := x509.ParseCertificate(caDER)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bootstrapKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,11 +210,17 @@ func createCSR(t *testing.T, commonName string) ([]byte, crypto.Signer) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return createCSRWithKey(t, commonName, key), key
+}
+
+// createCSRWithKey creates a signed DER CSR for an existing private key.
+func createCSRWithKey(t *testing.T, commonName string, key crypto.Signer) []byte {
+	t.Helper()
 	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: commonName}, DNSNames: []string{"test.example"}}, key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return requestDER, key
+	return requestDER
 }
 
 // issueLeaf creates a leaf certificate containing the CSR identity and selected public key.
@@ -218,9 +260,20 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			return
 		}
 		state.add(message.Body.Type)
-		response := &pkicmp.PKIMessage{Header: pkicmp.PKIHeader{PVNO: pkicmp.PVNO2, Sender: pkicmp.NewDirectoryName(pki.CACertificate.Subject), TransactionID: append([]byte(nil), message.Header.TransactionID...), RecipNonce: append([]byte(nil), message.Header.SenderNonce...)}}
+		responsePVNO := message.Header.PVNO
+		if options.ResponsePVNO != 0 {
+			responsePVNO = options.ResponsePVNO
+		}
+		response := &pkicmp.PKIMessage{Header: pkicmp.PKIHeader{PVNO: responsePVNO, Sender: pkicmp.NewDirectoryName(pki.CACertificate.Subject), TransactionID: append([]byte(nil), message.Header.TransactionID...), RecipNonce: append([]byte(nil), message.Header.SenderNonce...)}}
 		if !setMockResponseBody(t, pki, options, message, response, state) {
 			return
+		}
+		if options.FailCertConf && message.Body.Type == pkicmp.BodyTypeCertConf {
+			http.Error(writer, "confirmation unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if options.GrantImplicitConfirm && message.Body.Type != pkicmp.BodyTypeCertConf {
+			response.Header.GeneralInfo = append(response.Header.GeneralInfo, pkicmp.ImplicitConfirmInfoValue())
 		}
 		if options.WrongTransactionID {
 			response.Header.TransactionID = []byte("wrong-transaction")
@@ -306,7 +359,11 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 			publicKey = wrongKey.Public()
 		}
 		leaf := issueLeaf(t, pki, certificateRequest, publicKey)
-		response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
+		status := pkicmp.StatusAccepted
+		if options.GrantedWithMods {
+			status = pkicmp.StatusGrantedWithMods
+		}
+		response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: status}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
 	case pkicmp.BodyTypeKUR:
 		certificateRequests, err := message.Body.KUR()
 		if err != nil || len(*certificateRequests) != 1 {
@@ -322,6 +379,10 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 		if err != nil {
 			t.Errorf("parse KUR public key: %v", err)
 			return false
+		}
+		if options.WrongPublicKey {
+			_, wrongKey := createCSR(t, "wrong")
+			publicKey = wrongKey.Public()
 		}
 		extensions, err := certificateRequest.Extensions()
 		if err != nil {
@@ -345,7 +406,7 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 			t.Errorf("parse certConf: %v", err)
 			return false
 		}
-		state.recordConfirmation((*confirmation)[0].CertReqID)
+		state.recordConfirmation((*confirmation)[0], message.Header.PVNO)
 		response.Body = pkicmp.NewPKIConfBody()
 	default:
 		t.Errorf("unexpected request body %s", message.Body.Type)
@@ -552,7 +613,7 @@ func TestEnrollP10CRRejectsSecurityFailures(t *testing.T) {
 	}{
 		{name: "pinned certReqId", options: mockOptions{CertReqID: 0}, pinned: pinCertReqID(ResponseCertReqIDStandard), failure: testFailureCertReqIDMismatch},
 		{name: "unsupported certReqId", options: mockOptions{CertReqID: 7}, failure: "certReqIdUnsupported"},
-		{name: "public key", options: mockOptions{CertReqID: -1, WrongPublicKey: true}, failure: "publicKeyMismatch"},
+		{name: "public key", options: mockOptions{CertReqID: -1, WrongPublicKey: true}, failure: testFailurePublicKeyMismatch},
 		{name: "protection", options: mockOptions{CertReqID: -1, InvalidProtection: true}, failure: testBadMessageCheck},
 		{name: "transaction", options: mockOptions{CertReqID: -1, WrongTransactionID: true}, failure: "transactionIdMismatch"},
 		{name: "nonce", options: mockOptions{CertReqID: -1, WrongNonce: true}, failure: "nonceMismatch"},
