@@ -285,6 +285,9 @@ type CMPTrustSpec struct {
 	// CASecretRef selects PEM-encoded trust anchors.
 	// +required
 	CASecretRef SecretKeyReference `json:"caSecretRef"`
+	// SignerCertificatesSecretRef selects optional PEM response signer certificates and intermediates that must chain to CASecretRef.
+	// +optional
+	SignerCertificatesSecretRef *SecretKeyReference `json:"signerCertificatesSecretRef,omitempty"`
 }
 
 // TransportSpec configures transport security separately from CMP protection.

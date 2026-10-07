@@ -62,6 +62,23 @@ spec:
                     - key
                     - name
                     type: object
+                  signerCertificatesSecretRef:
+                    description: SignerCertificatesSecretRef selects optional PEM
+                      response signer certificates and intermediates that must chain
+                      to CASecretRef.
+                    properties:
+                      key:
+                        description: Key is the Secret data key.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name is the Secret name.
+                        minLength: 1
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
                 required:
                 - caSecretRef
                 type: object

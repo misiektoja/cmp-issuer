@@ -229,7 +229,9 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 	if !PublicKeysEqual(csr.PublicKey, issued.Certificate.PublicKey) {
 		return EnrollmentResult{}, refuse("certificate does not certify the requested public key"), security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
 	}
-	chain, err := validateAndOrderChain(issued.Certificate, issued.Candidates, request.CMPTrust)
+	// A configured response signer can also be an intermediate in the issued certificate chain.
+	candidates := append(issued.Candidates, request.CMPResponseCertificates...)
+	chain, err := validateAndOrderChain(issued.Certificate, candidates, request.CMPTrust)
 	if err != nil {
 		return EnrollmentResult{}, refuse("certificate validation failed"), security("validate issued chain", "signerNotTrusted", err)
 	}
@@ -386,9 +388,12 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	// anchor. The sender check below still requires that signer to name the request recipient.
 	signatureAccepted := requiredProtection == pkicmp.ProtectionSignature || request.AllowSignedMACResponse
 	// RFC 9810 section 5.1 permits omitted extraCerts, so configured anchors also identify signers.
-	candidates := make([]pkicmp.CMPCertificate, 0, len(response.ExtraCerts)+len(request.CMPTrustCertificates))
+	candidates := make([]pkicmp.CMPCertificate, 0, len(response.ExtraCerts)+len(request.CMPTrustCertificates)+len(request.CMPResponseCertificates))
 	candidates = append(candidates, response.ExtraCerts...)
 	for _, certificate := range request.CMPTrustCertificates {
+		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
+	}
+	for _, certificate := range request.CMPResponseCertificates {
 		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
 	}
 	var responseSigner *x509.Certificate

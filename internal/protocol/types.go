@@ -88,16 +88,17 @@ type EnrollmentRequest struct {
 	RejectGrantedMods bool
 	// AllowSignedMACResponse accepts a signature-protected answer to a MAC-protected request when the
 	// signer chains to CMPTrust. It is ignored when the request is signature-protected already.
-	AllowSignedMACResponse bool
-	ResponseCertReqID      *int64
-	RequireKUPCAPubsAbsent bool
-	TransactionID          []byte
-	CSRDER                 []byte
-	RequestedPrivateKey    crypto.Signer
-	Protection             Protection
-	CMPTrust               *x509.CertPool
-	CMPTrustCertificates   []*x509.Certificate
-	TLSRoots               *x509.CertPool
+	AllowSignedMACResponse  bool
+	ResponseCertReqID       *int64
+	RequireKUPCAPubsAbsent  bool
+	TransactionID           []byte
+	CSRDER                  []byte
+	RequestedPrivateKey     crypto.Signer
+	Protection              Protection
+	CMPTrust                *x509.CertPool
+	CMPTrustCertificates    []*x509.Certificate
+	CMPResponseCertificates []*x509.Certificate
+	TLSRoots                *x509.CertPool
 }
 
 // PollRequest resumes a transaction whose enrollment response was waiting.

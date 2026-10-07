@@ -534,6 +534,10 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
 	}
+	responseCertificates, configurationErr := loadResponseCertificates(getSecret, spec.CMPTrust.SignerCertificatesSecretRef)
+	if configurationErr != nil {
+		return runtimeConfiguration{}, configurationErr
+	}
 	renewalScheme := ""
 	if spec.Endpoint.RenewalURL != "" {
 		parsedRenewalEndpoint, parseErr := validateEndpointURL(spec.Endpoint.RenewalURL)
@@ -577,6 +581,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if sender != nil {
 		request.Sender = sender
 	}
+	request.CMPResponseCertificates = responseCertificates
 	fingerprints := credentialFingerprints(secrets)
 	configurationDigest, err := runtimeConfigurationDigest(issuerReference(issuer), fingerprints)
 	if err != nil {
@@ -833,6 +838,29 @@ func loadTrustPool(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Sec
 		pool.AddCert(certificate)
 	}
 	return pool, certificates, nil
+}
+
+// loadResponseCertificates reads optional response verification candidates without adding trust anchors.
+func loadResponseCertificates(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), reference *cmpv1alpha1.SecretKeyReference) ([]*x509.Certificate, *configurationError) {
+	if reference == nil {
+		return nil, nil
+	}
+	if reference.Name == "" || reference.Key == "" {
+		return nil, permanentConfiguration("validate CMP response signer reference", fmt.Errorf("name and key are required"))
+	}
+	secret, err := getSecret(cmpv1alpha1.LocalSecretReference{Name: reference.Name})
+	if err != nil {
+		return nil, err
+	}
+	data, valueErr := requiredSecretValue(secret, reference.Key)
+	if valueErr != nil {
+		return nil, retryableConfiguration("read CMP response signers", valueErr)
+	}
+	certificates, parseErr := protocol.ParseCertificates(data)
+	if parseErr != nil {
+		return nil, retryableConfiguration("parse CMP response signers", parseErr)
+	}
+	return certificates, nil
 }
 
 // loadTLSRoots parses optional HTTPS trust anchors.
