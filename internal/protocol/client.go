@@ -21,7 +21,6 @@ package protocol
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -381,8 +380,10 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	if !acceptableRecipNonce(response.Header.RecipNonce, requestMessage.Header.SenderNonce, delayedRequestNonce) {
 		return nil, security("verify recipient nonce", "nonceMismatch", fmt.Errorf("response recipient nonce does not match request sender nonce"))
 	}
-	if response.Header.PVNO != pkicmp.PVNO2 {
-		return nil, permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version is not CMPv2"))
+	// RFC 9810 section 7 answers a request in its own version. A CMPv2 answer to a CMPv3 request is
+	// accepted too, because a server without CMPv3 support reports that in a CMPv2 error message.
+	if response.Header.PVNO != pkicmp.PVNO2 && response.Header.PVNO != requestMessage.Header.PVNO {
+		return nil, permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version %d does not match the request version %d", response.Header.PVNO, requestMessage.Header.PVNO))
 	}
 	if !senderMatchesRecipient(response.Header.Sender, request.Recipient) {
 		return nil, security("verify response sender", "wrongAuthority", fmt.Errorf("response sender does not name the configured recipient"))
@@ -730,6 +731,12 @@ func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pk
 		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
 	}
 	options := pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: confirm.RecipNonce}
+	// A certificate signed with ML-DSA or composite ML-DSA has no hash implied by its signature
+	// algorithm, so its CertStatus names one in hashAlg, which makes the certConf a CMPv3 message.
+	status, err := pkicmp.NewCertStatus(confirm.Certificate, confirm.CertReqID)
+	if err != nil {
+		return nil, "", permanent("compute certificate hash", "badAlg", err)
+	}
 	var message *pkicmp.PKIMessage
 	operation := operationConfirmation
 	if len(confirm.RequestNonce) > 0 {
@@ -738,12 +745,13 @@ func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pk
 		poll := pkicmp.PollReqContent{ResponseCertReqIDStandard}
 		message = pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&poll), options)
 		operation = operationPoll
-	} else {
-		hash, err := certificateHash(confirm.Certificate)
-		if err != nil {
-			return nil, "", permanent("compute certificate hash", "badAlg", err)
+		// A server that delayed a CMPv3 certConf supports CMPv3, and RFC 9810 section 7 requires the
+		// highest version both peers support once the client knows it, so the poll keeps that version.
+		if status.HashAlg != nil {
+			message.Header.PVNO = pkicmp.PVNO3
 		}
-		confirmation := pkicmp.CertConfirmContent{{CertHash: hash, CertReqID: confirm.CertReqID}}
+	} else {
+		confirmation := pkicmp.CertConfirmContent{status}
 		message = pkicmp.NewPKIMessage(pkicmp.NewCertConfBody(&confirmation), options)
 	}
 	if request.Protection.Password != nil {
@@ -811,29 +819,6 @@ func exchangeProtected(ctx context.Context, client *http.Client, request Enrollm
 		return nil, err
 	}
 	return response, nil
-}
-
-// certificateHash computes the certConf digest selected by the certificate signature algorithm.
-func certificateHash(certificate *x509.Certificate) ([]byte, error) {
-	var hash crypto.Hash
-	switch certificate.SignatureAlgorithm {
-	case x509.SHA1WithRSA, x509.DSAWithSHA1, x509.ECDSAWithSHA1:
-		hash = crypto.SHA1
-	case x509.SHA256WithRSA, x509.ECDSAWithSHA256, x509.SHA256WithRSAPSS:
-		hash = crypto.SHA256
-	case x509.SHA384WithRSA, x509.ECDSAWithSHA384, x509.SHA384WithRSAPSS:
-		hash = crypto.SHA384
-	case x509.SHA512WithRSA, x509.ECDSAWithSHA512, x509.SHA512WithRSAPSS, x509.PureEd25519:
-		hash = crypto.SHA512
-	default:
-		return nil, fmt.Errorf("unsupported certificate signature algorithm")
-	}
-	if !hash.Available() {
-		return nil, fmt.Errorf("certificate hash is unavailable")
-	}
-	digest := hash.New()
-	_, _ = digest.Write(certificate.Raw)
-	return digest.Sum(nil), nil
 }
 
 // permanent constructs a non-retryable protocol error.

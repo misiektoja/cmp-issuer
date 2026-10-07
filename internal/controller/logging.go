@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/mldsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/hex"
@@ -128,6 +129,10 @@ func publicKeyDescription(key crypto.PublicKey) (string, int) {
 		return "ECDSA", typed.Curve.Params().BitSize
 	case ed25519.PublicKey:
 		return "Ed25519", len(typed) * 8
+	case *mldsa.PublicKey:
+		// The parameter set names the security level. The size follows the Ed25519 convention of
+		// reporting the encoded public key length.
+		return typed.Parameters().String(), len(typed.Bytes()) * 8
 	default:
 		return unknownKeyType, 0
 	}
