@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -96,7 +97,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	return finishTransaction(request, response, csr, responseSigner, message.Header.SenderNonce)
+	return completeOrRefuse(ctx, httpClient, request, credentials, response, csr, responseSigner, message.Header.SenderNonce)
 }
 
 // protectedEnrollment builds and protects the enrollment message sent for this transaction.
@@ -182,34 +183,64 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 		}
 		return EnrollmentResult{Pending: pending}, nil
 	}
-	return finishTransaction(request, response, csr, responseSigner, poll.RequestNonce)
+	return completeOrRefuse(ctx, httpClient, request, credentials, response, csr, responseSigner, poll.RequestNonce)
+}
+
+// completeOrRefuse finishes an authenticated enrollment response and tells the server about a refused certificate before failing.
+func completeOrRefuse(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
+	result, refusal, err := finishTransaction(request, response, csr, responseSigner, delayedRequestNonce)
+	if err != nil && refusal != nil {
+		return EnrollmentResult{}, rejectCertificate(ctx, client, request, credentials, *refusal, err)
+	}
+	return result, err
+}
+
+// refusedCertificate identifies an issued certificate the client refuses while the server still expects certConf.
+type refusedCertificate struct {
+	Certificate    *x509.Certificate
+	CertReqID      int64
+	RecipNonce     []byte
+	ResponseSigner *x509.Certificate
+	Reason         string
 }
 
 // finishTransaction turns an authenticated CP into a validated chain, or reports that polling continues.
 // delayedRequestNonce is the sender nonce that identifies this transaction to a server that delays responses.
-func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
+// A refusal is returned with the error when the issued certificate is refused and the server expects certConf.
+func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, *refusedCertificate, error) {
 	issued, err := extractEnrollmentResponse(response, request)
 	if err != nil {
-		return EnrollmentResult{}, err
+		return EnrollmentResult{}, nil, err
 	}
 	if issued.Waiting {
-		return EnrollmentResult{Pending: &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, RequestNonce: append([]byte(nil), delayedRequestNonce...)}}, nil
+		return EnrollmentResult{Pending: &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, RequestNonce: append([]byte(nil), delayedRequestNonce...)}}, nil, nil
+	}
+	implicitlyConfirmed := request.ImplicitConfirm && issued.ImplicitGranted
+	refuse := func(reason string) *refusedCertificate {
+		// An implicitly confirmed certificate is final at the server, so no certConf can reject it.
+		if implicitlyConfirmed {
+			return nil
+		}
+		return &refusedCertificate{Certificate: issued.Certificate, CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, Reason: reason}
+	}
+	if issued.GrantedWithMods && request.RejectGrantedMods {
+		return EnrollmentResult{}, refuse("granted modifications are not accepted"), permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
 	}
 	if !PublicKeysEqual(csr.PublicKey, issued.Certificate.PublicKey) {
-		return EnrollmentResult{}, security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
+		return EnrollmentResult{}, refuse("certificate does not certify the requested public key"), security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
 	}
 	chain, err := validateAndOrderChain(issued.Certificate, issued.Candidates, request.CMPTrust)
 	if err != nil {
-		return EnrollmentResult{}, security("validate issued chain", "signerNotTrusted", err)
+		return EnrollmentResult{}, refuse("certificate validation failed"), security("validate issued chain", "signerNotTrusted", err)
 	}
-	if request.ImplicitConfirm && issued.ImplicitGranted {
-		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil
+	if implicitlyConfirmed {
+		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil, nil
 	}
 	// Confirmation is handed back rather than completed here, so the caller can make the validated
 	// chain durable before certConf is sent. An interruption after this point then resumes the
 	// confirmation instead of failing a request whose certificate the server already issued.
 	pending := &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner}
-	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil
+	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil, nil
 }
 
 // extractPollRep validates a pollRep body and returns the state required for the next poll.
@@ -474,6 +505,8 @@ type issuedCertificate struct {
 	Candidates      []*x509.Certificate
 	CertReqID       int64
 	ImplicitGranted bool
+	// GrantedWithMods reports that the server changed the request before issuing the certificate.
+	GrantedWithMods bool
 	// Waiting reports that the server accepted the request but has not decided yet.
 	Waiting bool
 }
@@ -519,9 +552,6 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 	if statusErr := classifyStatus(certificateResponse.Status); statusErr != nil {
 		return issuedCertificate{}, statusErr
 	}
-	if certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods && request.RejectGrantedMods {
-		return issuedCertificate{}, permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
-	}
 	if certificateResponse.CertifiedKeyPair == nil || certificateResponse.CertifiedKeyPair.CertOrEncCert.Certificate == nil {
 		return issuedCertificate{}, permanent("extract certificate", "badDataFormat", fmt.Errorf("%s does not contain a plaintext certificate", expectedBody.String()))
 	}
@@ -536,7 +566,7 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 	if err != nil {
 		return issuedCertificate{}, err
 	}
-	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response)}, nil
+	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response), GrantedWithMods: certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods}, nil
 }
 
 // parseResponseCertificates parses and deduplicates untrusted chain candidates from response certificate fields.
@@ -697,7 +727,7 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
-	message, operation, err := confirmationMessage(request, confirm)
+	message, operation, err := confirmationMessage(request, confirm, nil)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -723,7 +753,8 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 }
 
 // confirmationMessage builds the certConf that starts a confirmation, or the pollReq that resumes one.
-func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pkicmp.PKIMessage, string, error) {
+// A non-nil statusInfo is sent in the certConf, which rejects the certificate when it carries rejection.
+func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest, statusInfo *pkicmp.PKIStatusInfo) (*pkicmp.PKIMessage, string, error) {
 	sender := pkicmp.GeneralName{}
 	if request.Sender != nil {
 		sender = pkicmp.NewDirectoryName(*request.Sender)
@@ -737,6 +768,7 @@ func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pk
 	if err != nil {
 		return nil, "", permanent("compute certificate hash", "badAlg", err)
 	}
+	status.StatusInfo = statusInfo
 	var message *pkicmp.PKIMessage
 	operation := operationConfirmation
 	if len(confirm.RequestNonce) > 0 {
@@ -819,6 +851,41 @@ func exchangeProtected(ctx context.Context, client *http.Client, request Enrollm
 		return nil, err
 	}
 	return response, nil
+}
+
+// rejectCertificate reports a refused certificate to the server in certConf and returns the refusal.
+// RFC 9483 section 3.6.1 requires an end entity that refuses a new certificate to say so and await
+// pkiConf, so the server can revoke or record it instead of waiting for the confirmation to expire.
+// A server treats a missing certConf as a rejection as well, so the refusal stands either way and a
+// failed delivery is only added to its description.
+func rejectCertificate(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, refusal refusedCertificate, reason error) error {
+	confirm := ConfirmRequest{Enrollment: request, Certificate: refusal.Certificate, CertReqID: refusal.CertReqID, RecipNonce: refusal.RecipNonce, ResponseSigner: refusal.ResponseSigner}
+	rejection := &pkicmp.PKIStatusInfo{Status: pkicmp.StatusRejection, StatusString: pkicmp.PKIFreeText{refusal.Reason}}
+	deliveryErr := func() error {
+		message, operation, err := confirmationMessage(request, confirm, rejection)
+		if err != nil {
+			return err
+		}
+		response, err := exchangeProtected(ctx, client, request, credentials, message, refusal.ResponseSigner, nil, operation)
+		if err != nil {
+			return err
+		}
+		if response.Body.Type != pkicmp.BodyTypePKIConf {
+			return fmt.Errorf("server answered with %s instead of pkiConf", response.Body.Type.String())
+		}
+		return nil
+	}()
+	if deliveryErr == nil {
+		log.FromContext(ctx).V(1).Info("Rejected the issued certificate in certConf", "reason", refusal.Reason)
+		return reason
+	}
+	var protocolErr *Error
+	if !errors.As(reason, &protocolErr) {
+		return fmt.Errorf("%w (rejection not confirmed by the server: %v)", reason, deliveryErr)
+	}
+	annotated := *protocolErr
+	annotated.Err = fmt.Errorf("%w (rejection not confirmed by the server: %v)", protocolErr.Err, deliveryErr)
+	return &annotated
 }
 
 // permanent constructs a non-retryable protocol error.
