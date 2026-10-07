@@ -75,7 +75,9 @@ type mockOptions struct {
 	ForceSignature      bool
 	ForceMAC            bool
 	NullSender          bool
+	WrongSignerSubject  bool
 	OmitPKIConfCerts    bool
+	OmitExtraCerts      bool
 	InvalidPKIConf      bool
 	KUPCAPubs           bool
 	HTTPStatus          int
@@ -284,6 +286,9 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		if options.NullSender {
 			response.Header.Sender = pkicmp.GeneralName{}
 		}
+		if options.WrongSignerSubject {
+			response.Header.Sender = pkicmp.NewDirectoryName(pkix.Name{CommonName: "Unrelated signer"})
+		}
 		signingCertificate := pki.CACertificate
 		signingKey := pki.CAKey
 		if options.ImpostorAuthority {
@@ -314,7 +319,7 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			t.Errorf("protect response: %v", err)
 			return
 		}
-		if message.Body.Type == pkicmp.BodyTypeCertConf && options.OmitPKIConfCerts {
+		if options.OmitExtraCerts || message.Body.Type == pkicmp.BodyTypeCertConf && options.OmitPKIConfCerts {
 			response.ExtraCerts = nil
 		}
 		if options.InvalidProtection {

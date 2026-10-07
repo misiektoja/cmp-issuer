@@ -494,6 +494,18 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 			if protocolClient.request.RequireKUPCAPubsAbsent != test.expectAbsentCAPubs {
 				t.Fatalf("expected KUP caPubs absence %t", test.expectAbsentCAPubs)
 			}
+			anchors, err := protocol.ParseCertificates(trust.Data[testCMPTrustKey])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(protocolClient.request.CMPTrustCertificates) != len(anchors) {
+				t.Fatal("expected every configured trust anchor as a signer candidate")
+			}
+			for i, anchor := range anchors {
+				if !protocolClient.request.CMPTrustCertificates[i].Equal(anchor) {
+					t.Fatal("response signer candidate differs from the configured anchor")
+				}
+			}
 		})
 	}
 }

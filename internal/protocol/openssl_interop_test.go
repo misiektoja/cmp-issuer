@@ -162,7 +162,7 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 
 // startOpenSSLKURMockServer runs an independently authenticated signature-protected KUR responder.
 // extra adds mock server options.
-func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate, extra ...string) string {
+func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate, includeExtraCerts bool, extra ...string) string {
 	t.Helper()
 	binary := requireOpenSSLCMP(t, opensslReferenceCertificateOption)
 	dir := t.TempDir()
@@ -176,7 +176,10 @@ func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certific
 	currentPath := writePEM(t, dir, "ref_cert.pem", "CERTIFICATE", current.Raw)
 	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
 	port := freePort(t)
-	arguments := append([]string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, opensslReferenceCertificateOption, currentPath, "-rsp_cert", issuedPath, "-rsp_extracerts", certificatePath, "-max_msgs", "0"}, extra...)
+	arguments := append([]string{"cmp", opensslPortOption, fmt.Sprint(port), "-srv_cert", certificatePath, "-srv_key", keyPath, "-srv_trusted", trustPath, opensslReferenceCertificateOption, currentPath, "-rsp_cert", issuedPath, "-max_msgs", "0"}, extra...)
+	if includeExtraCerts {
+		arguments = append(arguments, "-rsp_extracerts", certificatePath)
+	}
 	command := exec.Command(binary, arguments...)
 	output := &bytes.Buffer{}
 	command.Stdout = output
@@ -375,7 +378,7 @@ func TestKURAgainstOpenSSLMockServer(t *testing.T) {
 				t.Fatalf("parse KUR CSR: %v", err)
 			}
 			issued := issueLeaf(t, pki, certificateRequest, request.RequestedPrivateKey.Public())
-			proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued))
+			proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued, true))
 			request.EndpointURL = proxy.URL
 			client := NewClient()
 			result, err := client.EnrollKUR(context.Background(), request)
@@ -393,6 +396,48 @@ func TestKURAgainstOpenSSLMockServer(t *testing.T) {
 				t.Fatalf("expected OpenSSL to accept a KUR body, got %v and %v", sent, err)
 			}
 		})
+	}
+}
+
+// TestAnchorSignerAgainstOpenSSLMockServer verifies omitted anchor signers with independent P10CR and KUR responses.
+func TestAnchorSignerAgainstOpenSSLMockServer(t *testing.T) {
+	t.Run(OperationP10CR, func(t *testing.T) {
+		pki := newTestPKI(t)
+		runOpenSSLAnchorSigner(t, pki, anchorEnrollmentRequest(t, pki, ""))
+	})
+	for _, test := range keyRotationCases {
+		t.Run(OperationKUR+"/"+test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			request := kurEnrollmentRequest(t, pki, "", test.rotateKey)
+			request.CMPTrustCertificates = []*x509.Certificate{pki.CACertificate}
+			runOpenSSLAnchorSigner(t, pki, request)
+		})
+	}
+}
+
+// runOpenSSLAnchorSigner completes one signature-protected transaction without response extraCerts.
+func runOpenSSLAnchorSigner(t *testing.T, pki testPKI, request EnrollmentRequest) {
+	t.Helper()
+	csr, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued := issueLeaf(t, pki, csr, csr.PublicKey)
+	proxy, _ := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued, false))
+	request.EndpointURL = proxy.URL
+	var result EnrollmentResult
+	if request.Operation == OperationKUR {
+		result, err = NewClient().EnrollKUR(context.Background(), request)
+	} else {
+		result, err = NewClient().EnrollP10CR(context.Background(), request)
+	}
+	if err != nil {
+		t.Fatalf("OpenSSL enrollment with an omitted anchor: %v", err)
+	}
+	requireAnchorSigner(t, result.PendingConfirmation, pki.CACertificate)
+	result, err = confirmToCompletion(t, NewClient(), request, result)
+	if err != nil || !result.ExplicitConfirmation || len(result.Chain) == 0 || !result.Chain[0].Equal(issued) || result.ExtraCertificateCount != 0 {
+		t.Fatalf("OpenSSL confirmation with an omitted anchor: result=%+v error=%v", result, err)
 	}
 }
 
@@ -470,7 +515,7 @@ func TestMLDSAKURAgainstOpenSSLMockServer(t *testing.T) {
 				t.Fatalf("parse KUR CSR: %v", err)
 			}
 			issued := issueLeaf(t, pki, certificateRequest, requestedKey.Public())
-			proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued, opensslGrantImplicitConfirmOption))
+			proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued, true, opensslGrantImplicitConfirmOption))
 			request.EndpointURL = proxy.URL
 			result, err := NewClient().EnrollKUR(context.Background(), request)
 			if err != nil {
@@ -504,7 +549,7 @@ func TestEd25519KURAgainstOpenSSLMockServer(t *testing.T) {
 				t.Fatalf("parse KUR CSR: %v", err)
 			}
 			issued := issueLeaf(t, pki, certificateRequest, requestedKey.Public())
-			proxy, _ := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued))
+			proxy, _ := newSingleConnectionProxy(t, startOpenSSLKURMockServer(t, pki, request.Protection.Signature.Certificate, issued, true))
 			request.EndpointURL = proxy.URL
 			result, err := NewClient().EnrollKUR(context.Background(), request)
 			if err != nil {
