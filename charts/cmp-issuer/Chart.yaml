@@ -8,8 +8,8 @@ type: application
 ## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
 ## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
 ## tag the registry does not have.
-version: 0.2.1
-appVersion: "v0.2.1"
+version: 0.3.0
+appVersion: "v0.3.0"
 
 ## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
 ## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
@@ -75,15 +75,17 @@ annotations:
       displayName: CMP Transaction
       description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
   artifacthub.io/changes: |
-    - kind: fixed
-      description: An interrupted confirmation resends certConf instead of polling for an answer to a certConf that was never sent
-    - kind: fixed
-      description: KUR renewals retry temporary Kubernetes API failures while reading the owning Certificate
-    - kind: fixed
-      description: The failure metric label carries one bit name from a fixed vocabulary instead of a combined bit list
+    - kind: added
+      description: ML-DSA certificates, CA signatures and protection credentials are supported with a compatible cert-manager build
+    - kind: added
+      description: Response signer certificates can be supplied through cmpTrust.signerCertificatesSecretRef without making them trust anchors
+    - kind: added
+      description: PasswordBasedMac supports SHA-384 and SHA-512 while retaining SHA-256 defaults
     - kind: changed
-      description: Unfinished KUR transactions survive metadata-only writes to their workload Secrets
+      description: Refused certificates are reported to CMP servers through rejection certConf messages
+    - kind: fixed
+      description: Responses signed by configured trust anchors verify when extraCerts omits the signer
+    - kind: fixed
+      description: Ed25519 message protection uses the signature form required by CMP servers
     - kind: changed
-      description: KUR reads the current key only from a Secret that cert-manager wrote for the owning Certificate
-    - kind: changed
-      description: spec.protocol.certProfile is documented as reserved until its encoding is implemented
+      description: Source builds require Go 1.27.1
