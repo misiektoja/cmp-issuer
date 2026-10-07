@@ -46,11 +46,6 @@ type Client interface {
 	ConfirmP10CR(context.Context, ConfirmRequest) (EnrollmentResult, error)
 }
 
-// TransactionCodec executes CMP message state transitions independently of controller contracts.
-type TransactionCodec interface {
-	ExchangeP10CR(context.Context, EnrollmentRequest) (EnrollmentResult, error)
-}
-
 // PasswordProtection contains PasswordBasedMac credentials and fixed algorithm parameters.
 type PasswordProtection struct {
 	Reference      []byte

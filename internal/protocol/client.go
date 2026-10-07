@@ -43,17 +43,13 @@ import (
 )
 
 const (
-	// operationEnrollment names the P10CR exchange in a log line.
-	operationEnrollment = "p10cr"
-	// operationKeyUpdate names the KUR exchange in a log line.
-	operationKeyUpdate = "kur"
-	// operationPoll names the pollReq exchange in a log line.
-	operationPoll = "pollReq"
-	// operationConfirmation names the certConf exchange in a log line.
+	operationEnrollment   = "p10cr"
+	operationKeyUpdate    = "kur"
+	operationPoll         = "pollReq"
 	operationConfirmation = "certConf"
 )
 
-// CMPClient executes synchronous CMPv2 P10CR transactions with explicit transport policy.
+// CMPClient handles CMP enrollment, key update, polling and certificate confirmation.
 type CMPClient struct{}
 
 // NewClient constructs the default project-owned CMP client.
@@ -214,7 +210,12 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 		return EnrollmentResult{}, nil, err
 	}
 	if issued.Waiting {
-		return EnrollmentResult{Pending: &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, RequestNonce: append([]byte(nil), delayedRequestNonce...)}}, nil, nil
+		return EnrollmentResult{Pending: &PendingTransaction{
+			CertReqID:      issued.CertReqID,
+			RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+			ResponseSigner: responseSigner,
+			RequestNonce:   append([]byte(nil), delayedRequestNonce...),
+		}}, nil, nil
 	}
 	implicitlyConfirmed := request.ImplicitConfirm && issued.ImplicitGranted
 	refuse := func(reason string) *refusedCertificate {
@@ -222,7 +223,13 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 		if implicitlyConfirmed {
 			return nil
 		}
-		return &refusedCertificate{Certificate: issued.Certificate, CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, Reason: reason}
+		return &refusedCertificate{
+			Certificate:    issued.Certificate,
+			CertReqID:      issued.CertReqID,
+			RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+			ResponseSigner: responseSigner,
+			Reason:         reason,
+		}
 	}
 	if issued.GrantedWithMods && request.RejectGrantedMods {
 		return EnrollmentResult{}, refuse("granted modifications are not accepted"), permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
@@ -262,7 +269,13 @@ func extractPollRep(response *pkicmp.PKIMessage, expectedCertReqID int64, respon
 	if item.CheckAfter < 0 {
 		return nil, permanent("validate pollRep", "badRequest", fmt.Errorf("pollRep checkAfter is negative"))
 	}
-	return &PendingTransaction{CertReqID: item.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, CheckAfter: time.Duration(item.CheckAfter) * time.Second, RequestNonce: append([]byte(nil), delayedRequestNonce...)}, nil
+	return &PendingTransaction{
+		CertReqID:      item.CertReqID,
+		RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+		ResponseSigner: responseSigner,
+		CheckAfter:     time.Duration(item.CheckAfter) * time.Second,
+		RequestNonce:   append([]byte(nil), delayedRequestNonce...),
+	}, nil
 }
 
 // validateEnrollmentRequest rejects unsupported or unsafe transaction configurations.
@@ -325,7 +338,7 @@ func pbmAlgorithms(password PasswordProtection) (crypto.Hash, crypto.Hash, error
 	return owf, mac, nil
 }
 
-// credentialsFor constructs reviewed go-pkicmp credentials without exposing dependency types.
+// credentialsFor builds CMP credentials from the configured protection method.
 func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 	if protection.Password != nil {
 		owf, mac, err := pbmAlgorithms(*protection.Password)
@@ -339,13 +352,26 @@ func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 
 // newHTTPClient constructs a bounded transport that disables redirects.
 func newHTTPClient(request EnrollmentRequest) *http.Client {
-	// The timeout and the TLS trust are read from the issuer configuration for this call, so the
-	// transport cannot be shared and every caller closes idle connections when it returns. Without
-	// that, each enrollment, poll and confirmation leaves a pooled socket and its reader goroutine
-	// alive for the idle timeout below even though no later call can reuse either.
+	// Issuers have different timeouts and trust roots, so each call owns its transport and must
+	// close idle connections before returning.
 	dialer := &net.Dialer{Timeout: request.Timeout, KeepAlive: 30 * time.Second}
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: dialer.DialContext, ForceAttemptHTTP2: false, MaxIdleConns: 16, MaxIdleConnsPerHost: 4, IdleConnTimeout: 30 * time.Second, TLSHandshakeTimeout: request.Timeout, ResponseHeaderTimeout: request.Timeout, ExpectContinueTimeout: time.Second, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots}}
-	return &http.Client{Transport: transport, Timeout: request.Timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     false,
+		MaxIdleConns:          16,
+		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:       30 * time.Second,
+		TLSHandshakeTimeout:   request.Timeout,
+		ResponseHeaderTimeout: request.Timeout,
+		ExpectContinueTimeout: time.Second,
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots},
+	}
+	return &http.Client{
+		Transport:     transport,
+		Timeout:       request.Timeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
 
 // sendCMP posts protected DER and accepts authenticated CMP bodies without deriving state from HTTP metadata.
@@ -484,7 +510,7 @@ func senderMatchesRecipient(sender pkicmp.GeneralName, recipient pkix.Name) bool
 	if len(configured) == 0 {
 		return true
 	}
-	return equalAttributeSets(attributeSet(sender.DirectoryName), attributeSet(configured))
+	return slices.Equal(attributeSet(sender.DirectoryName), attributeSet(configured))
 }
 
 // attributeSet renders every attribute of a distinguished name as a sorted, order-independent key list.
@@ -498,9 +524,6 @@ func attributeSet(sequence pkix.RDNSequence) []string {
 	slices.Sort(attributes)
 	return attributes
 }
-
-// equalAttributeSets reports whether two sorted attribute lists hold exactly the same entries.
-func equalAttributeSets(left []string, right []string) bool { return slices.Equal(left, right) }
 
 // acceptableRecipNonce reports whether a response echoes a nonce that links it to this transaction.
 // RFC 9483 section 3.5 accepts the sender nonce of the preceding request, or during delayed delivery
@@ -605,7 +628,13 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 	if err != nil {
 		return issuedCertificate{}, err
 	}
-	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response), GrantedWithMods: certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods}, nil
+	return issuedCertificate{
+		Certificate:     certificate,
+		Candidates:      candidates,
+		CertReqID:       certificateResponse.CertReqID,
+		ImplicitGranted: responseGrantsImplicitConfirm(response),
+		GrantedWithMods: certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods,
+	}, nil
 }
 
 // parseResponseCertificates parses and deduplicates untrusted chain candidates from response certificate fields.
@@ -649,7 +678,7 @@ func acceptResponseCertReqID(operation string, observed int64, pinned *int64) er
 	return nil
 }
 
-// responseGrantsImplicitConfirm detects the reviewed implicitConfirm OID without hard-coding it.
+// responseGrantsImplicitConfirm checks for the implicitConfirm OID in the response.
 func responseGrantsImplicitConfirm(response *pkicmp.PKIMessage) bool {
 	target := pkicmp.ImplicitConfirmInfoValue().InfoType
 	for _, information := range response.Header.GeneralInfo {
@@ -787,7 +816,13 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	pending := &PendingTransaction{CertReqID: confirm.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: confirm.ResponseSigner, CheckAfter: checkAfter, RequestNonce: confirmationNonce}
+	pending := &PendingTransaction{
+		CertReqID:      confirm.CertReqID,
+		RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+		ResponseSigner: confirm.ResponseSigner,
+		CheckAfter:     checkAfter,
+		RequestNonce:   confirmationNonce,
+	}
 	return EnrollmentResult{PendingConfirmation: pending}, nil
 }
 
