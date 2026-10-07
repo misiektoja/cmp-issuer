@@ -67,9 +67,13 @@ The controller log carries the same lifecycle as text. Each enrollment ends in o
 
 RFC 9810 and RFC 9483 require `certReqId` `-1` in P10CR CP responses. Tested servers may return `0`. By default cmp-issuer accepts either value and echoes it in `certConf`. Pin a value with `spec.protocol.p10crResponseCertReqId` when needed.
 
+## Confirmation hash
+
+The `certConf` hash follows the issued certificate's signature algorithm. For a certificate signed with ML-DSA, `certConf` names SHA-512 in `hashAlg`, which RFC 9810 section 5.3.18 allows only in CMPv3, so that `certConf` is sent as CMPv3. A CMPv2 or CMPv3 answer to it is accepted.
+
 ## Granted modifications
 
-When `spec.policy.grantedModifications` is `Reject`, certificates issued with `grantedWithMods` fail. Set `Accept` only when server-side field changes are expected and acceptable.
+When `spec.policy.grantedModifications` is `Reject`, certificates issued with `grantedWithMods` fail. Unless the server granted implicit confirmation, cmp-issuer also rejects them in `certConf`. Set `Accept` only when server-side field changes are expected and acceptable.
 
 ## Asynchronous enrollment
 

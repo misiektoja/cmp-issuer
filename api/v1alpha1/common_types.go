@@ -311,7 +311,8 @@ type TLSTransportSpec struct {
 	// CASecretRef optionally selects PEM-encoded HTTPS trust anchors.
 	// +optional
 	CASecretRef *SecretKeyReference `json:"caSecretRef,omitempty"`
-	// ClientCertificateSecretRef reserves a Secret for later mTLS support.
+	// ClientCertificateSecretRef is reserved for mTLS support and must remain unset.
+	// Setting it makes the issuer NotReady.
 	// +optional
 	ClientCertificateSecretRef *LocalSecretReference `json:"clientCertificateSecretRef,omitempty"`
 }

@@ -45,6 +45,8 @@ Each KUR also carries the recommended CRMF `oldCertID` control with the current 
 
 With `rotationPolicy: Always` these are different keys. With `rotationPolicy: Never` the same key makes both proofs and the server profile must allow same-key update.
 
+The keys may be RSA, ECDSA, Ed25519 or ML-DSA. An ML-DSA `tls.key` must be in the seed-only PKCS #8 form, see [Known limitations](../known-limitations.md#ml-dsa).
+
 cmp-issuer rejects KUR before network traffic when the current certificate is expired, its key does not match, its Key Usage extension forbids digital signatures, the staged key does not match the CSR or the subject or SAN values changed. The CA must reject a revoked current certificate.
 
 A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or `oldCertID`. Server policy still decides whether that certificate is eligible for key update.
@@ -79,6 +81,10 @@ spec:
 
 The focused values are `kurResponseCaPubs: Accept | RequireAbsent`,
 `macResponseProtection: AllowSignature | Strict` and `p10crResponseCertReqId: -1 | 0`.
+
+Both profiles accept responses signed by a configured trust anchor when the server omits its
+certificate from `extraCerts`. The `RFC9483` profile does not enforce the first-response certificate
+presence rule. See [message protection](message-protection.md#what-gets-validated).
 
 ## Workload Secret authorization
 

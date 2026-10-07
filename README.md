@@ -17,7 +17,7 @@ Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrol
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-Initial enrollment uses P10CR. A renewal re-enrolls with P10CR by default or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update.
+Enrollment uses P10CR, with optional KUR for certificate renewal.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
@@ -118,10 +118,6 @@ NAME          READY
 demo-issuer   True
 ```
 
-`renewal` decides what a cert-manager renewal sends. It defaults to another P10CR enrollment. Set it to
-`KUR` when the CMP profile requires a true key update, as described in
-[Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/).
-
 Request a certificate:
 
 ```bash
@@ -159,8 +155,8 @@ the issued chain back to cert-manager. `initialEnrollment` accepts only `P10CR` 
 
 **Renewal.** A renewal sends another P10CR unless you set `spec.protocol.renewal` to `KUR`.
 KUR authenticates the request using the current valid certificate and proves possession of the key that
-cert-manager requested. This meets the expectations of CMP profiles requiring a true key update. Renewals
-can go to their own CMP alias with `spec.endpoint.renewalUrl`.
+cert-manager requested. Use `spec.endpoint.renewalUrl` for a separate KUR endpoint. See
+[Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/).
 
 **Slow or queued requests.** When the CA cannot issue right away it answers `waiting` and the issuer
 polls until the certificate arrives. Every transaction is recorded in a `CMPTransaction` before the
@@ -189,7 +185,7 @@ Events come from [issuer-lib](https://github.com/cert-manager/issuer-lib), maint
 cert-manager project and pinned to an exact version. See
 [ADR 0002](https://misiektoja.github.io/cmp-issuer/adr/0002-issuer-lib/).
 
-**Real-world interoperability.** cmp-issuer is tested against real PKI and CMP server implementations to verify that it works beyond synthetic test environments. This includes interoperability testing with EJBCA and Nokia NCM, with results and known compatibility details published in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
+**Interoperability.** Results for EJBCA and Nokia NCM are documented in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
 
 ## Documentation
 

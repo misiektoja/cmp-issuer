@@ -426,8 +426,9 @@ spec:
                         - name
                         type: object
                       clientCertificateSecretRef:
-                        description: ClientCertificateSecretRef reserves a Secret
-                          for later mTLS support.
+                        description: |-
+                          ClientCertificateSecretRef is reserved for mTLS support and must remain unset.
+                          Setting it makes the issuer NotReady.
                         properties:
                           name:
                             description: Name is the Secret name.

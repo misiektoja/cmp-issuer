@@ -113,6 +113,7 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | --- | --- |
 | `test.yml` | Unit tests and OpenSSL interoperability |
 | `lint.yml` | golangci-lint and actionlint |
+| `dco.yml` | Developer Certificate of Origin sign-off on every pull request commit |
 | `codeql.yml` | CodeQL static analysis of the Go code |
 | `scorecard.yml` | OpenSSF repository and supply chain checks, run after successful CodeQL analysis on `main` |
 | `docs.yml` | Strict MkDocs build, and publishing the site from the default branch |
@@ -125,7 +126,7 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | `release.yml` | Build and publish the release artifacts on a version tag |
 | `publish-chart.yml` | Add the released chart to the Helm repository index when the release is published |
 
-Pull requests target `dev` and run the fast unit, OpenSSL, lint and supply chain checks. The chart job
+Pull requests target `dev` and run the fast unit, OpenSSL, lint, DCO and supply chain checks. The chart job
 runs only when its inputs change. The three-version Kind matrix and EJBCA are deliberately deferred
 until the change lands on `dev`, where failures can be fixed before promotion. Pushes to `main` repeat
 the trusted-branch checks for the stable code. NCM remains automatic on both trusted branches but never
@@ -196,9 +197,11 @@ racing.
 4. Refresh `artifacthub.io/changes` in `charts/cmp-issuer/Chart.yaml`, along with any other
    `artifacthub.io` annotation the release changes. Chart metadata is frozen once the version is
    published, so a correction needs a new chart version
-5. Point `config/manager/kustomization.yaml` at the image the release will publish, which is what a
+5. Keep the chart version and app version aligned with the release tag. Update `CITATION.cff` with
+   the version and release date
+6. Point `config/manager/kustomization.yaml` at the image the release will publish, which is what a
    clone applies when it has not run `make build-installer`
-6. Tag and push only when authorized to publish, and never create the release from the GitHub UI. See
+7. Tag and push only when authorized to publish. Never create the release from the GitHub UI. See
    [Publishing a release](#publishing-a-release)
 
 ## Supply chain verification

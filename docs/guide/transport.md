@@ -68,7 +68,7 @@ CMP transaction state is derived only from authenticated CMP DER, not from HTTP 
 
 ## mTLS
 
-`spec.transport.tls.clientCertificateSecretRef` is reserved for a future release. It is not used today.
+`spec.transport.tls.clientCertificateSecretRef` is reserved for future mTLS support. Leave it unset. Setting it makes the issuer NotReady.
 
 ## Related pages
 

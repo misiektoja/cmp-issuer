@@ -21,19 +21,33 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | CMPv2 KUR (true key update) | Implemented, Interoperability tested | Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 |
 | cert-manager Certificate renewal | Implemented as selectable P10CR or KUR | P10CR is the compatibility default. KUR is opt-in through `protocol.renewal` |
 | Explicit `certConf` confirmation | Implemented, Interoperability tested | Default |
+| Rejecting `certConf` for a refused certificate | Implemented | Sent when the issued certificate does not certify the CSR key, fails chain validation or carries modifications refused by `policy.grantedModifications: Reject` |
 | Server-granted implicit confirmation | Implemented | Set `protocol.confirmation: Implicit` |
 | Asynchronous `waiting` / `pollReq` / `pollRep` | Implemented, Interoperability tested | Bounded by `spec.transaction` |
 | Delayed confirmation (`certConf` answered with `waiting`) | Implemented, Interoperability tested | Polled from `CMPTransaction`, resumable across a restart |
-| CMPv3 | Planned | |
+| CMPv3 `certConf` with `hashAlg` | Implemented | Used to confirm a certificate signed with ML-DSA. A CMPv2 or CMPv3 answer is accepted |
+| Other CMPv3 features | Planned | |
 | Revocation (RR, CRL, OCSP over CMP) | Planned | |
+
+## Key algorithms
+
+| Capability | Status | Notes |
+| --- | --- | --- |
+| RSA, ECDSA and Ed25519 keys | Implemented, Interoperability tested | Workload keys and CMP signature credentials |
+| ML-DSA-44, ML-DSA-65 and ML-DSA-87 workload keys | Implemented, Interoperability tested | P10CR and KUR. cert-manager v1.21 cannot submit ML-DSA requests, see [Known limitations](known-limitations.md#ml-dsa) |
+| ML-DSA CMP signature credential | Implemented | PKCS #8 seed-only private key |
+| ML-DSA CA and ML-DSA-signed CMP responses | Implemented, Interoperability tested | |
+| Composite ML-DSA | Unsupported | cert-manager rejects composite CSRs and Go cannot validate composite certificate chains |
 
 ## Message protection
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| PasswordBasedMac (SHA-256 OWF, HMAC-SHA-256) | Implemented, Interoperability tested | RFC 4210 style |
+| PasswordBasedMac (SHA-256, SHA-384 or SHA-512) | Implemented, Interoperability tested | HMAC digest cannot be longer than OWF output. SHA-256 defaults |
 | PBMAC1 | Planned | |
 | Certificate signature protection | Implemented, Interoperability tested | Bootstrap credential in a Secret |
+| Trust anchor as response signer | Implemented, Interoperability tested | Both validation profiles accept an anchor from `cmpTrust` when its certificate is absent from response `extraCerts` |
+| Configured response signer certificates | Implemented, Interoperability tested | Optional `cmpTrust.signerCertificatesSecretRef` supplies signers omitted from `extraCerts` and issued-chain intermediates without adding trust anchors |
 | Unprotected CMP | Unsupported | Every request and response must be protected |
 
 ## Transport
@@ -82,6 +96,6 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | --- | --- | --- |
 | Nokia NCM 26.7 / Insta Certifier 7.20 | PasswordBasedMac, Signature | Interoperability tested |
 | EJBCA Community Edition 9.3.7 (client mode and RA mode aliases) | PasswordBasedMac, Signature | Interoperability tested in CI |
-| OpenSSL CMP mock (`openssl cmp`) | PasswordBasedMac | Interoperability tested in CI |
+| OpenSSL CMP mock (`openssl cmp`) | PasswordBasedMac, Signature | Interoperability tested in CI |
 
 See [Tested PKIs](interoperability/tested-pkis.md) for server-specific configuration notes.
