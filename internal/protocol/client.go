@@ -21,6 +21,7 @@ package protocol
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -292,6 +293,9 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 		if request.Protection.Password.IterationCount < 100 || request.Protection.Password.IterationCount > 1048575 {
 			return permanent("validate PasswordBasedMac", "badRequest", fmt.Errorf("iteration count is outside supported bounds"))
 		}
+		if _, _, err := pbmAlgorithms(*request.Protection.Password); err != nil {
+			return permanent("validate PasswordBasedMac", "badRequest", err)
+		}
 	}
 	if request.Protection.Signature != nil {
 		if err := ValidateSignerCertificate(request.Protection.Signature.PrivateKey, request.Protection.Signature.Certificate); err != nil {
@@ -301,10 +305,34 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	return nil
 }
 
+// pbmAlgorithms applies SHA-256 defaults and rejects unsupported PBM hash combinations.
+func pbmAlgorithms(password PasswordProtection) (crypto.Hash, crypto.Hash, error) {
+	owf, mac := password.OWF, password.MAC
+	if owf == 0 {
+		owf = crypto.SHA256
+	}
+	if mac == 0 {
+		mac = crypto.SHA256
+	}
+	for _, hash := range []crypto.Hash{owf, mac} {
+		if hash != crypto.SHA256 && hash != crypto.SHA384 && hash != crypto.SHA512 {
+			return 0, 0, fmt.Errorf("PasswordBasedMac requires SHA-256, SHA-384 or SHA-512")
+		}
+	}
+	if mac.Size() > owf.Size() {
+		return 0, 0, fmt.Errorf("PasswordBasedMac MAC digest must not be longer than the OWF output")
+	}
+	return owf, mac, nil
+}
+
 // credentialsFor constructs reviewed go-pkicmp credentials without exposing dependency types.
 func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 	if protection.Password != nil {
-		return pkicmp.NewMACCredentials(protection.Password.Secret, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(protection.Password.IterationCount))
+		owf, mac, err := pbmAlgorithms(*protection.Password)
+		if err != nil {
+			return nil, err
+		}
+		return pkicmp.NewMACCredentials(protection.Password.Secret, pkicmp.WithPBMAlgorithms(owf, mac), pkicmp.WithMACIterationCount(protection.Password.IterationCount))
 	}
 	return pkicmp.NewSignatureCredentials(protection.Signature.PrivateKey, protection.Signature.Certificate, protection.Signature.Chain...)
 }

@@ -21,6 +21,7 @@ package controller
 
 import (
 	"context"
+	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -778,8 +779,10 @@ func validateProtection(spec cmpv1alpha1.ProtectionSpec) error {
 		if password.ReferenceKey == "" || password.SecretKey == "" || password.ReferenceKey == password.SecretKey {
 			return fmt.Errorf("passwordBasedMac reference and secret must use separate Secret keys")
 		}
-		if password.Algorithm.OWF != cmpv1alpha1.PasswordBasedMacOWFSHA256 || password.Algorithm.MAC != cmpv1alpha1.PasswordBasedMacMACHMACSHA256 ||
-			password.Algorithm.IterationCount < cmpv1alpha1.PasswordBasedMacIterationCountMinimum || password.Algorithm.IterationCount > cmpv1alpha1.PasswordBasedMacIterationCountMaximum {
+		if _, _, err := passwordBasedMacAlgorithms(password.Algorithm); err != nil {
+			return err
+		}
+		if password.Algorithm.IterationCount < cmpv1alpha1.PasswordBasedMacIterationCountMinimum || password.Algorithm.IterationCount > cmpv1alpha1.PasswordBasedMacIterationCountMaximum {
 			return fmt.Errorf("unsupported passwordBasedMac algorithm parameters")
 		}
 	case cmpv1alpha1.ProtectionTypeSignature:
@@ -794,6 +797,16 @@ func validateProtection(spec cmpv1alpha1.ProtectionSpec) error {
 		return fmt.Errorf("unsupported protection type")
 	}
 	return nil
+}
+
+// passwordBasedMacAlgorithms maps supported API values to hashes and enforces the library's key length limit.
+func passwordBasedMacAlgorithms(spec cmpv1alpha1.PasswordBasedMacAlgorithmSpec) (crypto.Hash, crypto.Hash, error) {
+	owf := map[string]crypto.Hash{cmpv1alpha1.PasswordBasedMacOWFSHA256: crypto.SHA256, cmpv1alpha1.PasswordBasedMacOWFSHA384: crypto.SHA384, cmpv1alpha1.PasswordBasedMacOWFSHA512: crypto.SHA512}[spec.OWF]
+	mac := map[string]crypto.Hash{cmpv1alpha1.PasswordBasedMacMACHMACSHA256: crypto.SHA256, cmpv1alpha1.PasswordBasedMacMACHMACSHA384: crypto.SHA384, cmpv1alpha1.PasswordBasedMacMACHMACSHA512: crypto.SHA512}[spec.MAC]
+	if owf == 0 || mac == 0 || mac.Size() > owf.Size() {
+		return 0, 0, fmt.Errorf("unsupported passwordBasedMac algorithm combination")
+	}
+	return owf, mac, nil
 }
 
 // validateTransport keeps TLS credentials separate and rejects unimplemented mTLS.
@@ -904,7 +917,11 @@ func loadProtection(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Se
 		if valueErr != nil {
 			return protocol.Protection{}, retryableConfiguration("read PasswordBasedMac secret", valueErr)
 		}
-		return protocol.Protection{Password: &protocol.PasswordProtection{Reference: reference, Secret: sharedSecret, IterationCount: int(password.Algorithm.IterationCount)}}, nil
+		owf, mac, algorithmErr := passwordBasedMacAlgorithms(password.Algorithm)
+		if algorithmErr != nil {
+			return protocol.Protection{}, permanentConfiguration("validate PasswordBasedMac algorithms", algorithmErr)
+		}
+		return protocol.Protection{Password: &protocol.PasswordProtection{Reference: reference, Secret: sharedSecret, IterationCount: int(password.Algorithm.IterationCount), OWF: owf, MAC: mac}}, nil
 	}
 	signature := configured.Signature
 	secret, err := getSecret(signature.SecretRef)

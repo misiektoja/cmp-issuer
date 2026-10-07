@@ -56,6 +56,8 @@ type PasswordProtection struct {
 	Reference      []byte
 	Secret         []byte
 	IterationCount int
+	OWF            crypto.Hash
+	MAC            crypto.Hash
 }
 
 // SignatureProtection contains bootstrap signing material separate from the requested key.
