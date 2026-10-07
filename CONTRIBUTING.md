@@ -25,7 +25,7 @@ make docs-build
 
 Protocol changes need negative tests and an RFC citation. Interoperability claims need sanitized evidence naming the product and version.
 
-Every change must comply with the Developer Certificate of Origin 1.1. Use `git commit -s` only when you intend to provide that certification.
+Every commit must carry a `Signed-off-by` trailer that certifies the [Developer Certificate of Origin 1.1](https://developercertificate.org/). By signing off you certify the statements in the DCO, including that you have the right to submit the change under the project's open source license. `git commit -s` adds the trailer from your configured Git name and email. The email must match the commit author. The DCO check fails a pull request that contains a commit without it. Run `make dco-check` to check your branch against `origin/dev` and `git rebase --signoff origin/dev` to sign off every commit on it.
 
 ## Code style and local hooks
 
