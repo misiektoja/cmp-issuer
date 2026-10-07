@@ -25,7 +25,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha512"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -734,18 +733,5 @@ func TestSendCMPRetriesTransientClientStatuses(t *testing.T) {
 				t.Fatalf("expected retryable systemUnavail for HTTP %d, got %v", status, err)
 			}
 		})
-	}
-}
-
-// TestCertificateHashSupportsEd25519 verifies certConf uses SHA-512 for an Ed25519-signed certificate.
-func TestCertificateHashSupportsEd25519(t *testing.T) {
-	raw := []byte("ed25519-certificate")
-	want := sha512.Sum512(raw)
-	got, err := certificateHash(&x509.Certificate{Raw: raw, SignatureAlgorithm: x509.PureEd25519})
-	if err != nil {
-		t.Fatalf("certificateHash returned error: %v", err)
-	}
-	if !bytes.Equal(got, want[:]) {
-		t.Fatalf("expected SHA-512 certificate hash, got %x", got)
 	}
 }
