@@ -96,6 +96,7 @@ type EnrollmentRequest struct {
 	RequestedPrivateKey    crypto.Signer
 	Protection             Protection
 	CMPTrust               *x509.CertPool
+	CMPTrustCertificates   []*x509.Certificate
 	TLSRoots               *x509.CertPool
 }
 

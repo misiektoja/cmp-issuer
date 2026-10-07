@@ -385,10 +385,16 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	// kind of operation, so the interoperability opt-in accepts a signer that chains to the configured
 	// anchor. The sender check below still requires that signer to name the request recipient.
 	signatureAccepted := requiredProtection == pkicmp.ProtectionSignature || request.AllowSignedMACResponse
+	// RFC 9810 section 5.1 permits omitted extraCerts, so configured anchors also identify signers.
+	candidates := make([]pkicmp.CMPCertificate, 0, len(response.ExtraCerts)+len(request.CMPTrustCertificates))
+	candidates = append(candidates, response.ExtraCerts...)
+	for _, certificate := range request.CMPTrustCertificates {
+		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
+	}
 	var responseSigner *x509.Certificate
-	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
+	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: candidates, SenderKID: response.Header.SenderKID})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
-		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust)
+		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust, candidates)
 	}
 	if verificationErr != nil && signatureAccepted && previousSigner != nil {
 		if _, previousErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: previousSigner}); previousErr == nil {
@@ -397,7 +403,7 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 		}
 	}
 	if verificationErr != nil && signatureAccepted {
-		if fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust); fallbackErr == nil {
+		if fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust, candidates); fallbackErr == nil {
 			responseSigner = fallbackSigner
 			verificationErr = nil
 		}
@@ -474,13 +480,13 @@ func acceptableRecipNonce(recipNonce []byte, requestNonce []byte, delayedRequest
 }
 
 // verifyTrustedSignature independently verifies a signature signer chain without treating senderKID as an authorization value.
-func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) (*x509.Certificate, error) {
+func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool, candidates []pkicmp.CMPCertificate) (*x509.Certificate, error) {
 	if roots == nil {
 		return nil, fmt.Errorf("CMP trust anchors are absent")
 	}
-	parsed := make([]*x509.Certificate, 0, len(message.ExtraCerts))
+	parsed := make([]*x509.Certificate, 0, len(candidates))
 	intermediates := x509.NewCertPool()
-	for _, encoded := range message.ExtraCerts {
+	for _, encoded := range candidates {
 		certificate, err := encoded.Parse()
 		if err != nil {
 			continue

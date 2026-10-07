@@ -530,7 +530,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		secrets[key] = secret
 		return secret, nil
 	}
-	cmpTrust, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
+	cmpTrust, cmpTrustCertificates, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
 	}
@@ -573,7 +573,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		responseCertReqID = &pinned
 	}
 	requireKUPCAPubsAbsent := strictRFC9483 || spec.Protocol.KURResponseCAPubs == cmpv1alpha1.KURResponseCAPubsRequireAbsent
-	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, AllowSignedMACResponse: !strictRFC9483 && spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict, ResponseCertReqID: responseCertReqID, RequireKUPCAPubsAbsent: requireKUPCAPubsAbsent, Protection: protection, CMPTrust: cmpTrust, TLSRoots: tlsRoots}
+	request := protocol.EnrollmentRequest{EndpointURL: spec.Endpoint.URL, Timeout: spec.Endpoint.Timeout.Duration, MaxResponseSize: spec.Endpoint.MaxResponseSize, Recipient: recipient, ImplicitConfirm: spec.Protocol.Confirmation == "Implicit", RejectGrantedMods: spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept, AllowSignedMACResponse: !strictRFC9483 && spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict, ResponseCertReqID: responseCertReqID, RequireKUPCAPubsAbsent: requireKUPCAPubsAbsent, Protection: protection, CMPTrust: cmpTrust, CMPTrustCertificates: cmpTrustCertificates, TLSRoots: tlsRoots}
 	if sender != nil {
 		request.Sender = sender
 	}
@@ -814,25 +814,25 @@ func validateTransactionAndPolicy(transaction cmpv1alpha1.TransactionSpec, polic
 	return nil
 }
 
-// loadTrustPool parses the required CMP trust Secret key.
-func loadTrustPool(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), reference cmpv1alpha1.SecretKeyReference) (*x509.CertPool, *configurationError) {
+// loadTrustPool retains the configured anchors for chain validation and response signer discovery.
+func loadTrustPool(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), reference cmpv1alpha1.SecretKeyReference) (*x509.CertPool, []*x509.Certificate, *configurationError) {
 	secret, err := getSecret(cmpv1alpha1.LocalSecretReference{Name: reference.Name})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	data, valueErr := requiredSecretValue(secret, reference.Key)
 	if valueErr != nil {
-		return nil, retryableConfiguration("read CMP trust", valueErr)
+		return nil, nil, retryableConfiguration("read CMP trust", valueErr)
 	}
 	certificates, parseErr := protocol.ParseCertificates(data)
 	if parseErr != nil {
-		return nil, retryableConfiguration("parse CMP trust", parseErr)
+		return nil, nil, retryableConfiguration("parse CMP trust", parseErr)
 	}
 	pool := x509.NewCertPool()
 	for _, certificate := range certificates {
 		pool.AddCert(certificate)
 	}
-	return pool, nil
+	return pool, certificates, nil
 }
 
 // loadTLSRoots parses optional HTTPS trust anchors.
