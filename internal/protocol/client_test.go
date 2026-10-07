@@ -65,6 +65,7 @@ type testPKI struct {
 
 // mockOptions selects negative response behavior for the mock CMP server.
 type mockOptions struct {
+	ResponseSigner      *SignatureProtection
 	CertReqID           int64
 	WrongPublicKey      bool
 	InvalidProtection   bool
@@ -266,7 +267,8 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		if options.ResponsePVNO != 0 {
 			responsePVNO = options.ResponsePVNO
 		}
-		response := &pkicmp.PKIMessage{Header: pkicmp.PKIHeader{PVNO: responsePVNO, Sender: pkicmp.NewDirectoryName(pki.CACertificate.Subject), TransactionID: append([]byte(nil), message.Header.TransactionID...), RecipNonce: append([]byte(nil), message.Header.SenderNonce...)}}
+		signer := mockResponseSigner(t, pki, options)
+		response := &pkicmp.PKIMessage{Header: pkicmp.PKIHeader{PVNO: responsePVNO, Sender: pkicmp.NewDirectoryName(signer.Certificate.Subject), TransactionID: append([]byte(nil), message.Header.TransactionID...), RecipNonce: append([]byte(nil), message.Header.SenderNonce...)}}
 		if !setMockResponseBody(t, pki, options, message, response, state) {
 			return
 		}
@@ -289,27 +291,11 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		if options.WrongSignerSubject {
 			response.Header.Sender = pkicmp.NewDirectoryName(pkix.Name{CommonName: "Unrelated signer"})
 		}
-		signingCertificate := pki.CACertificate
-		signingKey := pki.CAKey
-		if options.ImpostorAuthority {
-			// A subordinate authority under the same trust anchor, naming itself in the header. Its
-			// signature verifies and its sender matches its own subject, so only the recipient
-			// comparison can reject it.
-			impostorKey, impostorCertificate := newSubordinateAuthority(t, pki, "CMP Test Impostor CA")
-			signingCertificate = impostorCertificate
-			signingKey = impostorKey
-			response.Header.Sender = pkicmp.NewDirectoryName(impostorCertificate.Subject)
-		}
-		if options.MismatchedSenderKID {
-			copyCertificate := *signingCertificate
-			copyCertificate.SubjectKeyId = []byte{9, 9, 9}
-			signingCertificate = &copyCertificate
-		}
 		var credentials pkicmp.Credentials
 		if (verification.MACVerified && !options.ForceSignature) || options.ForceMAC {
 			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(1024))
 		} else {
-			credentials, err = pkicmp.NewSignatureCredentials(signingKey, signingCertificate)
+			credentials, err = pkicmp.NewSignatureCredentials(signer.PrivateKey, signer.Certificate)
 		}
 		if err != nil {
 			t.Errorf("create response credentials: %v", err)
@@ -346,6 +332,25 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		_, _ = writer.Write(responseDER)
 	}))
 	return server, state
+}
+
+// mockResponseSigner selects a response identity independently of the certificate issuer.
+func mockResponseSigner(t *testing.T, pki testPKI, options mockOptions) SignatureProtection {
+	t.Helper()
+	signer := SignatureProtection{PrivateKey: pki.CAKey, Certificate: pki.CACertificate}
+	if options.ResponseSigner != nil {
+		signer = *options.ResponseSigner
+	}
+	if options.ImpostorAuthority {
+		// A valid chain and sender subject leave recipient binding as the check that rejects this authority.
+		signer.PrivateKey, signer.Certificate = newSubordinateAuthority(t, pki, "CMP Test Impostor CA")
+	}
+	if options.MismatchedSenderKID {
+		copyCertificate := *signer.Certificate
+		copyCertificate.SubjectKeyId = []byte{9, 9, 9}
+		signer.Certificate = &copyCertificate
+	}
+	return signer
 }
 
 // setMockResponseBody builds the response body for one supported mock CMP request.

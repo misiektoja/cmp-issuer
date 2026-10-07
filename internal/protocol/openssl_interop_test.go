@@ -160,18 +160,23 @@ func startOpenSSLMockServer(t *testing.T, pki testPKI, issued *x509.Certificate,
 	return ""
 }
 
-// startOpenSSLKURMockServer runs an independently authenticated signature-protected KUR responder.
-// extra adds mock server options.
+// startOpenSSLKURMockServer runs a signature-protected KUR responder with optional server arguments.
 func startOpenSSLKURMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate, includeExtraCerts bool, extra ...string) string {
+	t.Helper()
+	return startOpenSSLSignatureMockServer(t, pki, current, issued, &SignatureProtection{PrivateKey: pki.CAKey, Certificate: pki.CACertificate}, includeExtraCerts, extra...)
+}
+
+// startOpenSSLSignatureMockServer runs a signature responder with an independently selected response signer.
+func startOpenSSLSignatureMockServer(t *testing.T, pki testPKI, current *x509.Certificate, issued *x509.Certificate, signer *SignatureProtection, includeExtraCerts bool, extra ...string) string {
 	t.Helper()
 	binary := requireOpenSSLCMP(t, opensslReferenceCertificateOption)
 	dir := t.TempDir()
-	caKeyDER, err := x509.MarshalPKCS8PrivateKey(pki.CAKey)
+	caKeyDER, err := x509.MarshalPKCS8PrivateKey(signer.PrivateKey)
 	if err != nil {
 		t.Fatalf("marshal CA key: %v", err)
 	}
 	keyPath := writePEM(t, dir, "srv_key.pem", "PRIVATE KEY", caKeyDER)
-	certificatePath := writePEM(t, dir, "srv_cert.pem", "CERTIFICATE", pki.CACertificate.Raw)
+	certificatePath := writePEM(t, dir, "srv_cert.pem", "CERTIFICATE", signer.Certificate.Raw)
 	trustPath := writePEM(t, dir, "srv_trusted.pem", "CERTIFICATE", pki.CACertificate.Raw)
 	currentPath := writePEM(t, dir, "ref_cert.pem", "CERTIFICATE", current.Raw)
 	issuedPath := writePEM(t, dir, "issued.pem", "CERTIFICATE", issued.Raw)
@@ -240,6 +245,12 @@ func (f *forwardedMessages) at(index int) []byte {
 // difference without altering a single CMP byte.
 func newSingleConnectionProxy(t *testing.T, upstream string) (*httptest.Server, *forwardedMessages) {
 	t.Helper()
+	return newSingleConnectionResponseProxy(t, upstream, nil)
+}
+
+// newSingleConnectionResponseProxy applies an optional response filter while preserving the upstream connection.
+func newSingleConnectionResponseProxy(t *testing.T, upstream string, filter func([]byte) ([]byte, error)) (*httptest.Server, *forwardedMessages) {
+	t.Helper()
 	forwarded := &forwardedMessages{}
 	client := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{MaxIdleConns: 1, MaxIdleConnsPerHost: 1, IdleConnTimeout: time.Minute}}
 	proxy := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -256,6 +267,9 @@ func newSingleConnectionProxy(t *testing.T, upstream string) (*httptest.Server, 
 		}
 		defer func() { _ = response.Body.Close() }()
 		relayed, err := io.ReadAll(response.Body)
+		if err == nil && filter != nil {
+			relayed, err = filter(relayed)
+		}
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusBadGateway)
 			return

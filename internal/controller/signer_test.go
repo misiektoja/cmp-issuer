@@ -175,8 +175,8 @@ func (r *fakeCertificateRequest) GetCertificateDetails() (issuersigner.Certifica
 // GetConditions returns no synthetic request conditions.
 func (r *fakeCertificateRequest) GetConditions() []metav1.Condition { return nil }
 
-// testCertificateMaterial creates a root certificate, PEM bundle and PKCS #8 private key.
-func testCertificateMaterial(t *testing.T, commonName string) (*x509.Certificate, *ecdsa.PrivateKey, []byte, []byte) {
+// testCertificateMaterial creates a root certificate, signing key and PEM bundle.
+func testCertificateMaterial(t *testing.T, commonName string) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -191,11 +191,7 @@ func testCertificateMaterial(t *testing.T, commonName string) (*x509.Certificate
 	if err != nil {
 		t.Fatal(err)
 	}
-	privateKeyDER, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return certificate, key, pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER}), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyDER})
+	return certificate, key, pem.EncodeToMemory(&pem.Block{Type: pemCertificateBlockType, Bytes: certificateDER})
 }
 
 // testCSR creates a PEM-encoded signed PKCS #10 request.
@@ -292,7 +288,7 @@ func testKURRequestObjectsWithKeys(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, 
 // credentialSecrets returns valid PasswordBasedMac and CMP trust Secrets.
 func credentialSecrets(t *testing.T, namespace string) (*corev1.Secret, *corev1.Secret, *x509.Certificate) {
 	t.Helper()
-	certificate, _, certificatePEM, _ := testCertificateMaterial(t, "CMP Root")
+	certificate, _, certificatePEM := testCertificateMaterial(t, "CMP Root")
 	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
 	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testTrustSecretName, Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
 	return auth, trust, certificate
