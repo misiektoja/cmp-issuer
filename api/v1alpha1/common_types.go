@@ -51,10 +51,18 @@ const (
 	GrantedModificationsReject = "Reject"
 	// GrantedModificationsAccept accepts validated certificates with server modifications.
 	GrantedModificationsAccept = "Accept"
-	// PasswordBasedMacOWFSHA256 is the only one-way function the PasswordBasedMac suite accepts.
+	// PasswordBasedMacOWFSHA256 selects SHA-256 as the one-way function.
 	PasswordBasedMacOWFSHA256 = "SHA256"
-	// PasswordBasedMacMACHMACSHA256 is the only message authentication algorithm the suite accepts.
+	// PasswordBasedMacOWFSHA384 selects SHA-384 as the one-way function.
+	PasswordBasedMacOWFSHA384 = "SHA384"
+	// PasswordBasedMacOWFSHA512 selects SHA-512 as the one-way function.
+	PasswordBasedMacOWFSHA512 = "SHA512"
+	// PasswordBasedMacMACHMACSHA256 selects HMAC-SHA-256.
 	PasswordBasedMacMACHMACSHA256 = "HMACSHA256"
+	// PasswordBasedMacMACHMACSHA384 selects HMAC-SHA-384.
+	PasswordBasedMacMACHMACSHA384 = "HMACSHA384"
+	// PasswordBasedMacMACHMACSHA512 selects HMAC-SHA-512.
+	PasswordBasedMacMACHMACSHA512 = "HMACSHA512"
 	// PasswordBasedMacIterationCountDefault is the iteration count applied when the algorithm block is omitted.
 	PasswordBasedMacIterationCountDefault int32 = 1024
 	// PasswordBasedMacIterationCountMinimum is the lowest iteration count the suite accepts.
@@ -222,16 +230,17 @@ type PasswordBasedMacSpec struct {
 	Algorithm PasswordBasedMacAlgorithmSpec `json:"algorithm,omitempty"`
 }
 
-// PasswordBasedMacAlgorithmSpec configures the initial supported PBM suite.
+// PasswordBasedMacAlgorithmSpec configures the PBM hash, MAC and iteration count.
+// +kubebuilder:validation:XValidation:rule="self.mac == 'HMACSHA256' || self.owf == 'SHA512' || (self.owf == 'SHA384' && self.mac == 'HMACSHA384')",message="MAC digest must not be longer than the OWF output"
 type PasswordBasedMacAlgorithmSpec struct {
 	// OWF selects the one-way function.
 	// +kubebuilder:default=SHA256
-	// +kubebuilder:validation:Enum=SHA256
+	// +kubebuilder:validation:Enum=SHA256;SHA384;SHA512
 	// +required
 	OWF string `json:"owf"`
 	// MAC selects the message authentication algorithm.
 	// +kubebuilder:default=HMACSHA256
-	// +kubebuilder:validation:Enum=HMACSHA256
+	// +kubebuilder:validation:Enum=HMACSHA256;HMACSHA384;HMACSHA512
 	// +required
 	MAC string `json:"mac"`
 	// IterationCount selects the PBM iteration count.
@@ -285,6 +294,9 @@ type CMPTrustSpec struct {
 	// CASecretRef selects PEM-encoded trust anchors.
 	// +required
 	CASecretRef SecretKeyReference `json:"caSecretRef"`
+	// SignerCertificatesSecretRef selects optional PEM response signer certificates and intermediates that must chain to CASecretRef.
+	// +optional
+	SignerCertificatesSecretRef *SecretKeyReference `json:"signerCertificatesSecretRef,omitempty"`
 }
 
 // TransportSpec configures transport security separately from CMP protection.
@@ -299,7 +311,8 @@ type TLSTransportSpec struct {
 	// CASecretRef optionally selects PEM-encoded HTTPS trust anchors.
 	// +optional
 	CASecretRef *SecretKeyReference `json:"caSecretRef,omitempty"`
-	// ClientCertificateSecretRef reserves a Secret for later mTLS support.
+	// ClientCertificateSecretRef is reserved for mTLS support and must remain unset.
+	// Setting it makes the issuer NotReady.
 	// +optional
 	ClientCertificateSecretRef *LocalSecretReference `json:"clientCertificateSecretRef,omitempty"`
 }

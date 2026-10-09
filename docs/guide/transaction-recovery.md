@@ -24,7 +24,7 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | `issuerRef` | Name, kind, UID and generation of the issuer that served the transaction |
 | `configurationDigest` | SHA-256 identity of that issuer generation and every credential or KUR workload Secret version it loaded |
 | `operation` | CMP operation selected before sending, `P10CR` or `KUR` |
-| `protocolVersion` | CMP protocol version of every message |
+| `protocolVersion` | Enrollment protocol version, currently CMPv2. Certificate confirmation may use CMPv3 for an ML-DSA-signed certificate |
 
 **Status** (updated during the transaction):
 

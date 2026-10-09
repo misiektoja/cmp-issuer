@@ -18,6 +18,16 @@ cmp-issuer has completed protected P10CR enrollment and renewal tests against th
 | Protection tested | PasswordBasedMac, certificate signature |
 | Confirmation | Explicit `certConf` and protected `pkiConf` |
 
+PasswordBasedMac enrollment and explicit confirmation succeeded with matching SHA-256, SHA-384 and
+SHA-512 OWF/HMAC pairs.
+
+### Configured response signer certificates
+
+Signature-protected P10CR and both KUR rotation policies completed through a proxy that removed
+unsigned response `extraCerts` without changing the signed fields. The configured
+`cmpTrust.signerCertificatesSecretRef` supplied the non-anchor signer and issued-chain intermediate.
+Both signatures and issued chains validated against the separate configured root.
+
 ### P10CR certReqId
 
 NCM returns `certReqId` `0` in P10CR CP responses. The default issuer accepts `-1` or `0`. Pinning `-1` fails permanently.
@@ -77,6 +87,9 @@ The NCM CMP listener applies a per-host request limit that is independent of CMP
 | Transports tested | HTTP and HTTPS |
 | Authentication modules | HMAC and EndEntityCertificate |
 
+PasswordBasedMac enrollment and explicit confirmation succeeded with matching SHA-256, SHA-384 and
+SHA-512 OWF/HMAC pairs. The tested alias returned signature-protected responses.
+
 ### Continuously verified
 
 Enrollment against EJBCA runs in CI after changes land on `dev` or `main`, against a server started in the test cluster. Pull requests omit this expensive job. Each run issues real certificates through cert-manager `Certificate` resources over shared-secret HTTP and HTTPS plus certificate-signature HTTP. It also renews dedicated client-mode identities through KUR with `rotationPolicy` `Always` and `Never`. The endpoint certificate is verified against a pinned authority that did not sign the CMP responses, so a run also confirms that the CMP trust and transport trust are decided separately.
@@ -118,6 +131,18 @@ EJBCA answers a repeat of an enrollment it already accepted with a protected err
 ## OpenSSL CMP mock
 
 CI runs delayed enrollment, delayed confirmation, pinned transaction and KUR flows against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
+
+Signature-protected P10CR and both KUR rotation variants are also tested without `-rsp_extracerts`.
+The configured CMP trust anchor signs the responses and explicit confirmation completes without the
+server sending its signer certificate.
+
+An independently signed response also verifies when its non-anchor signer is configured through
+`cmpTrust.signerCertificatesSecretRef` and a proxy removes response `extraCerts`. The signer must
+still chain to the configured anchor. Explicit confirmation completes against OpenSSL 3.6 and 4.0.
+
+PasswordBasedMac enrollment and explicit confirmation cover all six supported SHA-256, SHA-384 and
+SHA-512 OWF/HMAC combinations. Polling also covers each matching OWF/HMAC pair. Captured requests
+confirm the selected algorithm identifiers on every message.
 
 The mock keeps one transaction per TCP connection. The test reaches it through a connection-pooling proxy because RFC 6712 does not require connection affinity on real servers. The mock returns a fixed certificate rather than signing the request, so it cannot show how a server treats a repeat; that behavior is recorded above from NCM and EJBCA.
 

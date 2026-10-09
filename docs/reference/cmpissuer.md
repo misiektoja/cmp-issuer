@@ -87,6 +87,7 @@ See [Message protection](../guide/message-protection.md).
 | --- | --- | --- |
 | `caSecretRef.name` | yes | Secret containing PEM trust anchors |
 | `caSecretRef.key` | yes | Key within the Secret data |
+| `signerCertificatesSecretRef` | no | Secret `name` and `key` containing PEM response signer certificates and intermediates. Candidates must chain to `caSecretRef` and do not add trust anchors |
 
 ### `spec.transport`
 
@@ -95,7 +96,7 @@ Optional HTTPS settings. Omit for HTTP or for HTTPS validated with the system tr
 | Field | Description |
 | --- | --- |
 | `tls.caSecretRef` | PEM trust anchors for the HTTPS server |
-| `tls.clientCertificateSecretRef` | Reserved for future mTLS |
+| `tls.clientCertificateSecretRef` | Reserved for future mTLS. Leave unset or the issuer becomes NotReady |
 
 See [HTTP and HTTPS transport](../guide/transport.md).
 

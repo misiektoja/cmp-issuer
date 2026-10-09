@@ -1,0 +1,31 @@
+name: DCO
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dco:
+    permissions:
+      contents: read
+    name: Developer Certificate of Origin sign-off
+    runs-on: ubuntu-latest
+    steps:
+      # The full history makes both ends of the pull request range available to git rev-list.
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check every commit carries a sign-off
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: hack/check-dco.sh "$BASE_SHA" "$HEAD_SHA"

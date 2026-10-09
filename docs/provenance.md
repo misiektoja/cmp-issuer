@@ -8,6 +8,7 @@ cmp-issuer is built from public standards and public project APIs, starting from
 | --- | --- | --- |
 | [RFC 4210](https://www.rfc-editor.org/rfc/rfc4210.html) | IETF Trust legal provisions | CMPv2 message syntax and the original P10CR response identifier convention |
 | [RFC 9810](https://www.rfc-editor.org/rfc/rfc9810.html) | IETF Trust legal provisions | CMP message syntax, state transitions, protection and confirmation |
+| [RFC 9881](https://www.rfc-editor.org/rfc/rfc9881.html) | IETF Trust legal provisions | ML-DSA certificate key usage constraints |
 | [RFC 9811](https://www.rfc-editor.org/rfc/rfc9811.html) | IETF Trust legal provisions | CMP over HTTP transport behavior |
 | [RFC 9481](https://www.rfc-editor.org/rfc/rfc9481.html) | IETF Trust legal provisions | Algorithm requirements and recommendations |
 | [RFC 9483](https://www.rfc-editor.org/rfc/rfc9483.html) | IETF Trust legal provisions | Lightweight CMP profile, P10CR `certReqId` rules and KUR profile requirements |

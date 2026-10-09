@@ -3,7 +3,7 @@
 # with all the plugins listed below.
 #
 # See: https://golangci-lint.run/plugins/module-plugins/
-version: v2.12.2
+version: v2.14.0
 plugins:
   # logcheck validates structured logging calls and parameters (e.g., balanced key-value pairs)
   # Pinned rather than tracked, so that a fresh CI run builds the linter from the same reviewed

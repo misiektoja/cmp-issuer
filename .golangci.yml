@@ -43,6 +43,9 @@ linters:
       disable:
         - omitzero
         - newexpr
+        # Keep explicit error matching and embedded-field types.
+        - errorsastype
+        - embedlit
   exclusions:
     generated: lax
     rules:

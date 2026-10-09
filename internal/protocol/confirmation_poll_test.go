@@ -44,6 +44,7 @@ func freshNonce(t *testing.T) []byte {
 
 // confirmationOptions configures how a test server delays the confirmation response.
 type confirmationOptions struct {
+	OmitExtraCerts bool
 	// Delays is how many times the confirmation leg is answered with a waiting status.
 	Delays int
 	// UsePollRep answers polls with pollRep instead of an error carrying status waiting.
@@ -84,6 +85,8 @@ func (s *confirmationState) polls() []int64 {
 func newDelayedConfirmationServer(t *testing.T, pki testPKI, password []byte, options confirmationOptions) (*httptest.Server, *confirmationState) {
 	t.Helper()
 	state := &confirmationState{delaysRemaining: options.Delays}
+	trust := x509.NewCertPool()
+	trust.AddCert(pki.CACertificate)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, httpRequest *http.Request) {
 		requestDER, err := io.ReadAll(httpRequest.Body)
 		if err != nil {
@@ -95,7 +98,7 @@ func newDelayedConfirmationServer(t *testing.T, pki testPKI, password []byte, op
 			t.Errorf("parse request: %v", err)
 			return
 		}
-		if _, err := message.Verify(pkicmp.VerifyOptions{SharedSecret: password, SenderKID: message.Header.SenderKID}); err != nil {
+		if _, err := message.Verify(pkicmp.VerifyOptions{SharedSecret: password, TrustPool: trust, ExtraCerts: message.ExtraCerts, SenderKID: message.Header.SenderKID}); err != nil {
 			t.Errorf("verify request protection: %v", err)
 			return
 		}
@@ -151,7 +154,12 @@ func newDelayedConfirmationServer(t *testing.T, pki testPKI, password []byte, op
 			return
 		}
 		state.mutex.Unlock()
-		credentials, err := pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(1024))
+		var credentials pkicmp.Credentials
+		if password == nil {
+			credentials, err = pkicmp.NewSignatureCredentials(pki.CAKey, pki.CACertificate)
+		} else {
+			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(1024))
+		}
 		if err != nil {
 			t.Errorf("create response credentials: %v", err)
 			return
@@ -159,6 +167,9 @@ func newDelayedConfirmationServer(t *testing.T, pki testPKI, password []byte, op
 		if err := credentials.Protect(response); err != nil {
 			t.Errorf("protect response: %v", err)
 			return
+		}
+		if options.OmitExtraCerts {
+			response.ExtraCerts = nil
 		}
 		responseDER, err := response.MarshalBinary()
 		if err != nil {

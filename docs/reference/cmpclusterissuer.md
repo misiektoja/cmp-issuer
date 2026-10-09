@@ -28,7 +28,7 @@ be `false`, since a Role cannot be bound outside its own namespace.
 The installer manifest installs into `cmp-issuer-system` and relies on the compiled-in default of the
 same name. Change both together if you retarget the manifest.
 
-Store PBM credentials, signature bootstrap material and CMP trust anchors in that namespace. Reference them by name only in the issuer spec.
+Store PBM credentials, signature bootstrap material, CMP trust anchors and optional response signer certificates in that namespace. Reference them by name only in the issuer spec.
 
 ## Example
 

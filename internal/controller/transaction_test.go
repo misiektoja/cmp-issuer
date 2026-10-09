@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -561,6 +562,60 @@ func TestSignRetainsResponseSignerAcrossPolls(t *testing.T) {
 	}
 }
 
+// TestSignRetainsAnchorSignerAcrossRestart verifies persisted anchors reach resumed polls and confirmations.
+func TestSignRetainsAnchorSignerAcrossRestart(t *testing.T) {
+	for _, confirmation := range []bool{false, true} {
+		name := "polling"
+		if confirmation {
+			name = "confirmation"
+		}
+		t.Run(name, func(t *testing.T) {
+			fixture := newAsyncFixture(t, nil)
+			configuration, err := fixture.signer.loadRuntimeConfiguration(context.Background(), fixture.issuer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			anchor := configuration.EnrollmentRequest.CMPTrustCertificates[0]
+			pending := waitingResult(0, "nonce-one", 0)
+			pending.Pending.ResponseSigner = anchor
+			if confirmation {
+				issued := issuedCertificateFor(t, fixture.request.details.CSR)
+				pending = confirmingResult(issued, "confirm-nonce")
+				pending.PendingConfirmation.ResponseSigner = anchor
+				fixture.protocol.queue = []fakeExchange{{result: pending}, {result: protocol.EnrollmentResult{PendingConfirmation: &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte("delayed-nonce"), RequestNonce: []byte("certconf-nonce"), ResponseSigner: anchor}}}}
+			} else {
+				fixture.protocol.queue = []fakeExchange{{result: pending}}
+			}
+			if _, err := fixture.sign(t); err == nil {
+				t.Fatal("expected a pending transaction")
+			}
+			if !bytes.Equal(fixture.transaction(t).Status.ResponseSigner, anchor.Raw) {
+				t.Fatal("expected the anchor in the persisted transaction")
+			}
+			restarted := &fakeProtocolClient{result: protocol.EnrollmentResult{ExplicitConfirmation: true}}
+			fixture.signer = &Signer{KubeClient: fixture.kube, ProtocolClient: restarted, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(fixture.kube)}
+			if !confirmation {
+				restarted.result = waitingResult(0, "nonce-two", 0)
+			}
+			_, resumeErr := fixture.sign(t)
+			if confirmation {
+				if resumeErr != nil {
+					t.Fatalf("resume confirmation: %v", resumeErr)
+				}
+			} else {
+				requirePending(t, resumeErr, time.Second)
+			}
+			restored := restarted.pollRequest.ResponseSigner
+			if confirmation {
+				restored = restarted.confirmRequest.ResponseSigner
+			}
+			if restored == nil || !restored.Equal(anchor) || restarted.calls != 0 {
+				t.Fatal("expected the restored anchor without another enrollment")
+			}
+		})
+	}
+}
+
 // TestSignClampsServerCheckAfterToConfiguredBounds verifies polling honors the issuer limits.
 func TestSignClampsServerCheckAfterToConfiguredBounds(t *testing.T) {
 	for name, testCase := range map[string]struct {
@@ -758,5 +813,45 @@ func TestSignRemovesStateOnPermanentFailure(t *testing.T) {
 	}
 	if fixture.transaction(t) != nil {
 		t.Fatal("expected the rejected transaction state to be removed")
+	}
+}
+
+// TestSignRejectsRecordedMLDSAKeyUsage blocks recovery and confirmation of a non-compliant chain.
+func TestSignRejectsRecordedMLDSAKeyUsage(t *testing.T) {
+	for _, phase := range []string{cmpv1alpha1.TransactionPhaseIssued, cmpv1alpha1.TransactionPhaseConfirming} {
+		t.Run(phase, func(t *testing.T) {
+			fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+			key, err := mldsa.GenerateKey(mldsa.MLDSA65())
+			if err != nil {
+				t.Fatal(err)
+			}
+			csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture.request.details.CSR = csr
+			if _, err := fixture.sign(t); err == nil {
+				t.Fatal("expected enrollment to wait")
+			}
+			template := &x509.Certificate{SerialNumber: big.NewInt(2), NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment}
+			der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored := fixture.transaction(t)
+			stored.Status.Phase = phase
+			stored.Status.IssuedChain = [][]byte{der}
+			if err := fixture.kube.Status().Update(context.Background(), stored); err != nil {
+				t.Fatal(err)
+			}
+			bundle, err := fixture.sign(t)
+			var permanent issuersigner.PermanentError
+			if !errors.As(err, &permanent) || len(bundle.ChainPEM) != 0 {
+				t.Fatalf("expected stored certificate rejection, got %+v and %v", bundle, err)
+			}
+			if fixture.protocol.calls != 1 || fixture.protocol.polls != 0 || fixture.protocol.confirms != 0 {
+				t.Fatal("sent CMP traffic after rejecting the stored certificate")
+			}
+		})
 	}
 }

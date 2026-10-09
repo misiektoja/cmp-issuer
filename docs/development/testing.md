@@ -38,8 +38,8 @@ that adds a workflow with no top-level `permissions` key. These are the conventi
 already follows, and nothing else enforces them.
 
 `test/repository` checks the repository itself: governance and support files, citation identity and its
-released version, EditorConfig settings, tracked-file whitespace, Git line-ending and binary rules plus
-the toolchain-free pre-commit hooks. The workflow suite separately requires release source archives,
+released version, EditorConfig settings, tracked-file whitespace, Git line-ending and binary rules, the
+toolchain-free pre-commit hooks plus the DCO sign-off check behind `make dco-check`. The workflow suite separately requires release source archives,
 checksums and signed build provenance. These checks keep metadata changes reviewable through the same
 `make test` command as the Go behavior.
 

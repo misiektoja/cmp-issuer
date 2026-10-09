@@ -66,7 +66,7 @@ func (c *CMPClient) EnrollKUR(ctx context.Context, request EnrollmentRequest) (E
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	return finishTransaction(request, response, csr, responseSigner, message.Header.SenderNonce)
+	return completeOrRefuse(ctx, httpClient, request, credentials, response, csr, responseSigner, message.Header.SenderNonce)
 }
 
 // ValidateKURRequest verifies both key proofs and the unchanged certificate identity without sending CMP traffic.

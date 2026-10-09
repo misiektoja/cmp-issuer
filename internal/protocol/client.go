@@ -25,6 +25,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -42,17 +43,13 @@ import (
 )
 
 const (
-	// operationEnrollment names the P10CR exchange in a log line.
-	operationEnrollment = "p10cr"
-	// operationKeyUpdate names the KUR exchange in a log line.
-	operationKeyUpdate = "kur"
-	// operationPoll names the pollReq exchange in a log line.
-	operationPoll = "pollReq"
-	// operationConfirmation names the certConf exchange in a log line.
+	operationEnrollment   = "p10cr"
+	operationKeyUpdate    = "kur"
+	operationPoll         = "pollReq"
 	operationConfirmation = "certConf"
 )
 
-// CMPClient executes synchronous CMPv2 P10CR transactions with explicit transport policy.
+// CMPClient handles CMP enrollment, key update, polling and certificate confirmation.
 type CMPClient struct{}
 
 // NewClient constructs the default project-owned CMP client.
@@ -97,7 +94,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	return finishTransaction(request, response, csr, responseSigner, message.Header.SenderNonce)
+	return completeOrRefuse(ctx, httpClient, request, credentials, response, csr, responseSigner, message.Header.SenderNonce)
 }
 
 // protectedEnrollment builds and protects the enrollment message sent for this transaction.
@@ -183,34 +180,77 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 		}
 		return EnrollmentResult{Pending: pending}, nil
 	}
-	return finishTransaction(request, response, csr, responseSigner, poll.RequestNonce)
+	return completeOrRefuse(ctx, httpClient, request, credentials, response, csr, responseSigner, poll.RequestNonce)
+}
+
+// completeOrRefuse finishes an authenticated enrollment response and tells the server about a refused certificate before failing.
+func completeOrRefuse(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
+	result, refusal, err := finishTransaction(request, response, csr, responseSigner, delayedRequestNonce)
+	if err != nil && refusal != nil {
+		return EnrollmentResult{}, rejectCertificate(ctx, client, request, credentials, *refusal, err)
+	}
+	return result, err
+}
+
+// refusedCertificate identifies an issued certificate the client refuses while the server still expects certConf.
+type refusedCertificate struct {
+	Certificate    *x509.Certificate
+	CertReqID      int64
+	RecipNonce     []byte
+	ResponseSigner *x509.Certificate
+	Reason         string
 }
 
 // finishTransaction turns an authenticated CP into a validated chain, or reports that polling continues.
 // delayedRequestNonce is the sender nonce that identifies this transaction to a server that delays responses.
-func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, error) {
+// A refusal is returned with the error when the issued certificate is refused and the server expects certConf.
+func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, csr *x509.CertificateRequest, responseSigner *x509.Certificate, delayedRequestNonce []byte) (EnrollmentResult, *refusedCertificate, error) {
 	issued, err := extractEnrollmentResponse(response, request)
 	if err != nil {
-		return EnrollmentResult{}, err
+		return EnrollmentResult{}, nil, err
 	}
 	if issued.Waiting {
-		return EnrollmentResult{Pending: &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, RequestNonce: append([]byte(nil), delayedRequestNonce...)}}, nil
+		return EnrollmentResult{Pending: &PendingTransaction{
+			CertReqID:      issued.CertReqID,
+			RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+			ResponseSigner: responseSigner,
+			RequestNonce:   append([]byte(nil), delayedRequestNonce...),
+		}}, nil, nil
+	}
+	implicitlyConfirmed := request.ImplicitConfirm && issued.ImplicitGranted
+	refuse := func(reason string) *refusedCertificate {
+		// An implicitly confirmed certificate is final at the server, so no certConf can reject it.
+		if implicitlyConfirmed {
+			return nil
+		}
+		return &refusedCertificate{
+			Certificate:    issued.Certificate,
+			CertReqID:      issued.CertReqID,
+			RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+			ResponseSigner: responseSigner,
+			Reason:         reason,
+		}
+	}
+	if issued.GrantedWithMods && request.RejectGrantedMods {
+		return EnrollmentResult{}, refuse("granted modifications are not accepted"), permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
 	}
 	if !PublicKeysEqual(csr.PublicKey, issued.Certificate.PublicKey) {
-		return EnrollmentResult{}, security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
+		return EnrollmentResult{}, refuse("certificate does not certify the requested public key"), security("validate issued certificate", "publicKeyMismatch", fmt.Errorf("issued certificate public key does not match CSR"))
 	}
-	chain, err := validateAndOrderChain(issued.Certificate, issued.Candidates, request.CMPTrust)
+	// A configured response signer can also be an intermediate in the issued certificate chain.
+	candidates := append(issued.Candidates, request.CMPResponseCertificates...)
+	chain, err := validateAndOrderChain(issued.Certificate, candidates, request.CMPTrust)
 	if err != nil {
-		return EnrollmentResult{}, security("validate issued chain", "signerNotTrusted", err)
+		return EnrollmentResult{}, refuse("certificate validation failed"), security("validate issued chain", "signerNotTrusted", err)
 	}
-	if request.ImplicitConfirm && issued.ImplicitGranted {
-		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil
+	if implicitlyConfirmed {
+		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil, nil
 	}
 	// Confirmation is handed back rather than completed here, so the caller can make the validated
 	// chain durable before certConf is sent. An interruption after this point then resumes the
 	// confirmation instead of failing a request whose certificate the server already issued.
 	pending := &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner}
-	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil
+	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil, nil
 }
 
 // extractPollRep validates a pollRep body and returns the state required for the next poll.
@@ -229,7 +269,13 @@ func extractPollRep(response *pkicmp.PKIMessage, expectedCertReqID int64, respon
 	if item.CheckAfter < 0 {
 		return nil, permanent("validate pollRep", "badRequest", fmt.Errorf("pollRep checkAfter is negative"))
 	}
-	return &PendingTransaction{CertReqID: item.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner, CheckAfter: time.Duration(item.CheckAfter) * time.Second, RequestNonce: append([]byte(nil), delayedRequestNonce...)}, nil
+	return &PendingTransaction{
+		CertReqID:      item.CertReqID,
+		RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+		ResponseSigner: responseSigner,
+		CheckAfter:     time.Duration(item.CheckAfter) * time.Second,
+		RequestNonce:   append([]byte(nil), delayedRequestNonce...),
+	}, nil
 }
 
 // validateEnrollmentRequest rejects unsupported or unsafe transaction configurations.
@@ -260,6 +306,9 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 		if request.Protection.Password.IterationCount < 100 || request.Protection.Password.IterationCount > 1048575 {
 			return permanent("validate PasswordBasedMac", "badRequest", fmt.Errorf("iteration count is outside supported bounds"))
 		}
+		if _, _, err := pbmAlgorithms(*request.Protection.Password); err != nil {
+			return permanent("validate PasswordBasedMac", "badRequest", err)
+		}
 	}
 	if request.Protection.Signature != nil {
 		if err := ValidateSignerCertificate(request.Protection.Signature.PrivateKey, request.Protection.Signature.Certificate); err != nil {
@@ -269,23 +318,60 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	return nil
 }
 
-// credentialsFor constructs reviewed go-pkicmp credentials without exposing dependency types.
+// pbmAlgorithms applies SHA-256 defaults and rejects unsupported PBM hash combinations.
+func pbmAlgorithms(password PasswordProtection) (crypto.Hash, crypto.Hash, error) {
+	owf, mac := password.OWF, password.MAC
+	if owf == 0 {
+		owf = crypto.SHA256
+	}
+	if mac == 0 {
+		mac = crypto.SHA256
+	}
+	for _, hash := range []crypto.Hash{owf, mac} {
+		if hash != crypto.SHA256 && hash != crypto.SHA384 && hash != crypto.SHA512 {
+			return 0, 0, fmt.Errorf("PasswordBasedMac requires SHA-256, SHA-384 or SHA-512")
+		}
+	}
+	if mac.Size() > owf.Size() {
+		return 0, 0, fmt.Errorf("PasswordBasedMac MAC digest must not be longer than the OWF output")
+	}
+	return owf, mac, nil
+}
+
+// credentialsFor builds CMP credentials from the configured protection method.
 func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 	if protection.Password != nil {
-		return pkicmp.NewMACCredentials(protection.Password.Secret, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(protection.Password.IterationCount))
+		owf, mac, err := pbmAlgorithms(*protection.Password)
+		if err != nil {
+			return nil, err
+		}
+		return pkicmp.NewMACCredentials(protection.Password.Secret, pkicmp.WithPBMAlgorithms(owf, mac), pkicmp.WithMACIterationCount(protection.Password.IterationCount))
 	}
 	return pkicmp.NewSignatureCredentials(protection.Signature.PrivateKey, protection.Signature.Certificate, protection.Signature.Chain...)
 }
 
 // newHTTPClient constructs a bounded transport that disables redirects.
 func newHTTPClient(request EnrollmentRequest) *http.Client {
-	// The timeout and the TLS trust are read from the issuer configuration for this call, so the
-	// transport cannot be shared and every caller closes idle connections when it returns. Without
-	// that, each enrollment, poll and confirmation leaves a pooled socket and its reader goroutine
-	// alive for the idle timeout below even though no later call can reuse either.
+	// Issuers have different timeouts and trust roots, so each call owns its transport and must
+	// close idle connections before returning.
 	dialer := &net.Dialer{Timeout: request.Timeout, KeepAlive: 30 * time.Second}
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: dialer.DialContext, ForceAttemptHTTP2: false, MaxIdleConns: 16, MaxIdleConnsPerHost: 4, IdleConnTimeout: 30 * time.Second, TLSHandshakeTimeout: request.Timeout, ResponseHeaderTimeout: request.Timeout, ExpectContinueTimeout: time.Second, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots}}
-	return &http.Client{Transport: transport, Timeout: request.Timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     false,
+		MaxIdleConns:          16,
+		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:       30 * time.Second,
+		TLSHandshakeTimeout:   request.Timeout,
+		ResponseHeaderTimeout: request.Timeout,
+		ExpectContinueTimeout: time.Second,
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots},
+	}
+	return &http.Client{
+		Transport:     transport,
+		Timeout:       request.Timeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
 
 // sendCMP posts protected DER and accepts authenticated CMP bodies without deriving state from HTTP metadata.
@@ -355,10 +441,19 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	// kind of operation, so the interoperability opt-in accepts a signer that chains to the configured
 	// anchor. The sender check below still requires that signer to name the request recipient.
 	signatureAccepted := requiredProtection == pkicmp.ProtectionSignature || request.AllowSignedMACResponse
+	// RFC 9810 section 5.1 permits omitted extraCerts, so configured anchors also identify signers.
+	candidates := make([]pkicmp.CMPCertificate, 0, len(response.ExtraCerts)+len(request.CMPTrustCertificates)+len(request.CMPResponseCertificates))
+	candidates = append(candidates, response.ExtraCerts...)
+	for _, certificate := range request.CMPTrustCertificates {
+		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
+	}
+	for _, certificate := range request.CMPResponseCertificates {
+		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
+	}
 	var responseSigner *x509.Certificate
-	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: response.ExtraCerts, SenderKID: response.Header.SenderKID})
+	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: candidates, SenderKID: response.Header.SenderKID})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
-		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust)
+		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust, candidates)
 	}
 	if verificationErr != nil && signatureAccepted && previousSigner != nil {
 		if _, previousErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: previousSigner}); previousErr == nil {
@@ -367,7 +462,7 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 		}
 	}
 	if verificationErr != nil && signatureAccepted {
-		if fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust); fallbackErr == nil {
+		if fallbackSigner, fallbackErr := verifyTrustedSignature(response, request.CMPTrust, candidates); fallbackErr == nil {
 			responseSigner = fallbackSigner
 			verificationErr = nil
 		}
@@ -375,14 +470,21 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	if verificationErr != nil {
 		return nil, security("verify response protection", "badMessageCheck", verificationErr)
 	}
+	if responseSigner != nil {
+		if err := ValidateMLDSAKeyUsage(responseSigner); err != nil {
+			return nil, security("verify response signer key usage", "badMessageCheck", err)
+		}
+	}
 	if !bytes.Equal(response.Header.TransactionID, requestMessage.Header.TransactionID) {
 		return nil, security("verify transaction ID", "transactionIdMismatch", fmt.Errorf("response transaction ID does not match request"))
 	}
 	if !acceptableRecipNonce(response.Header.RecipNonce, requestMessage.Header.SenderNonce, delayedRequestNonce) {
 		return nil, security("verify recipient nonce", "nonceMismatch", fmt.Errorf("response recipient nonce does not match request sender nonce"))
 	}
-	if response.Header.PVNO != pkicmp.PVNO2 {
-		return nil, permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version is not CMPv2"))
+	// RFC 9810 section 7 answers a request in its own version. A CMPv2 answer to a CMPv3 request is
+	// accepted too, because a server without CMPv3 support reports that in a CMPv2 error message.
+	if response.Header.PVNO != pkicmp.PVNO2 && response.Header.PVNO != requestMessage.Header.PVNO {
+		return nil, permanent("verify protocol version", "unsupportedVersion", fmt.Errorf("response protocol version %d does not match the request version %d", response.Header.PVNO, requestMessage.Header.PVNO))
 	}
 	if !senderMatchesRecipient(response.Header.Sender, request.Recipient) {
 		return nil, security("verify response sender", "wrongAuthority", fmt.Errorf("response sender does not name the configured recipient"))
@@ -413,7 +515,7 @@ func senderMatchesRecipient(sender pkicmp.GeneralName, recipient pkix.Name) bool
 	if len(configured) == 0 {
 		return true
 	}
-	return equalAttributeSets(attributeSet(sender.DirectoryName), attributeSet(configured))
+	return slices.Equal(attributeSet(sender.DirectoryName), attributeSet(configured))
 }
 
 // attributeSet renders every attribute of a distinguished name as a sorted, order-independent key list.
@@ -428,9 +530,6 @@ func attributeSet(sequence pkix.RDNSequence) []string {
 	return attributes
 }
 
-// equalAttributeSets reports whether two sorted attribute lists hold exactly the same entries.
-func equalAttributeSets(left []string, right []string) bool { return slices.Equal(left, right) }
-
 // acceptableRecipNonce reports whether a response echoes a nonce that links it to this transaction.
 // RFC 9483 section 3.5 accepts the sender nonce of the preceding request, or during delayed delivery
 // the sender nonce of the request whose response the server delayed.
@@ -442,13 +541,13 @@ func acceptableRecipNonce(recipNonce []byte, requestNonce []byte, delayedRequest
 }
 
 // verifyTrustedSignature independently verifies a signature signer chain without treating senderKID as an authorization value.
-func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) (*x509.Certificate, error) {
+func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool, candidates []pkicmp.CMPCertificate) (*x509.Certificate, error) {
 	if roots == nil {
 		return nil, fmt.Errorf("CMP trust anchors are absent")
 	}
-	parsed := make([]*x509.Certificate, 0, len(message.ExtraCerts))
+	parsed := make([]*x509.Certificate, 0, len(candidates))
 	intermediates := x509.NewCertPool()
-	for _, encoded := range message.ExtraCerts {
+	for _, encoded := range candidates {
 		certificate, err := encoded.Parse()
 		if err != nil {
 			continue
@@ -457,7 +556,7 @@ func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool) (*
 		intermediates.AddCert(certificate)
 	}
 	for _, certificate := range parsed {
-		if _, err := certificate.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
+		if _, err := verifyCertificateChain(certificate, roots, intermediates); err != nil {
 			continue
 		}
 		if _, err := message.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: certificate}); err == nil {
@@ -473,6 +572,8 @@ type issuedCertificate struct {
 	Candidates      []*x509.Certificate
 	CertReqID       int64
 	ImplicitGranted bool
+	// GrantedWithMods reports that the server changed the request before issuing the certificate.
+	GrantedWithMods bool
 	// Waiting reports that the server accepted the request but has not decided yet.
 	Waiting bool
 }
@@ -518,9 +619,6 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 	if statusErr := classifyStatus(certificateResponse.Status); statusErr != nil {
 		return issuedCertificate{}, statusErr
 	}
-	if certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods && request.RejectGrantedMods {
-		return issuedCertificate{}, permanent("apply granted modifications policy", "grantedWithMods", fmt.Errorf("server granted the request with modifications"))
-	}
 	if certificateResponse.CertifiedKeyPair == nil || certificateResponse.CertifiedKeyPair.CertOrEncCert.Certificate == nil {
 		return issuedCertificate{}, permanent("extract certificate", "badDataFormat", fmt.Errorf("%s does not contain a plaintext certificate", expectedBody.String()))
 	}
@@ -535,7 +633,13 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 	if err != nil {
 		return issuedCertificate{}, err
 	}
-	return issuedCertificate{Certificate: certificate, Candidates: candidates, CertReqID: certificateResponse.CertReqID, ImplicitGranted: responseGrantsImplicitConfirm(response)}, nil
+	return issuedCertificate{
+		Certificate:     certificate,
+		Candidates:      candidates,
+		CertReqID:       certificateResponse.CertReqID,
+		ImplicitGranted: responseGrantsImplicitConfirm(response),
+		GrantedWithMods: certificateResponse.Status.Status == pkicmp.StatusGrantedWithMods,
+	}, nil
 }
 
 // parseResponseCertificates parses and deduplicates untrusted chain candidates from response certificate fields.
@@ -579,7 +683,7 @@ func acceptResponseCertReqID(operation string, observed int64, pinned *int64) er
 	return nil
 }
 
-// responseGrantsImplicitConfirm detects the reviewed implicitConfirm OID without hard-coding it.
+// responseGrantsImplicitConfirm checks for the implicitConfirm OID in the response.
 func responseGrantsImplicitConfirm(response *pkicmp.PKIMessage) bool {
 	target := pkicmp.ImplicitConfirmInfoValue().InfoType
 	for _, information := range response.Header.GeneralInfo {
@@ -660,16 +764,13 @@ func validateAndOrderChain(leaf *x509.Certificate, candidates []*x509.Certificat
 			intermediates.AddCert(candidate)
 		}
 	}
-	verifiedChains, err := leaf.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}})
+	verifiedChain, err := verifyCertificateChain(leaf, roots, intermediates)
 	if err != nil {
 		return nil, err
 	}
-	if len(verifiedChains) == 0 {
-		return nil, fmt.Errorf("certificate verification returned no chain")
-	}
 	chain := []*x509.Certificate{leaf}
-	for index := 1; index < len(verifiedChains[0]); index++ {
-		certificate := verifiedChains[0][index]
+	for index := 1; index < len(verifiedChain); index++ {
+		certificate := verifiedChain[index]
 		if bytes.Equal(certificate.RawSubject, certificate.RawIssuer) && certificate.CheckSignatureFrom(certificate) == nil {
 			break
 		}
@@ -692,11 +793,14 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	if confirm.Certificate == nil || len(request.TransactionID) == 0 {
 		return EnrollmentResult{}, permanent("validate confirmation request", "badRequest", fmt.Errorf("certificate and transaction ID are required to confirm"))
 	}
+	if err := ValidateMLDSAKeyUsage(confirm.Certificate); err != nil {
+		return EnrollmentResult{}, permanent("validate confirmation certificate", "badCertTemplate", err)
+	}
 	credentials, err := credentialsFor(request.Protection)
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
-	message, operation, err := confirmationMessage(request, confirm)
+	message, operation, err := confirmationMessage(request, confirm, nil)
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
@@ -717,12 +821,19 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	if err != nil {
 		return EnrollmentResult{}, err
 	}
-	pending := &PendingTransaction{CertReqID: confirm.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: confirm.ResponseSigner, CheckAfter: checkAfter, RequestNonce: confirmationNonce}
+	pending := &PendingTransaction{
+		CertReqID:      confirm.CertReqID,
+		RecipNonce:     append([]byte(nil), response.Header.SenderNonce...),
+		ResponseSigner: confirm.ResponseSigner,
+		CheckAfter:     checkAfter,
+		RequestNonce:   confirmationNonce,
+	}
 	return EnrollmentResult{PendingConfirmation: pending}, nil
 }
 
 // confirmationMessage builds the certConf that starts a confirmation, or the pollReq that resumes one.
-func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pkicmp.PKIMessage, string, error) {
+// A non-nil statusInfo is sent in the certConf, which rejects the certificate when it carries rejection.
+func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest, statusInfo *pkicmp.PKIStatusInfo) (*pkicmp.PKIMessage, string, error) {
 	sender := pkicmp.GeneralName{}
 	if request.Sender != nil {
 		sender = pkicmp.NewDirectoryName(*request.Sender)
@@ -730,6 +841,13 @@ func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pk
 		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
 	}
 	options := pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: confirm.RecipNonce}
+	// A certificate signed with ML-DSA or composite ML-DSA has no hash implied by its signature
+	// algorithm, so its CertStatus names one in hashAlg, which makes the certConf a CMPv3 message.
+	status, err := pkicmp.NewCertStatus(confirm.Certificate, confirm.CertReqID)
+	if err != nil {
+		return nil, "", permanent("compute certificate hash", "badAlg", err)
+	}
+	status.StatusInfo = statusInfo
 	var message *pkicmp.PKIMessage
 	operation := operationConfirmation
 	if len(confirm.RequestNonce) > 0 {
@@ -738,12 +856,13 @@ func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest) (*pk
 		poll := pkicmp.PollReqContent{ResponseCertReqIDStandard}
 		message = pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&poll), options)
 		operation = operationPoll
-	} else {
-		hash, err := certificateHash(confirm.Certificate)
-		if err != nil {
-			return nil, "", permanent("compute certificate hash", "badAlg", err)
+		// A server that delayed a CMPv3 certConf supports CMPv3, and RFC 9810 section 7 requires the
+		// highest version both peers support once the client knows it, so the poll keeps that version.
+		if status.HashAlg != nil {
+			message.Header.PVNO = pkicmp.PVNO3
 		}
-		confirmation := pkicmp.CertConfirmContent{{CertHash: hash, CertReqID: confirm.CertReqID}}
+	} else {
+		confirmation := pkicmp.CertConfirmContent{status}
 		message = pkicmp.NewPKIMessage(pkicmp.NewCertConfBody(&confirmation), options)
 	}
 	if request.Protection.Password != nil {
@@ -813,27 +932,39 @@ func exchangeProtected(ctx context.Context, client *http.Client, request Enrollm
 	return response, nil
 }
 
-// certificateHash computes the certConf digest selected by the certificate signature algorithm.
-func certificateHash(certificate *x509.Certificate) ([]byte, error) {
-	var hash crypto.Hash
-	switch certificate.SignatureAlgorithm {
-	case x509.SHA1WithRSA, x509.DSAWithSHA1, x509.ECDSAWithSHA1:
-		hash = crypto.SHA1
-	case x509.SHA256WithRSA, x509.ECDSAWithSHA256, x509.SHA256WithRSAPSS:
-		hash = crypto.SHA256
-	case x509.SHA384WithRSA, x509.ECDSAWithSHA384, x509.SHA384WithRSAPSS:
-		hash = crypto.SHA384
-	case x509.SHA512WithRSA, x509.ECDSAWithSHA512, x509.SHA512WithRSAPSS, x509.PureEd25519:
-		hash = crypto.SHA512
-	default:
-		return nil, fmt.Errorf("unsupported certificate signature algorithm")
+// rejectCertificate reports a refused certificate to the server in certConf and returns the refusal.
+// RFC 9483 section 3.6.1 requires an end entity that refuses a new certificate to say so and await
+// pkiConf, so the server can revoke or record it instead of waiting for the confirmation to expire.
+// A server treats a missing certConf as a rejection as well, so the refusal stands either way and a
+// failed delivery is only added to its description.
+func rejectCertificate(ctx context.Context, client *http.Client, request EnrollmentRequest, credentials pkicmp.Credentials, refusal refusedCertificate, reason error) error {
+	confirm := ConfirmRequest{Enrollment: request, Certificate: refusal.Certificate, CertReqID: refusal.CertReqID, RecipNonce: refusal.RecipNonce, ResponseSigner: refusal.ResponseSigner}
+	rejection := &pkicmp.PKIStatusInfo{Status: pkicmp.StatusRejection, StatusString: pkicmp.PKIFreeText{refusal.Reason}}
+	deliveryErr := func() error {
+		message, operation, err := confirmationMessage(request, confirm, rejection)
+		if err != nil {
+			return err
+		}
+		response, err := exchangeProtected(ctx, client, request, credentials, message, refusal.ResponseSigner, nil, operation)
+		if err != nil {
+			return err
+		}
+		if response.Body.Type != pkicmp.BodyTypePKIConf {
+			return fmt.Errorf("server answered with %s instead of pkiConf", response.Body.Type.String())
+		}
+		return nil
+	}()
+	if deliveryErr == nil {
+		log.FromContext(ctx).V(1).Info("Rejected the issued certificate in certConf", "reason", refusal.Reason)
+		return reason
 	}
-	if !hash.Available() {
-		return nil, fmt.Errorf("certificate hash is unavailable")
+	var protocolErr *Error
+	if !errors.As(reason, &protocolErr) {
+		return fmt.Errorf("%w (rejection not confirmed by the server: %v)", reason, deliveryErr)
 	}
-	digest := hash.New()
-	_, _ = digest.Write(certificate.Raw)
-	return digest.Sum(nil), nil
+	annotated := *protocolErr
+	annotated.Err = fmt.Errorf("%w (rejection not confirmed by the server: %v)", protocolErr.Err, deliveryErr)
+	return &annotated
 }
 
 // permanent constructs a non-retryable protocol error.

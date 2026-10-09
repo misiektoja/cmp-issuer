@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.0] - 9 Oct 2026
+
+This release adds **ML-DSA** support, configured response signer certificates and SHA-384/SHA-512 PasswordBasedMac. It reports refused certificates to CMP servers and fixes Ed25519 protection and verification of responses that omit a configured anchor signer.
+
+### Certificate management
+
+* **Enroll ML-DSA certificates** - Submit ML-DSA-44, ML-DSA-65 or ML-DSA-87 CSRs with compatible cert-manager and CA support. CSR admission depends on the cert-manager build and its feature gates. Automatic renewal and KUR also require cert-manager to manage ML-DSA keys. cmp-issuer rejects ML-DSA certificates with key usages forbidden by RFC 9881. See [build requirements and key usages](https://misiektoja.github.io/cmp-issuer/known-limitations/#ml-dsa).
+* **Work with ML-DSA CAs and credentials** - Certificates signed by an ML-DSA CA are confirmed with a SHA-512 `certConf` hash sent as CMPv3, which RFC 9810 requires when `hashAlg` is present. Responses signed with ML-DSA are verified. A signature-protection credential may hold an ML-DSA key in seed-only PKCS #8 form.
+* **The issuance log names ML-DSA keys** - `keyType` reports the parameter set, such as `ML-DSA-65`, instead of `Unknown`.
+
+### Security and reliability
+
+* **HTTP/2 security fixes** - Includes fixes for denial-of-service vulnerabilities and invalid-header handling in HTTP/2.
+* **Configure response signer certificates separately from trust anchors** - `spec.cmpTrust.signerCertificatesSecretRef` supplies signer certificates and intermediates when the server omits them from `extraCerts`. Every signer still has to chain to `spec.cmpTrust.caSecretRef`. Both validation profiles accept this interoperability allowance and retain the validated signer for polling and confirmation.
+* **Select SHA-384 or SHA-512 for PasswordBasedMac** - `owf` and `mac` accept the SHA-256, SHA-384 and SHA-512 family. The MAC digest cannot be longer than the OWF output. SHA-256 and 1024 iterations remain the defaults. The configured suite applies to enrollment, polling and confirmation without fallback.
+* **Refused certificates are reported to the CMP server** - When an issued certificate does not certify the requested key, fails chain validation or carries modifications refused by `spec.policy.grantedModifications: Reject`, cmp-issuer sends `certConf` with status `rejection` before failing the `CertificateRequest`. The server no longer waits for a confirmation that never arrives. Under server-granted implicit confirmation no `certConf` is sent.
+
+### Bug fixes
+
+* **Responses signed by a configured trust anchor can omit `extraCerts`** - Both validation profiles accept a response signed by a certificate in `spec.cmpTrust` without the server resending that certificate. The validated signer is retained for polling and confirmation across controller restarts. Trust, signature and transaction checks still apply.
+* **Ed25519 signature protection is accepted by CMP servers** - Requests protected with an Ed25519 key carried an Ed25519ph signature labeled as pure Ed25519, so conforming servers rejected them. This broke Ed25519 signature credentials and KUR renewal of Ed25519 certificates. The signature is pure Ed25519.
+
+### Project maintenance
+
+* **Building from source needs Go 1.27.2** - The module requires Go 1.27.2 for ML-DSA support and standard-library security fixes.
+* **Contributions need a DCO sign-off** - Every commit must carry a `Signed-off-by` trailer from `git commit -s` that certifies the Developer Certificate of Origin. Pull requests run a DCO check and `make dco-check` runs it locally.
+
 ## [0.2.1] - 4 Sep 2026
 
 This release corrects CMP transaction recovery and KUR retry behavior, tightens KUR workload Secret authorization and gives the failure metric label a fixed vocabulary that alerts can match.

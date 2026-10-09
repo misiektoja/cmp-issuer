@@ -62,6 +62,23 @@ spec:
                     - key
                     - name
                     type: object
+                  signerCertificatesSecretRef:
+                    description: SignerCertificatesSecretRef selects optional PEM
+                      response signer certificates and intermediates that must chain
+                      to CASecretRef.
+                    properties:
+                      key:
+                        description: Key is the Secret data key.
+                        minLength: 1
+                        type: string
+                      name:
+                        description: Name is the Secret name.
+                        minLength: 1
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
                 required:
                 - caSecretRef
                 type: object
@@ -139,18 +156,26 @@ spec:
                             description: MAC selects the message authentication algorithm.
                             enum:
                             - HMACSHA256
+                            - HMACSHA384
+                            - HMACSHA512
                             type: string
                           owf:
                             default: SHA256
                             description: OWF selects the one-way function.
                             enum:
                             - SHA256
+                            - SHA384
+                            - SHA512
                             type: string
                         required:
                         - iterationCount
                         - mac
                         - owf
                         type: object
+                        x-kubernetes-validations:
+                        - message: MAC digest must not be longer than the OWF output
+                          rule: self.mac == 'HMACSHA256' || self.owf == 'SHA512' ||
+                            (self.owf == 'SHA384' && self.mac == 'HMACSHA384')
                       referenceKey:
                         default: reference
                         description: ReferenceKey selects the reference value key
@@ -401,8 +426,9 @@ spec:
                         - name
                         type: object
                       clientCertificateSecretRef:
-                        description: ClientCertificateSecretRef reserves a Secret
-                          for later mTLS support.
+                        description: |-
+                          ClientCertificateSecretRef is reserved for mTLS support and must remain unset.
+                          Setting it makes the issuer NotReady.
                         properties:
                           name:
                             description: Name is the Secret name.

@@ -4,7 +4,7 @@ Guide for building and running cmp-issuer from source.
 
 ## Prerequisites
 
-* Go 1.26.7 or later, the minimum `go.mod` declares so every build carries the standard library security fixes from that patch
+* Go 1.27.2 or later, the minimum `go.mod` declares. This patch includes standard-library security fixes. ML-DSA support comes from Go 1.27
 * Docker or Podman for image builds
 * Kubebuilder v4.15 for API scaffolding (optional for day-to-day work)
 * Python with MkDocs dependencies for documentation (`make docs-deps`)
@@ -34,7 +34,8 @@ Key directories:
 make test            # Unit and envtest suites
 make test-e2e        # Kind-based controller tests
 make test-e2e-ejbca  # Enrollment from a CMP server started in the test cluster
-make lint            # golangci-lint v2.12.2 and actionlint v1.7.12
+make lint            # golangci-lint v2.14.0 and actionlint v1.7.12
+make dco-check       # DCO sign-off on every commit since origin/dev
 make run             # Run controller locally against current kubeconfig
 make manifests       # Regenerate CRDs and RBAC from markers
 make generate        # Regenerate DeepCopy code

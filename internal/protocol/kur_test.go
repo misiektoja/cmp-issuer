@@ -63,15 +63,18 @@ func kurEnrollmentRequest(t *testing.T, pki testPKI, endpoint string, rotateKey 
 	return request
 }
 
+// keyRotationCases names the new-key and same-key variants that every KUR test covers.
+var keyRotationCases = []struct {
+	name      string
+	rotateKey bool
+}{
+	{name: "new key", rotateKey: true},
+	{name: "same key", rotateKey: false},
+}
+
 // TestEnrollKUR verifies new-key and same-key updates use CRMF POP, KUP and the standard identifier.
 func TestEnrollKUR(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		rotateKey bool
-	}{
-		{name: "new key", rotateKey: true},
-		{name: "same key", rotateKey: false},
-	} {
+	for _, test := range keyRotationCases {
 		t.Run(test.name, func(t *testing.T) {
 			pki := newTestPKI(t)
 			bootstrapRoots := x509.NewCertPool()

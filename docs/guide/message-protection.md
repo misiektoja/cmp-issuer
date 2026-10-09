@@ -57,12 +57,14 @@ spec:
 
 | Field | Allowed values | Default |
 | --- | --- | --- |
-| `owf` | `SHA256` | `SHA256` |
-| `mac` | `HMACSHA256` | `HMACSHA256` |
+| `owf` | `SHA256`, `SHA384`, `SHA512` | `SHA256` |
+| `mac` | `HMACSHA256`, `HMACSHA384`, `HMACSHA512` | `HMACSHA256` |
 | `iterationCount` | 100-1048575 | 1024 |
 
-These must match the server's PBM profile. cmp-issuer does not negotiate weaker algorithms, and PBMAC1
-is planned rather than implemented.
+These must match the server's PBM profile. The MAC digest must not be longer than the OWF output.
+For example, `SHA384` accepts `HMACSHA256` or `HMACSHA384`, while `SHA512` accepts all three MACs.
+The selected algorithms protect enrollment, polling and confirmation requests without negotiation
+or fallback. PBMAC1 is planned rather than implemented.
 
 ### Response protection
 
@@ -136,6 +138,10 @@ stringData:
 
 Custom key names are set with `certificateKey`, `privateKeyKey` and `chainKey`.
 
+The private key may be RSA, ECDSA, Ed25519 or ML-DSA. PKCS #8 works for every type. PKCS #1 RSA
+keys and SEC 1 ECDSA keys are accepted too. An ML-DSA key must hold only the seed, see
+[Known limitations](../known-limitations.md#ml-dsa).
+
 ### Issuer configuration
 
 ```yaml
@@ -187,9 +193,25 @@ Before accepting a certificate the signer validates:
 * KUP `caPubs` according to the selected validation profile
 * That the issued public key matches the CSR
 * A leaf-first chain that validates against CMP trust
+* [RFC 9881 key usages](../known-limitations.md#key-usages) for ML-DSA certificates
+
+Signature verification tries certificates from the response `extraCerts` first, then the certificates
+configured in `spec.cmpTrust.caSecretRef`, then the optional
+[`spec.cmpTrust.signerCertificatesSecretRef`](cmp-response-trust.md#response-signer-certificates)
+bundle. A response can omit a configured signer certificate from `extraCerts`. Every candidate must
+pass chain, sender and signature validation. A signer that is neither configured nor supplied in
+`extraCerts` must have been validated earlier in the same transaction.
+
+Both `Interoperable` and `RFC9483` accept an omitted configured signer. This is an interoperability allowance:
+[RFC 9810 section 5.1](https://www.rfc-editor.org/rfc/rfc9810.html#section-5.1) makes `extraCerts`
+optional, while [RFC 9483 section 3.3](https://www.rfc-editor.org/rfc/rfc9483.html#section-3.3)
+requires the protection certificate in the first signed response. The `RFC9483` profile enforces its
+documented P10CR identifier, MAC continuity and KUP `caPubs` checks without enforcing that presence rule.
 
 Protected error responses are verified the same way. A verification failure fails the
-`CertificateRequest` and stores no certificate.
+`CertificateRequest` and stores no certificate. When the server has already issued the refused
+certificate and did not grant implicit confirmation, cmp-issuer reports the refusal to the server in a
+`certConf` with status `rejection`.
 
 The default `Interoperable` profile accepts certificates from KUP `caPubs` and `extraCerts` only as
 untrusted candidates for building the issued chain. They never become trust anchors. The completed
@@ -198,10 +220,11 @@ the RFC 9483 KUP rule or select `validationProfile: RFC9483` to enable the bundl
 
 ### Confirmation signer retention
 
-Some servers omit `extraCerts` and `senderKID` from `pkiConf`. cmp-issuer retains the signer certificate
-already validated when `cp` was accepted and verifies the linked `pkiConf` against it. Invalid
-confirmation protection is still rejected. See [Tested PKIs](../interoperability/tested-pkis.md) for Nokia NCM
-behavior.
+Some servers omit `extraCerts` and `senderKID` from polling and confirmation responses. cmp-issuer
+stores the validated response signer in `CMPTransaction.status.responseSigner`, including when the
+signer is a configured anchor omitted from the response. The retained certificate verifies later
+responses in that transaction after a controller restart or delayed confirmation. Invalid protection
+is rejected. See [Tested PKIs](../interoperability/tested-pkis.md) for Nokia NCM behavior.
 
 ## Credential rotation
 

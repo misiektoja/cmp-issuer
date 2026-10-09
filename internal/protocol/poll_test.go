@@ -36,6 +36,7 @@ import (
 
 // asyncOptions selects the deferred behavior of the asynchronous mock CMP server.
 type asyncOptions struct {
+	OmitExtraCerts bool
 	// CertReqID is the identifier the server echoes in every response of the transaction.
 	CertReqID int64
 	// PollsBeforeIssue is the number of pollReq messages answered with pollRep before the CP.
@@ -77,6 +78,8 @@ func (s *asyncState) observed() []pkicmp.BodyType {
 func newAsyncCMPServer(t *testing.T, pki testPKI, password []byte, options asyncOptions) (*httptest.Server, *asyncState) {
 	t.Helper()
 	state := &asyncState{}
+	trust := x509.NewCertPool()
+	trust.AddCert(pki.CACertificate)
 	polls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		requestDER, err := io.ReadAll(request.Body)
@@ -89,7 +92,7 @@ func newAsyncCMPServer(t *testing.T, pki testPKI, password []byte, options async
 			t.Errorf("parse request: %v", err)
 			return
 		}
-		verification, err := message.Verify(pkicmp.VerifyOptions{SharedSecret: password, SenderKID: message.Header.SenderKID})
+		verification, err := message.Verify(pkicmp.VerifyOptions{SharedSecret: password, TrustPool: trust, ExtraCerts: message.ExtraCerts, SenderKID: message.Header.SenderKID})
 		if err != nil {
 			t.Errorf("verify request protection: %v", err)
 			return
@@ -150,7 +153,7 @@ func newAsyncCMPServer(t *testing.T, pki testPKI, password []byte, options async
 			t.Errorf("protect response: %v", err)
 			return
 		}
-		if options.OmitPollExtraCerts && message.Body.Type != pkicmp.BodyTypeP10CR {
+		if options.OmitExtraCerts || options.OmitPollExtraCerts && message.Body.Type != pkicmp.BodyTypeP10CR {
 			response.ExtraCerts = nil
 		}
 		responseDER, err := response.MarshalBinary()
