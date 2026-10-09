@@ -1707,7 +1707,7 @@
 </tr>
 <tr>
 <td>Unverifiable confirmation response</td>
-<td>Reuse only the response signer already validated against CMP trust when a server omits <code>extraCerts</code> and <code>senderKID</code> from <code>pkiConf</code>, and still reject invalid protection</td>
+<td>Verify against configured anchors, response signer certificates or the retained transaction signer when a server omits <code>extraCerts</code> from <code>pkiConf</code>. Configured response certificates remain subject to chain validation. The signer must match the sender and invalid protection is rejected</td>
 </tr>
 <tr>
 <td>Unbounded wait for a delayed confirmation</td>
@@ -1752,7 +1752,7 @@
 <p>The manager has cluster-wide <code>get</code> permission for cert-manager Certificates because it must resolve the controlling owner. It has no list, watch or mutation permission for Certificates. Secret access remains bound per namespace through RoleBindings. A cluster issuer needs that binding in each workload namespace that selects KUR.</p>
 <p>IR also requires CRMF proof of possession but remains planned. It must reuse or strengthen this boundary rather than adding an annotation-only path.</p>
 <h2 id="residual-risks">Residual risks<a class="headerlink" href="#residual-risks" title="Permanent link">&para;</a></h2>
-<p>The CMP encoding layer is pre-v1 and lightly adopted, and it is maintained by this project's author rather than by an independent party. Every response it parses is therefore validated again by cmp-issuer's own checks, which is what stands in for the second reader a third-party dependency would otherwise have. It corrects sender binding on a signature-protected message and checks that an issued certificate certifies the requested key, neither of which the library it derives from does. See <a href="../../adr/0001-cmp-library/">ADR 0001</a>. CMP interoperability depends on each server's configured profile, algorithms, endpoint and authentication policy.</p>
+<p>The CMP library and adapter share a maintainer, so both can make the same specification mistake. <a href="../../adr/0001-cmp-library/">ADR 0001</a> records the dependency boundary and independent validation requirements. CMP interoperability also depends on each server's profile, algorithms, endpoint and authentication policy.</p>
 
 
 

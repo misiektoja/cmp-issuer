@@ -1926,6 +1926,10 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 <td>golangci-lint and actionlint</td>
 </tr>
 <tr>
+<td><code>dco.yml</code></td>
+<td>Developer Certificate of Origin sign-off on every pull request commit</td>
+</tr>
+<tr>
 <td><code>codeql.yml</code></td>
 <td>CodeQL static analysis of the Go code</td>
 </tr>
@@ -1971,7 +1975,7 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 </tr>
 </tbody>
 </table>
-<p>Pull requests target <code>dev</code> and run the fast unit, OpenSSL, lint and supply chain checks. The chart job
+<p>Pull requests target <code>dev</code> and run the fast unit, OpenSSL, lint, DCO and supply chain checks. The chart job
 runs only when its inputs change. The three-version Kind matrix and EJBCA are deliberately deferred
 until the change lands on <code>dev</code>, where failures can be fixed before promotion. Pushes to <code>main</code> repeat
 the trusted-branch checks for the stable code. NCM remains automatic on both trusted branches but never
@@ -2026,9 +2030,11 @@ racing.</p>
 <li>Refresh <code>artifacthub.io/changes</code> in <code>charts/cmp-issuer/Chart.yaml</code>, along with any other
    <code>artifacthub.io</code> annotation the release changes. Chart metadata is frozen once the version is
    published, so a correction needs a new chart version</li>
+<li>Keep the chart version and app version aligned with the release tag. Update <code>CITATION.cff</code> with
+   the version and release date</li>
 <li>Point <code>config/manager/kustomization.yaml</code> at the image the release will publish, which is what a
    clone applies when it has not run <code>make build-installer</code></li>
-<li>Tag and push only when authorized to publish, and never create the release from the GitHub UI. See
+<li>Tag and push only when authorized to publish. Never create the release from the GitHub UI. See
    <a href="#publishing-a-release">Publishing a release</a></li>
 </ol>
 <h2 id="supply-chain-verification">Supply chain verification<a class="headerlink" href="#supply-chain-verification" title="Permanent link">&para;</a></h2>

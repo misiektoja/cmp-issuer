@@ -1402,6 +1402,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ml-dsa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ML-DSA
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ML-DSA">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-usages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key usages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dependencies" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1673,6 +1701,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ml-dsa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ML-DSA
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ML-DSA">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-usages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key usages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dependencies" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1766,11 +1822,15 @@
 </tr>
 <tr>
 <td>mTLS to the CMP endpoint</td>
+<td>Planned. Setting the reserved <code>spec.transport.tls.clientCertificateSecretRef</code> makes the issuer NotReady</td>
+</tr>
+<tr>
+<td>CMPv3 beyond ML-DSA certificate confirmation</td>
 <td>Planned</td>
 </tr>
 <tr>
-<td>CMPv3</td>
-<td>Planned</td>
+<td>Composite ML-DSA</td>
+<td>Unsupported. cert-manager rejects composite CSRs and Go cannot validate composite certificate chains</td>
 </tr>
 <tr>
 <td>Revocation over CMP</td>
@@ -1787,8 +1847,22 @@
 </tbody>
 </table>
 <p>See <a href="../support-matrix/">Support matrix</a>.</p>
+<h2 id="ml-dsa">ML-DSA<a class="headerlink" href="#ml-dsa" title="Permanent link">&para;</a></h2>
+<p>cmp-issuer supports ML-DSA-44, ML-DSA-65 and ML-DSA-87. Enrollment requires a CMP server that accepts the chosen algorithm and a cert-manager build that admits ML-DSA CSRs.</p>
+<ul>
+<li>cert-manager v1.21 is built with Go 1.26 and rejects ML-DSA CSRs. Go 1.27 provides the required cryptography, but admission also depends on the cert-manager build and its feature gates. The upstream <a href="https://github.com/cert-manager/cert-manager/pull/9436">ML-DSA design proposal</a> introduces an alpha <code>MLDSAPrivateKeys</code> gate for the controller and webhook. Follow the instructions for your build.</li>
+<li>If the build admits ML-DSA CSRs but cannot manage ML-DSA keys, submit a direct <code>CertificateRequest</code> for P10CR enrollment. Renew by submitting another request. Automatic issuance and renewal through <code>Certificate</code> resources require cert-manager support for ML-DSA key generation, storage and matching. A Go rebuild alone does not provide that support.</li>
+<li>KUR requires cert-manager to supply the current and requested ML-DSA keys in seed-only PKCS #8 form. cmp-issuer reads the keys and CSR independently of the algorithm name used by the cert-manager API.</li>
+<li>Go reads only seed-only ML-DSA private keys. OpenSSL writes the seed and the expanded key by default, so convert an ML-DSA CMP signature credential before storing it: <code>openssl pkey -in key.pem -provparam ml-dsa.output_formats=seed-only -out seed-key.pem</code>.</li>
+<li>A <code>kubectl</code> build without ML-DSA support may print <code>Warning: tls: failed to parse private key</code> during <code>kubectl create secret tls</code>. Check whether the Secret was created.</li>
+<li>The <code>certConf</code> for a certificate signed with ML-DSA carries a SHA-512 <code>certHash</code> and names SHA-512 in <code>hashAlg</code>. The OpenSSL CMP mock server ignores <code>hashAlg</code> and checks the hash with SHA-256, so explicit confirmation fails against it. Use implicit confirmation with that server.</li>
+</ul>
+<h3 id="key-usages">Key usages<a class="headerlink" href="#key-usages" title="Permanent link">&para;</a></h3>
+<p>Set <code>usages: [digital signature]</code> for an ML-DSA request and configure the CA profile accordingly. Add extended usages such as <code>server auth</code> when needed. Keep the CSR extensions consistent with the <code>CertificateRequest.spec.usages</code> values. The classical default includes <code>key encipherment</code>, which is invalid for ML-DSA.</p>
+<p><a href="https://www.rfc-editor.org/rfc/rfc9881.html#section-5">RFC 9881 section 5</a> restricts the <code>keyUsage</code> extension for ML-DSA subject keys to signature usages. If present, it must contain at least one of <code>digitalSignature</code>, <code>nonRepudiation</code>, <code>keyCertSign</code> or <code>cRLSign</code>. It must not contain <code>keyEncipherment</code>, <code>dataEncipherment</code>, <code>keyAgreement</code>, <code>encipherOnly</code> or <code>decipherOnly</code>.</p>
+<p>cmp-issuer enforces this rule for issued chains, CMP response signer chains and signature credentials, including stored certificates used after a restart. It refuses a non-compliant issued certificate and sends a rejecting <code>certConf</code> when explicit confirmation is required. RSA or ECDSA subject keys retain their usual usages when signed by an ML-DSA CA.</p>
 <h2 id="dependencies">Dependencies<a class="headerlink" href="#dependencies" title="Permanent link">&para;</a></h2>
-<p>The CMP encoding layer is a pre-v1 library kept behind project-owned interfaces and maintained by this project's author. It remains security sensitive, so responses are validated independently of it. See <a href="../adr/0001-cmp-library/">ADR 0001</a>.</p>
+<p>The CMP library is pre-v1. <a href="../adr/0001-cmp-library/">ADR 0001</a> describes the dependency boundary and validation requirements.</p>
 <h2 id="api-stability">API stability<a class="headerlink" href="#api-stability" title="Permanent link">&para;</a></h2>
 <p><code>certmanager.misiektoja.github.io/v1alpha1</code> may change before a stable version.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>

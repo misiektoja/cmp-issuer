@@ -423,6 +423,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#key-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key algorithms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#message-protection" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1617,6 +1628,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#key-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key algorithms
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#message-protection" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1760,6 +1782,11 @@
 <td>Default</td>
 </tr>
 <tr>
+<td>Rejecting <code>certConf</code> for a refused certificate</td>
+<td>Implemented</td>
+<td>Sent when the issued certificate does not certify the CSR key, fails chain validation or carries modifications refused by <code>policy.grantedModifications: Reject</code></td>
+</tr>
+<tr>
 <td>Server-granted implicit confirmation</td>
 <td>Implemented</td>
 <td>Set <code>protocol.confirmation: Implicit</code></td>
@@ -1775,7 +1802,12 @@
 <td>Polled from <code>CMPTransaction</code>, resumable across a restart</td>
 </tr>
 <tr>
-<td>CMPv3</td>
+<td>CMPv3 <code>certConf</code> with <code>hashAlg</code></td>
+<td>Implemented</td>
+<td>Used to confirm a certificate signed with ML-DSA. A CMPv2 or CMPv3 answer is accepted</td>
+</tr>
+<tr>
+<td>Other CMPv3 features</td>
 <td>Planned</td>
 <td></td>
 </tr>
@@ -1783,6 +1815,43 @@
 <td>Revocation (RR, CRL, OCSP over CMP)</td>
 <td>Planned</td>
 <td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="key-algorithms">Key algorithms<a class="headerlink" href="#key-algorithms" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RSA, ECDSA and Ed25519 keys</td>
+<td>Implemented, Interoperability tested</td>
+<td>Workload keys and CMP signature credentials</td>
+</tr>
+<tr>
+<td>ML-DSA-44, ML-DSA-65 and ML-DSA-87 workload keys</td>
+<td>Implemented, Interoperability tested</td>
+<td>P10CR and KUR with compatible cert-manager and CA support, see <a href="../known-limitations/#ml-dsa">Known limitations</a></td>
+</tr>
+<tr>
+<td>ML-DSA CMP signature credential</td>
+<td>Implemented</td>
+<td>PKCS #8 seed-only private key</td>
+</tr>
+<tr>
+<td>ML-DSA CA and ML-DSA-signed CMP responses</td>
+<td>Implemented, Interoperability tested</td>
+<td></td>
+</tr>
+<tr>
+<td>Composite ML-DSA</td>
+<td>Unsupported</td>
+<td>cert-manager rejects composite CSRs and Go cannot validate composite certificate chains</td>
 </tr>
 </tbody>
 </table>
@@ -1797,9 +1866,9 @@
 </thead>
 <tbody>
 <tr>
-<td>PasswordBasedMac (SHA-256 OWF, HMAC-SHA-256)</td>
+<td>PasswordBasedMac (SHA-256, SHA-384 or SHA-512)</td>
 <td>Implemented, Interoperability tested</td>
-<td>RFC 4210 style</td>
+<td>HMAC digest cannot be longer than OWF output. SHA-256 defaults</td>
 </tr>
 <tr>
 <td>PBMAC1</td>
@@ -1810,6 +1879,16 @@
 <td>Certificate signature protection</td>
 <td>Implemented, Interoperability tested</td>
 <td>Bootstrap credential in a Secret</td>
+</tr>
+<tr>
+<td>Trust anchor as response signer</td>
+<td>Implemented, Interoperability tested</td>
+<td>Both validation profiles accept an anchor from <code>cmpTrust</code> when its certificate is absent from response <code>extraCerts</code></td>
+</tr>
+<tr>
+<td>Configured response signer certificates</td>
+<td>Implemented, Interoperability tested</td>
+<td>Optional <code>cmpTrust.signerCertificatesSecretRef</code> supplies signers omitted from <code>extraCerts</code> and issued-chain intermediates without adding trust anchors</td>
 </tr>
 <tr>
 <td>Unprotected CMP</td>
@@ -2001,7 +2080,7 @@
 </tr>
 <tr>
 <td>OpenSSL CMP mock (<code>openssl cmp</code>)</td>
-<td>PasswordBasedMac</td>
+<td>PasswordBasedMac, Signature</td>
 <td>Interoperability tested in CI</td>
 </tr>
 </tbody>

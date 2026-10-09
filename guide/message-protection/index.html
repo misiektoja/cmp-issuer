@@ -1999,12 +1999,12 @@ the KUR exchange. The configured CMP trust policy still validates every response
 <tbody>
 <tr>
 <td><code>owf</code></td>
-<td><code>SHA256</code></td>
+<td><code>SHA256</code>, <code>SHA384</code>, <code>SHA512</code></td>
 <td><code>SHA256</code></td>
 </tr>
 <tr>
 <td><code>mac</code></td>
-<td><code>HMACSHA256</code></td>
+<td><code>HMACSHA256</code>, <code>HMACSHA384</code>, <code>HMACSHA512</code></td>
 <td><code>HMACSHA256</code></td>
 </tr>
 <tr>
@@ -2014,8 +2014,10 @@ the KUR exchange. The configured CMP trust policy still validates every response
 </tr>
 </tbody>
 </table>
-<p>These must match the server's PBM profile. cmp-issuer does not negotiate weaker algorithms, and PBMAC1
-is planned rather than implemented.</p>
+<p>These must match the server's PBM profile. The MAC digest must not be longer than the OWF output.
+For example, <code>SHA384</code> accepts <code>HMACSHA256</code> or <code>HMACSHA384</code>, while <code>SHA512</code> accepts all three MACs.
+The selected algorithms protect enrollment, polling and confirmation requests without negotiation
+or fallback. PBMAC1 is planned rather than implemented.</p>
 <h3 id="response-protection">Response protection<a class="headerlink" href="#response-protection" title="Permanent link">&para;</a></h3>
 <p>Many servers sign every response regardless of how the request was protected. EJBCA does this on any
 CMP alias left at its own default of <code>responseprotection</code> <code>signature</code>. For interoperability,
@@ -2092,6 +2094,9 @@ moves to <code>GENERATED</code> and refuses further requests until an administra
 </tbody>
 </table>
 <p>Custom key names are set with <code>certificateKey</code>, <code>privateKeyKey</code> and <code>chainKey</code>.</p>
+<p>The private key may be RSA, ECDSA, Ed25519 or ML-DSA. PKCS #8 works for every type. PKCS #1 RSA
+keys and SEC 1 ECDSA keys are accepted too. An ML-DSA key must hold only the seed, see
+<a href="../../known-limitations/#ml-dsa">Known limitations</a>.</p>
 <h3 id="issuer-configuration_1">Issuer configuration<a class="headerlink" href="#issuer-configuration_1" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">protection</span><span class="p">:</span>
@@ -2133,18 +2138,33 @@ bootstrap identity rather than arbitrary workload names, unless the server profi
 <li>KUP <code>caPubs</code> according to the selected validation profile</li>
 <li>That the issued public key matches the CSR</li>
 <li>A leaf-first chain that validates against CMP trust</li>
+<li><a href="../../known-limitations/#key-usages">RFC 9881 key usages</a> for ML-DSA certificates</li>
 </ul>
+<p>Signature verification tries certificates from the response <code>extraCerts</code> first, then the certificates
+configured in <code>spec.cmpTrust.caSecretRef</code>, then the optional
+<a href="../cmp-response-trust/#response-signer-certificates"><code>spec.cmpTrust.signerCertificatesSecretRef</code></a>
+bundle. A response can omit a configured signer certificate from <code>extraCerts</code>. Every candidate must
+pass chain, sender and signature validation. A signer that is neither configured nor supplied in
+<code>extraCerts</code> must have been validated earlier in the same transaction.</p>
+<p>Both <code>Interoperable</code> and <code>RFC9483</code> accept an omitted configured signer. This is an interoperability allowance:
+<a href="https://www.rfc-editor.org/rfc/rfc9810.html#section-5.1">RFC 9810 section 5.1</a> makes <code>extraCerts</code>
+optional, while <a href="https://www.rfc-editor.org/rfc/rfc9483.html#section-3.3">RFC 9483 section 3.3</a>
+requires the protection certificate in the first signed response. The <code>RFC9483</code> profile enforces its
+documented P10CR identifier, MAC continuity and KUP <code>caPubs</code> checks without enforcing that presence rule.</p>
 <p>Protected error responses are verified the same way. A verification failure fails the
-<code>CertificateRequest</code> and stores no certificate.</p>
+<code>CertificateRequest</code> and stores no certificate. When the server has already issued the refused
+certificate and did not grant implicit confirmation, cmp-issuer reports the refusal to the server in a
+<code>certConf</code> with status <code>rejection</code>.</p>
 <p>The default <code>Interoperable</code> profile accepts certificates from KUP <code>caPubs</code> and <code>extraCerts</code> only as
 untrusted candidates for building the issued chain. They never become trust anchors. The completed
 chain must still validate to a CA from <code>spec.cmpTrust</code>. Set <code>kurResponseCaPubs: RequireAbsent</code> for only
 the RFC 9483 KUP rule or select <code>validationProfile: RFC9483</code> to enable the bundled checks.</p>
 <h3 id="confirmation-signer-retention">Confirmation signer retention<a class="headerlink" href="#confirmation-signer-retention" title="Permanent link">&para;</a></h3>
-<p>Some servers omit <code>extraCerts</code> and <code>senderKID</code> from <code>pkiConf</code>. cmp-issuer retains the signer certificate
-already validated when <code>cp</code> was accepted and verifies the linked <code>pkiConf</code> against it. Invalid
-confirmation protection is still rejected. See <a href="../../interoperability/tested-pkis/">Tested PKIs</a> for Nokia NCM
-behavior.</p>
+<p>Some servers omit <code>extraCerts</code> and <code>senderKID</code> from polling and confirmation responses. cmp-issuer
+stores the validated response signer in <code>CMPTransaction.status.responseSigner</code>, including when the
+signer is a configured anchor omitted from the response. The retained certificate verifies later
+responses in that transaction after a controller restart or delayed confirmation. Invalid protection
+is rejected. See <a href="../../interoperability/tested-pkis/">Tested PKIs</a> for Nokia NCM behavior.</p>
 <h2 id="credential-rotation">Credential rotation<a class="headerlink" href="#credential-rotation" title="Permanent link">&para;</a></h2>
 <p>Credentials are reloaded from the Secret on every reconcile. Rotating a Secret during an open
 transaction invalidates in-flight protection and the transaction fails within <code>maximumDuration</code>. The

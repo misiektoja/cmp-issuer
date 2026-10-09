@@ -2058,6 +2058,11 @@
 <td>yes</td>
 <td>Key within the Secret data</td>
 </tr>
+<tr>
+<td><code>signerCertificatesSecretRef</code></td>
+<td>no</td>
+<td>Secret <code>name</code> and <code>key</code> containing PEM response signer certificates and intermediates. Candidates must chain to <code>caSecretRef</code> and do not add trust anchors</td>
+</tr>
 </tbody>
 </table>
 <h3 id="spectransport"><code>spec.transport</code><a class="headerlink" href="#spectransport" title="Permanent link">&para;</a></h3>
@@ -2076,7 +2081,7 @@
 </tr>
 <tr>
 <td><code>tls.clientCertificateSecretRef</code></td>
-<td>Reserved for future mTLS</td>
+<td>Reserved for future mTLS. Leave unset or the issuer becomes NotReady</td>
 </tr>
 </tbody>
 </table>

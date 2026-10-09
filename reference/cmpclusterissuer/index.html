@@ -1737,7 +1737,7 @@ be <code>false</code>, since a Role cannot be bound outside its own namespace.</
 <code>CMPIssuer</code> resources in the Helm release namespace.</p>
 <p>The installer manifest installs into <code>cmp-issuer-system</code> and relies on the compiled-in default of the
 same name. Change both together if you retarget the manifest.</p>
-<p>Store PBM credentials, signature bootstrap material and CMP trust anchors in that namespace. Reference them by name only in the issuer spec.</p>
+<p>Store PBM credentials, signature bootstrap material, CMP trust anchors and optional response signer certificates in that namespace. Reference them by name only in the issuer spec.</p>
 <h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">certmanager.misiektoja.github.io/v1alpha1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CMPClusterIssuer</span>

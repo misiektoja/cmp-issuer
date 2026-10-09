@@ -576,6 +576,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#response-signer-certificates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response signer certificates
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-cmp-trust-validates" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1597,6 +1608,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#response-signer-certificates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response signer certificates
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-cmp-trust-validates" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1693,6 +1715,30 @@
 <span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ca.crt</span>
 </code></pre></div>
 <p>PEM may contain multiple certificates. The signer builds a pool of trust anchors for CMP verification and chain building.</p>
+<p>The configured certificates also identify response signers when the server omits them from
+<code>extraCerts</code>. Response certificates are tried first, then the configured anchors. Every signer must
+pass chain, sender and signature validation. Both validation profiles accept this omission, as
+described in <a href="../message-protection/#what-gets-validated">message protection</a>.</p>
+<h2 id="response-signer-certificates">Response signer certificates<a class="headerlink" href="#response-signer-certificates" title="Permanent link">&para;</a></h2>
+<p>If the server omits a signer that is not a trust anchor, provide its certificate and any required
+intermediates in a separate Secret:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">cmpTrust</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">caSecretRef</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-trust</span>
+<span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ca.crt</span>
+<span class="w">    </span><span class="nt">signerCertificatesSecretRef</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-response-signers</span>
+<span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">certificates.pem</span>
+</code></pre></div>
+<p>The selected key contains one or more PEM certificates. The Secret uses the same namespace rules as
+the trust Secret. These certificates are tried after response <code>extraCerts</code> and configured anchors.
+They do not add trust anchors. Every accepted signer must chain to <code>caSecretRef</code>, match the response
+sender and verify the signature. Both validation profiles allow a configured signer to be omitted
+from the response.</p>
+<p>The bundle also supplies untrusted intermediates for the issued certificate chain, which must still
+terminate at <code>caSecretRef</code>. Changing this Secret during an unfinished transaction prevents that
+transaction from resuming with the changed configuration.</p>
 <h2 id="what-cmp-trust-validates">What CMP trust validates<a class="headerlink" href="#what-cmp-trust-validates" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1716,7 +1762,7 @@
 </tr>
 <tr>
 <td><code>pkiConf</code> when signer is omitted</td>
-<td>retained signer from CP</td>
+<td>configured certificate or retained transaction signer</td>
 </tr>
 <tr>
 <td>Issued leaf chain</td>

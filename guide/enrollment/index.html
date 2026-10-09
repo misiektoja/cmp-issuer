@@ -575,6 +575,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#confirmation-hash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confirmation hash
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#granted-modifications" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1685,6 +1696,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#confirmation-hash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confirmation hash
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#granted-modifications" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1777,7 +1799,7 @@
 <span class="w">  </span><span class="nt">dnsNames</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">workload.example.com</span>
 </code></pre></div>
-<p>cert-manager creates a <code>CertificateRequest</code>. cmp-issuer reconciles it after approval.</p>
+<p>cert-manager creates a <code>CertificateRequest</code>. cmp-issuer reconciles it after approval. For ML-DSA, check the <a href="../../known-limitations/#ml-dsa">build requirements and key usages</a>.</p>
 <h2 id="inspect-progress">Inspect progress<a class="headerlink" href="#inspect-progress" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>describe<span class="w"> </span>certificaterequest<span class="w"> </span>&lt;name&gt;
 kubectl<span class="w"> </span>get<span class="w"> </span>cmptransactions<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
@@ -1787,8 +1809,10 @@ kubectl<span class="w"> </span>describe<span class="w"> </span>cmptransaction<sp
 <p>The controller log carries the same lifecycle as text. Each enrollment ends in one line naming the issuer, the endpoint, the CMP transaction and the issued certificate, and each wait, resumption and failure is logged as it happens. See <a href="../../operations/troubleshooting/#reading-the-controller-log">reading the controller log</a>.</p>
 <h2 id="p10cr-certreqid">P10CR certReqId<a class="headerlink" href="#p10cr-certreqid" title="Permanent link">&para;</a></h2>
 <p>RFC 9810 and RFC 9483 require <code>certReqId</code> <code>-1</code> in P10CR CP responses. Tested servers may return <code>0</code>. By default cmp-issuer accepts either value and echoes it in <code>certConf</code>. Pin a value with <code>spec.protocol.p10crResponseCertReqId</code> when needed.</p>
+<h2 id="confirmation-hash">Confirmation hash<a class="headerlink" href="#confirmation-hash" title="Permanent link">&para;</a></h2>
+<p>The <code>certConf</code> hash follows the issued certificate's signature algorithm. For a certificate signed with ML-DSA, <code>certConf</code> names SHA-512 in <code>hashAlg</code>, which RFC 9810 section 5.3.18 allows only in CMPv3, so that <code>certConf</code> is sent as CMPv3. A CMPv2 or CMPv3 answer to it is accepted.</p>
 <h2 id="granted-modifications">Granted modifications<a class="headerlink" href="#granted-modifications" title="Permanent link">&para;</a></h2>
-<p>When <code>spec.policy.grantedModifications</code> is <code>Reject</code>, certificates issued with <code>grantedWithMods</code> fail. Set <code>Accept</code> only when server-side field changes are expected and acceptable.</p>
+<p>When <code>spec.policy.grantedModifications</code> is <code>Reject</code>, certificates issued with <code>grantedWithMods</code> fail. Unless the server granted implicit confirmation, cmp-issuer also rejects them in <code>certConf</code>. Set <code>Accept</code> only when server-side field changes are expected and acceptable.</p>
 <h2 id="asynchronous-enrollment">Asynchronous enrollment<a class="headerlink" href="#asynchronous-enrollment" title="Permanent link">&para;</a></h2>
 <p>Servers that answer <code>waiting</code> trigger polling until a certificate arrives or limits expire. See <a href="../transaction-recovery/">Transaction recovery</a>.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
