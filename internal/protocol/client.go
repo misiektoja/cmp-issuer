@@ -470,6 +470,11 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	if verificationErr != nil {
 		return nil, security("verify response protection", "badMessageCheck", verificationErr)
 	}
+	if responseSigner != nil {
+		if err := ValidateMLDSAKeyUsage(responseSigner); err != nil {
+			return nil, security("verify response signer key usage", "badMessageCheck", err)
+		}
+	}
 	if !bytes.Equal(response.Header.TransactionID, requestMessage.Header.TransactionID) {
 		return nil, security("verify transaction ID", "transactionIdMismatch", fmt.Errorf("response transaction ID does not match request"))
 	}
@@ -551,7 +556,7 @@ func verifyTrustedSignature(message *pkicmp.PKIMessage, roots *x509.CertPool, ca
 		intermediates.AddCert(certificate)
 	}
 	for _, certificate := range parsed {
-		if _, err := certificate.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}}); err != nil {
+		if _, err := verifyCertificateChain(certificate, roots, intermediates); err != nil {
 			continue
 		}
 		if _, err := message.Verify(pkicmp.VerifyOptions{RequiredProtection: pkicmp.ProtectionSignature, TrustedCert: certificate}); err == nil {
@@ -759,16 +764,13 @@ func validateAndOrderChain(leaf *x509.Certificate, candidates []*x509.Certificat
 			intermediates.AddCert(candidate)
 		}
 	}
-	verifiedChains, err := leaf.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny}})
+	verifiedChain, err := verifyCertificateChain(leaf, roots, intermediates)
 	if err != nil {
 		return nil, err
 	}
-	if len(verifiedChains) == 0 {
-		return nil, fmt.Errorf("certificate verification returned no chain")
-	}
 	chain := []*x509.Certificate{leaf}
-	for index := 1; index < len(verifiedChains[0]); index++ {
-		certificate := verifiedChains[0][index]
+	for index := 1; index < len(verifiedChain); index++ {
+		certificate := verifiedChain[index]
 		if bytes.Equal(certificate.RawSubject, certificate.RawIssuer) && certificate.CheckSignatureFrom(certificate) == nil {
 			break
 		}
@@ -790,6 +792,9 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	// nothing to echo and the rest of the exchange still authenticates.
 	if confirm.Certificate == nil || len(request.TransactionID) == 0 {
 		return EnrollmentResult{}, permanent("validate confirmation request", "badRequest", fmt.Errorf("certificate and transaction ID are required to confirm"))
+	}
+	if err := ValidateMLDSAKeyUsage(confirm.Certificate); err != nil {
+		return EnrollmentResult{}, permanent("validate confirmation certificate", "badCertTemplate", err)
 	}
 	credentials, err := credentialsFor(request.Protection)
 	if err != nil {

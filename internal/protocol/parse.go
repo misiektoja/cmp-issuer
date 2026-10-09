@@ -235,7 +235,7 @@ func PublicKeysEqual(first any, second any) bool {
 	return firstErr == nil && secondErr == nil && subtle.ConstantTimeCompare(firstDER, secondDER) == 1
 }
 
-// ValidateSignerCertificate verifies that a private key matches its certificate.
+// ValidateSignerCertificate verifies the key pair and the certificate's ML-DSA usage constraints.
 func ValidateSignerCertificate(signer crypto.Signer, certificate *x509.Certificate) error {
 	if signer == nil || certificate == nil {
 		return fmt.Errorf("signer and certificate are required")
@@ -243,5 +243,5 @@ func ValidateSignerCertificate(signer crypto.Signer, certificate *x509.Certifica
 	if !PublicKeysEqual(signer.Public(), certificate.PublicKey) {
 		return fmt.Errorf("private key does not match certificate public key")
 	}
-	return nil
+	return ValidateMLDSAKeyUsage(certificate)
 }

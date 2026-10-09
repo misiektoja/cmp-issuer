@@ -369,8 +369,7 @@ func recoverIssuedChain(ctx context.Context, transaction *cmpv1alpha1.CMPTransac
 	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(chain)}, nil
 }
 
-// recordedChain parses the chain a transaction recorded and rejects one that no longer belongs to the
-// request being signed.
+// recordedChain validates stored key usages and binds the recorded chain to the request being signed.
 func recordedChain(transaction *cmpv1alpha1.CMPTransaction, csrDER []byte) ([]*x509.Certificate, error) {
 	if len(transaction.Status.IssuedChain) == 0 {
 		return nil, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction reports an issued certificate without a chain")}
@@ -380,6 +379,9 @@ func recordedChain(transaction *cmpv1alpha1.CMPTransaction, csrDER []byte) ([]*x
 		certificate, parseErr := x509.ParseCertificate(encoded)
 		if parseErr != nil {
 			return nil, issuersigner.PermanentError{Err: fmt.Errorf("parse recorded CMP certificate chain: %w", parseErr)}
+		}
+		if err := protocol.ValidateMLDSAKeyUsage(certificate); err != nil {
+			return nil, issuersigner.PermanentError{Err: fmt.Errorf("validate recorded CMP certificate key usage: %w", err)}
 		}
 		chain = append(chain, certificate)
 	}
