@@ -2,13 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.3.0] - TBD
+## [0.3.0] - 9 Oct 2026
 
 This release adds **ML-DSA** support, configured response signer certificates and SHA-384/SHA-512 PasswordBasedMac. It reports refused certificates to CMP servers and fixes Ed25519 protection and verification of responses that omit a configured anchor signer.
 
 ### Certificate management
 
-* **Enroll ML-DSA certificates** - With cert-manager built using Go 1.27, submit an ML-DSA-44, ML-DSA-65 or ML-DSA-87 CSR in a `CertificateRequest`. A Go rebuild only fixes CSR admission. cert-manager cannot yet manage ML-DSA keys through `Certificate` resources, so renewal requires another direct request. cmp-issuer supports ML-DSA KUR once cert-manager can supply the required keys. See [known limitations](https://misiektoja.github.io/cmp-issuer/known-limitations/#ml-dsa).
+* **Enroll ML-DSA certificates** - Submit ML-DSA-44, ML-DSA-65 or ML-DSA-87 CSRs with compatible cert-manager and CA support. CSR admission depends on the cert-manager build and its feature gates. Automatic renewal and KUR also require cert-manager to manage ML-DSA keys. cmp-issuer rejects ML-DSA certificates with key usages forbidden by RFC 9881. See [build requirements and key usages](https://misiektoja.github.io/cmp-issuer/known-limitations/#ml-dsa).
 * **Work with ML-DSA CAs and credentials** - Certificates signed by an ML-DSA CA are confirmed with a SHA-512 `certConf` hash sent as CMPv3, which RFC 9810 requires when `hashAlg` is present. Responses signed with ML-DSA are verified. A signature-protection credential may hold an ML-DSA key in seed-only PKCS #8 form.
 * **The issuance log names ML-DSA keys** - `keyType` reports the parameter set, such as `ML-DSA-65`, instead of `Unknown`.
 
