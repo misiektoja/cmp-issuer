@@ -4,6 +4,82 @@ entries:
   - annotations:
       artifacthub.io/category: security
       artifacthub.io/changes: |
+        - kind: added
+          description: ML-DSA certificates, CA signatures and protection credentials are supported with a compatible cert-manager build
+        - kind: added
+          description: Response signer certificates can be supplied through cmpTrust.signerCertificatesSecretRef without making them trust anchors
+        - kind: added
+          description: PasswordBasedMac supports SHA-384 and SHA-512 while retaining SHA-256 defaults
+        - kind: changed
+          description: Refused certificates are reported to CMP servers through rejection certConf messages
+        - kind: fixed
+          description: Responses signed by configured trust anchors verify when extraCerts omits the signer
+        - kind: fixed
+          description: Ed25519 message protection uses the signature form required by CMP servers
+        - kind: changed
+          description: Source builds require Go 1.27.1
+      artifacthub.io/crds: |
+        - kind: CMPIssuer
+          version: v1alpha1
+          name: cmpissuers.certmanager.misiektoja.github.io
+          displayName: CMP Issuer
+          description: Namespaced issuer that enrolls cert-manager certificates from one CMP server
+        - kind: CMPClusterIssuer
+          version: v1alpha1
+          name: cmpclusterissuers.certmanager.misiektoja.github.io
+          displayName: CMP Cluster Issuer
+          description: Cluster-wide issuer that reads its credentials from the controller namespace
+        - kind: CMPTransaction
+          version: v1alpha1
+          name: cmptransactions.certmanager.misiektoja.github.io
+          displayName: CMP Transaction
+          description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://misiektoja.github.io/cmp-issuer/
+        - name: Source
+          url: https://github.com/misiektoja/cmp-issuer
+        - name: Release notes
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/RELEASE_NOTES.md
+        - name: Security policy
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
+        - name: Issues
+          url: https://github.com/misiektoja/cmp-issuer/issues
+        - name: support
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md
+    apiVersion: v2
+    appVersion: v0.3.0
+    created: "2026-10-09T02:42:55.230345414Z"
+    description: Cert-manager issuer for Certificate Management Protocol (CMP) servers
+    digest: 9bdb5ac176c41554d1b7ac2b15112b7cb7f8d5ebc0f78b89f4fdbce3baea5f69
+    home: https://misiektoja.github.io/cmp-issuer/
+    icon: https://raw.githubusercontent.com/misiektoja/cmp-issuer/main/docs/assets/logo.svg
+    keywords:
+    - kubernetes
+    - operator
+    - cert-manager
+    - cmp
+    - cmpv2
+    - rfc4210
+    - pki
+    - certificates
+    - x509
+    - issuer
+    kubeVersion: '>= 1.31.0-0'
+    maintainers:
+    - name: misiektoja
+      url: https://github.com/misiektoja
+    name: cmp-issuer
+    sources:
+    - https://github.com/misiektoja/cmp-issuer
+    type: application
+    urls:
+    - https://github.com/misiektoja/cmp-issuer/releases/download/v0.3.0/cmp-issuer-0.3.0.tgz
+    version: 0.3.0
+  - annotations:
+      artifacthub.io/category: security
+      artifacthub.io/changes: |
         - kind: fixed
           description: An interrupted confirmation resends certConf instead of polling for an answer to a certConf that was never sent
         - kind: fixed
@@ -220,4 +296,4 @@ entries:
     urls:
     - https://github.com/misiektoja/cmp-issuer/releases/download/v0.1.0/cmp-issuer-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-04T17:43:48.66414057Z"
+generated: "2026-10-09T02:42:55.229517096Z"
