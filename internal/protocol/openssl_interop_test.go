@@ -27,6 +27,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -584,4 +585,38 @@ func newEd25519Key(t *testing.T) crypto.Signer {
 		t.Fatalf("generate Ed25519 key: %v", err)
 	}
 	return key
+}
+
+// TestMLDSAKeyUsageRejectionAgainstOpenSSL reports a forbidden usage in a rejecting certConf.
+func TestMLDSAKeyUsageRejectionAgainstOpenSSL(t *testing.T) {
+	requireOpenSSLMLDSA(t)
+	pki := newTestPKI(t)
+	key := newMLDSAKey(t, mldsa.MLDSA65())
+	request := baseEnrollmentRequest(t, pki, "")
+	request.CSRDER = createCSRWithKey(t, "cmp-issuer-mldsa-test", key)
+	request.Protection.Password = &PasswordProtection{Reference: []byte(opensslMockReference), Secret: []byte(opensslMockPassword), IterationCount: 1024}
+	csr, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued := issueLeaf(t, pki, csr, key.Public())
+	issued = certificateWithKeyUsage(t, issued, pki.CACertificate, pki.CAKey, x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment, false)
+	proxy, forwarded := newSingleConnectionProxy(t, startOpenSSLMockServer(t, pki, issued, 0))
+	request.EndpointURL = proxy.URL
+	result, err := NewClient().EnrollP10CR(context.Background(), request)
+	var typed *Error
+	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || len(result.Chain) != 0 || result.PendingConfirmation != nil {
+		t.Fatalf("expected refused certificate, got %+v and %v", result, err)
+	}
+	if strings.Contains(err.Error(), "rejection not confirmed by the server") {
+		t.Fatalf("OpenSSL did not acknowledge the rejection: %v", err)
+	}
+	message, err := pkicmp.ParsePKIMessage(forwarded.at(1))
+	if err != nil {
+		t.Fatalf("parse rejecting certConf: %v", err)
+	}
+	statuses, err := message.Body.CertConf()
+	if err != nil || len(*statuses) != 1 || (*statuses)[0].StatusInfo == nil || (*statuses)[0].StatusInfo.Status != pkicmp.StatusRejection {
+		t.Fatalf("expected rejecting certConf, got %+v and %v", statuses, err)
+	}
 }

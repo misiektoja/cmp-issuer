@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -812,5 +813,45 @@ func TestSignRemovesStateOnPermanentFailure(t *testing.T) {
 	}
 	if fixture.transaction(t) != nil {
 		t.Fatal("expected the rejected transaction state to be removed")
+	}
+}
+
+// TestSignRejectsRecordedMLDSAKeyUsage blocks recovery and confirmation of a non-compliant chain.
+func TestSignRejectsRecordedMLDSAKeyUsage(t *testing.T) {
+	for _, phase := range []string{cmpv1alpha1.TransactionPhaseIssued, cmpv1alpha1.TransactionPhaseConfirming} {
+		t.Run(phase, func(t *testing.T) {
+			fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
+			key, err := mldsa.GenerateKey(mldsa.MLDSA65())
+			if err != nil {
+				t.Fatal(err)
+			}
+			csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture.request.details.CSR = csr
+			if _, err := fixture.sign(t); err == nil {
+				t.Fatal("expected enrollment to wait")
+			}
+			template := &x509.Certificate{SerialNumber: big.NewInt(2), NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment}
+			der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored := fixture.transaction(t)
+			stored.Status.Phase = phase
+			stored.Status.IssuedChain = [][]byte{der}
+			if err := fixture.kube.Status().Update(context.Background(), stored); err != nil {
+				t.Fatal(err)
+			}
+			bundle, err := fixture.sign(t)
+			var permanent issuersigner.PermanentError
+			if !errors.As(err, &permanent) || len(bundle.ChainPEM) != 0 {
+				t.Fatalf("expected stored certificate rejection, got %+v and %v", bundle, err)
+			}
+			if fixture.protocol.calls != 1 || fixture.protocol.polls != 0 || fixture.protocol.confirms != 0 {
+				t.Fatal("sent CMP traffic after rejecting the stored certificate")
+			}
+		})
 	}
 }

@@ -65,6 +65,7 @@ type testPKI struct {
 
 // mockOptions selects negative response behavior for the mock CMP server.
 type mockOptions struct {
+	IssuedKeyUsage      *x509.KeyUsage
 	ResponseSigner      *SignatureProtection
 	CertReqID           int64
 	WrongPublicKey      bool
@@ -369,6 +370,9 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 			publicKey = wrongKey.Public()
 		}
 		leaf := issueLeaf(t, pki, certificateRequest, publicKey)
+		if options.IssuedKeyUsage != nil {
+			leaf = certificateWithKeyUsage(t, leaf, pki.CACertificate, pki.CAKey, *options.IssuedKeyUsage, false)
+		}
 		status := pkicmp.StatusAccepted
 		if options.GrantedWithMods {
 			status = pkicmp.StatusGrantedWithMods
@@ -404,6 +408,14 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 		if err != nil {
 			t.Errorf("issue KUR certificate: %v", err)
 			return false
+		}
+		if options.IssuedKeyUsage != nil {
+			certificate, err := x509.ParseCertificate(certificateDER)
+			if err != nil {
+				t.Errorf("parse issued KUR certificate: %v", err)
+				return false
+			}
+			certificateDER = certificateWithKeyUsage(t, certificate, pki.CACertificate, pki.CAKey, *options.IssuedKeyUsage, false).Raw
 		}
 		responseMessage := &pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: certificateDER}}}}}}
 		if options.KUPCAPubs {
