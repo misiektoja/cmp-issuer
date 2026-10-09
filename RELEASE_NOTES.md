@@ -14,6 +14,7 @@ This release adds **ML-DSA** support, configured response signer certificates an
 
 ### Security and reliability
 
+* **HTTP/2 security fixes** - Includes fixes for denial-of-service vulnerabilities and invalid-header handling in HTTP/2.
 * **Configure response signer certificates separately from trust anchors** - `spec.cmpTrust.signerCertificatesSecretRef` supplies signer certificates and intermediates when the server omits them from `extraCerts`. Every signer still has to chain to `spec.cmpTrust.caSecretRef`. Both validation profiles accept this interoperability allowance and retain the validated signer for polling and confirmation.
 * **Select SHA-384 or SHA-512 for PasswordBasedMac** - `owf` and `mac` accept the SHA-256, SHA-384 and SHA-512 family. The MAC digest cannot be longer than the OWF output. SHA-256 and 1024 iterations remain the defaults. The configured suite applies to enrollment, polling and confirmation without fallback.
 * **Refused certificates are reported to the CMP server** - When an issued certificate does not certify the requested key, fails chain validation or carries modifications refused by `spec.policy.grantedModifications: Reject`, cmp-issuer sends `certConf` with status `rejection` before failing the `CertificateRequest`. The server no longer waits for a confirmation that never arrives. Under server-granted implicit confirmation no `certConf` is sent.
@@ -25,7 +26,7 @@ This release adds **ML-DSA** support, configured response signer certificates an
 
 ### Project maintenance
 
-* **Building from source needs Go 1.27.1** - The module requires Go 1.27.1, whose standard library provides ML-DSA.
+* **Building from source needs Go 1.27.2** - The module requires Go 1.27.2 for ML-DSA support and standard-library security fixes.
 * **Contributions need a DCO sign-off** - Every commit must carry a `Signed-off-by` trailer from `git commit -s` that certifies the Developer Certificate of Origin. Pull requests run a DCO check and `make dco-check` runs it locally.
 
 ## [0.2.1] - 4 Sep 2026
