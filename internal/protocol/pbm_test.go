@@ -82,7 +82,8 @@ func TestPBMAlgorithmsAgainstOpenSSL(t *testing.T) {
 				for ; forwarded.at(count) != nil; count++ {
 					requirePBMSuite(t, forwarded.at(count), expectedOWF, mac)
 				}
-				if count < 2 || polls > 0 && count < 4 {
+				// Enrollment, one poll and confirmation require at least three messages.
+				if count < 2 || polls > 0 && count < 3 {
 					t.Fatalf("expected enrollment and confirmation traffic, got %d messages", count)
 				}
 			})
