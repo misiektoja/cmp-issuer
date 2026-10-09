@@ -58,6 +58,8 @@ func newDCORepository(t *testing.T) *dcoRepository {
 	env := []string{
 		"GIT_CONFIG_GLOBAL=" + os.DevNull,
 		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Contributor",
+		"GIT_AUTHOR_EMAIL=contributor@example.com",
 		"GIT_COMMITTER_NAME=Committer",
 		"GIT_COMMITTER_EMAIL=committer@example.com",
 	}
