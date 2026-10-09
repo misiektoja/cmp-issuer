@@ -38,15 +38,22 @@ See [Support matrix](support-matrix.md).
 
 ## ML-DSA
 
-cmp-issuer issues and renews ML-DSA certificates. cert-manager decides whether an ML-DSA request reaches it.
+cmp-issuer supports ML-DSA-44, ML-DSA-65 and ML-DSA-87. Enrollment requires a CMP server that accepts the chosen algorithm and a cert-manager build that admits ML-DSA CSRs.
 
-* cert-manager v1.21 is built with Go 1.26, so its webhook rejects a `CertificateRequest` that carries an ML-DSA CSR. cert-manager built with Go 1.27 accepts one, whether it is a release or your own build.
-* Building cert-manager with Go 1.27 does not add ML-DSA to `Certificate` resources. `Certificate.spec.privateKey.algorithm` offers only `RSA`, `ECDSA` and `Ed25519`. cert-manager also compares keys only of those types, so it cannot match an ML-DSA key in a Secret to its certificate. A `Certificate` therefore cannot generate, store or renew an ML-DSA key. This needs changes in cert-manager itself, tracked in [cert-manager#8929](https://github.com/cert-manager/cert-manager/issues/8929).
-* Until then, an ML-DSA certificate needs a directly created `CertificateRequest` with an ML-DSA CSR, which cmp-issuer enrolls with P10CR. cert-manager does not renew it, so renew by creating a new `CertificateRequest`.
-* KUR reads ML-DSA keys from `tls.key` in the seed-only PKCS #8 form the Go standard library writes. cert-manager has not decided how it will store ML-DSA keys, so KUR depends on that choice.
+* cert-manager v1.21 is built with Go 1.26 and rejects ML-DSA CSRs. Go 1.27 provides the required cryptography, but admission also depends on the cert-manager build and its feature gates. The upstream [ML-DSA design proposal](https://github.com/cert-manager/cert-manager/pull/9436) introduces an alpha `MLDSAPrivateKeys` gate for the controller and webhook. Follow the instructions for your build.
+* If the build admits ML-DSA CSRs but cannot manage ML-DSA keys, submit a direct `CertificateRequest` for P10CR enrollment. Renew by submitting another request. Automatic issuance and renewal through `Certificate` resources require cert-manager support for ML-DSA key generation, storage and matching. A Go rebuild alone does not provide that support.
+* KUR requires cert-manager to supply the current and requested ML-DSA keys in seed-only PKCS #8 form. cmp-issuer reads the keys and CSR independently of the algorithm name used by the cert-manager API.
 * Go reads only seed-only ML-DSA private keys. OpenSSL writes the seed and the expanded key by default, so convert an ML-DSA CMP signature credential before storing it: `openssl pkey -in key.pem -provparam ml-dsa.output_formats=seed-only -out seed-key.pem`.
-* `kubectl create secret tls` with an ML-DSA key prints `Warning: tls: failed to parse private key`. The Secret is still created and cmp-issuer reads it.
+* A `kubectl` build without ML-DSA support may print `Warning: tls: failed to parse private key` during `kubectl create secret tls`. Check whether the Secret was created.
 * The `certConf` for a certificate signed with ML-DSA carries a SHA-512 `certHash` and names SHA-512 in `hashAlg`. The OpenSSL CMP mock server ignores `hashAlg` and checks the hash with SHA-256, so explicit confirmation fails against it. Use implicit confirmation with that server.
+
+### Key usages
+
+Set `usages: [digital signature]` for an ML-DSA request and configure the CA profile accordingly. Add extended usages such as `server auth` when needed. Keep the CSR extensions consistent with the `CertificateRequest.spec.usages` values. The classical default includes `key encipherment`, which is invalid for ML-DSA.
+
+[RFC 9881 section 5](https://www.rfc-editor.org/rfc/rfc9881.html#section-5) restricts the `keyUsage` extension for ML-DSA subject keys to signature usages. If present, it must contain at least one of `digitalSignature`, `nonRepudiation`, `keyCertSign` or `cRLSign`. It must not contain `keyEncipherment`, `dataEncipherment`, `keyAgreement`, `encipherOnly` or `decipherOnly`.
+
+cmp-issuer enforces this rule for issued chains, CMP response signer chains and signature credentials, including stored certificates used after a restart. It refuses a non-compliant issued certificate and sends a rejecting `certConf` when explicit confirmation is required. RSA or ECDSA subject keys retain their usual usages when signed by an ML-DSA CA.
 
 ## Dependencies
 

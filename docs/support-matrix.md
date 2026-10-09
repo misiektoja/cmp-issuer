@@ -34,7 +34,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Capability | Status | Notes |
 | --- | --- | --- |
 | RSA, ECDSA and Ed25519 keys | Implemented, Interoperability tested | Workload keys and CMP signature credentials |
-| ML-DSA-44, ML-DSA-65 and ML-DSA-87 workload keys | Implemented, Interoperability tested | P10CR and KUR. cert-manager v1.21 cannot submit ML-DSA requests, see [Known limitations](known-limitations.md#ml-dsa) |
+| ML-DSA-44, ML-DSA-65 and ML-DSA-87 workload keys | Implemented, Interoperability tested | P10CR and KUR with compatible cert-manager and CA support, see [Known limitations](known-limitations.md#ml-dsa) |
 | ML-DSA CMP signature credential | Implemented | PKCS #8 seed-only private key |
 | ML-DSA CA and ML-DSA-signed CMP responses | Implemented, Interoperability tested | |
 | Composite ML-DSA | Unsupported | cert-manager rejects composite CSRs and Go cannot validate composite certificate chains |

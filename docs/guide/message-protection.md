@@ -193,6 +193,7 @@ Before accepting a certificate the signer validates:
 * KUP `caPubs` according to the selected validation profile
 * That the issued public key matches the CSR
 * A leaf-first chain that validates against CMP trust
+* [RFC 9881 key usages](../known-limitations.md#key-usages) for ML-DSA certificates
 
 Signature verification tries certificates from the response `extraCerts` first, then the certificates
 configured in `spec.cmpTrust.caSecretRef`, then the optional

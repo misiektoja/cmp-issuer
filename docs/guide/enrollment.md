@@ -49,7 +49,7 @@ spec:
     - workload.example.com
 ```
 
-cert-manager creates a `CertificateRequest`. cmp-issuer reconciles it after approval.
+cert-manager creates a `CertificateRequest`. cmp-issuer reconciles it after approval. For ML-DSA, check the [build requirements and key usages](../known-limitations.md#ml-dsa).
 
 ## Inspect progress
 
