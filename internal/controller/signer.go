@@ -105,7 +105,6 @@ func (s *Signer) SetupWithManager(ctx context.Context, manager ctrl.Manager) err
 		Check:                          s.Check,
 		Sign:                           s.Sign,
 		EventRecorder:                  s.EventRecorder,
-		SetCAOnCertificateRequest:      false,
 		DisableKubernetesCSRController: true,
 	}
 	if s.WatchNamespace == "" {
