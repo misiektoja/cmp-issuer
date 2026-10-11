@@ -71,7 +71,7 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 # - CERT_MANAGER_VERSION=v1.19.6
 KIND_CLUSTER ?= cmp-issuer-test-e2e
 # Kubernetes version for the Kind cluster, empty for the Kind default. Pin one with a published node
-# image digest, for example KIND_NODE_IMAGE=kindest/node:v1.34.0, to run against another release.
+# image digest, for example KIND_NODE_IMAGE=kindest/node:v1.34.11, to run against another release.
 KIND_NODE_IMAGE ?=
 # The budget covers building the manager image and installing cert-manager before the specs run.
 E2E_TIMEOUT ?= 20m
@@ -501,14 +501,14 @@ CYCLONEDX_GOMOD ?= $(LOCALBIN)/cyclonedx-gomod
 HELM ?= $(LOCALBIN)/helm
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.8.1
-CONTROLLER_TOOLS_VERSION ?= v0.21.0
-KIND_VERSION ?= v0.32.0
-GOVULNCHECK_VERSION ?= v1.7.0
+KUSTOMIZE_VERSION ?= v5.8.3
+CONTROLLER_TOOLS_VERSION ?= v0.22.0
+KIND_VERSION ?= v0.33.0
+GOVULNCHECK_VERSION ?= v1.9.0
 GITLEAKS_VERSION ?= v8.30.1
 ACTIONLINT_VERSION ?= v1.7.12
-CYCLONEDX_GOMOD_VERSION ?= v1.11.0
-HELM_VERSION ?= v3.20.1
+CYCLONEDX_GOMOD_VERSION ?= v1.12.0
+HELM_VERSION ?= v3.22.0
 
 #ENVTEST_VERSION is the controller-runtime version to use for setup-envtest, derived from go.mod
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
