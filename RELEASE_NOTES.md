@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [0.3.1] - 11 Oct 2026
 
-This release fixes PasswordBasedMac enrollment with more than 500000 iterations and KUR of certificates without a subject DN. Signature-protected requests carry certificate subjects exactly as the certificates encode them. The CMP library moves to go-pki-cmp, its new name.
+This release fixes PasswordBasedMac enrollment with more than 500000 iterations and KUR of certificates without a subject DN. Signature-protected requests carry certificate subjects exactly as the certificates encode them. Kubernetes 1.37 joins the verified versions and the CMP library moves to go-pki-cmp, its new name.
 
 ### Bug fixes
 
@@ -14,6 +14,7 @@ This release fixes PasswordBasedMac enrollment with more than 500000 iterations 
 
 ### Project maintenance
 
+* **Verified on Kubernetes 1.34 to 1.37** - The end-to-end tests run on Kubernetes 1.37 and 1.36 with cert-manager 1.21, 1.35 with cert-manager 1.20 and 1.34 with cert-manager 1.19.
 * **CMP library go-pki-cmp v0.4.0** - The library formerly published as go-pkicmp-ng has the module path `github.com/misiektoja/go-pki-cmp`. The recipient and a configured sender name use PrintableString where the value allows it, as X.509 certificates do, instead of always UTF8String.
 
 ## [0.3.0] - 9 Oct 2026
