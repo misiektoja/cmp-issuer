@@ -95,7 +95,9 @@ func protectedKUR(request EnrollmentRequest, csr *x509.CertificateRequest, crede
 	if err != nil {
 		return nil, nil, permanent("encode requested extensions", "badCertTemplate", err)
 	}
-	template := pkicmp.CertTemplate{Subject: pkicmp.NewDirectoryName(csr.Subject), PublicKey: publicKey}
+	// validateKURProofs has checked that the CSR names the same subject. For a certificate named only in
+	// subjectAltName the certificate's own encoding is the NULL-DN that RFC 9483 section 4.1.1 requires.
+	template := pkicmp.CertTemplate{Subject: certificateSubject(request.Protection.Signature.Certificate), PublicKey: publicKey}
 	if len(csr.Extensions) > 0 {
 		template.Extensions = extensions
 	}
@@ -108,7 +110,7 @@ func protectedKUR(request EnrollmentRequest, csr *x509.CertificateRequest, crede
 		return nil, nil, permanent("generate KUR proof of possession", "badPOP", err)
 	}
 	messages := pkicmp.CertReqMessages{messageRequest}
-	sender := pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
+	sender := certificateSubject(request.Protection.Signature.Certificate)
 	message := pkicmp.NewPKIMessage(pkicmp.NewKURBody(&messages), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID})
 	if request.ImplicitConfirm {
 		message.Header.GeneralInfo = append(message.Header.GeneralInfo, pkicmp.ImplicitConfirmInfoValue())
