@@ -11,9 +11,9 @@ type: application
 version: 0.3.1
 appVersion: "v0.3.1"
 
-## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
-## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
-## prerelease and distribution versions such as `v1.34.1-gke.100` inside the range.
+## Verified on Kubernetes v1.34, v1.35, v1.36 and v1.37. The floor is set lower because nothing in the
+## chart needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix
+## keeps prerelease and distribution versions such as `v1.34.1-gke.100` inside the range.
 kubeVersion: ">= 1.31.0-0"
 
 home: https://misiektoja.github.io/cmp-issuer/
@@ -81,5 +81,7 @@ annotations:
       description: Signature-protected requests and KUR templates carry certificate subjects exactly as the certificate encodes them
     - kind: fixed
       description: KUR of a certificate named only in its SANs sends a NULL-DN subject as RFC 9483 requires
+    - kind: changed
+      description: Verified on Kubernetes v1.34 to v1.37 with cert-manager v1.19 to v1.21
     - kind: changed
       description: The CMP library is go-pki-cmp v0.4.0, formerly published as go-pkicmp-ng
