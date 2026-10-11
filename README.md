@@ -34,7 +34,7 @@ Enrollment uses P10CR, with optional KUR for certificate renewal.
 
 ## Prerequisites
 
-* [Kubernetes](https://kubernetes.io) cluster v1.31 or newer, verified on v1.34-1.36
+* [Kubernetes](https://kubernetes.io) cluster v1.31 or newer, verified on v1.34-1.37
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support, verified on
   v1.19-1.21
 * [Helm](https://helm.sh/docs/intro/install/) v3

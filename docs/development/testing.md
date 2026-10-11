@@ -76,11 +76,11 @@ Two variables select the versions, so one suite covers the whole supported range
 
 | Variable | Effect |
 | --- | --- |
-| `KIND_NODE_IMAGE` | Kubernetes version of the Kind cluster, for example `kindest/node:v1.34.0`. Empty uses the default of the pinned Kind release |
+| `KIND_NODE_IMAGE` | Kubernetes version of the Kind cluster, for example `kindest/node:v1.34.11`. Empty uses the default of the pinned Kind release |
 | `CERT_MANAGER_VERSION` | cert-manager release the suite installs, for example `v1.19.6` |
 
 ```bash
-make test-e2e KIND_NODE_IMAGE=kindest/node:v1.34.0 CERT_MANAGER_VERSION=v1.19.6
+make test-e2e KIND_NODE_IMAGE=kindest/node:v1.34.11 CERT_MANAGER_VERSION=v1.19.6
 ```
 
 CI runs the suite once per supported combination after a change lands on `dev` or `main`. Pull requests
@@ -89,11 +89,12 @@ reported on the development branch before release:
 
 | Kubernetes | cert-manager |
 | --- | --- |
-| v1.36, the default of the pinned Kind release | v1.21.1 |
-| v1.35 | v1.20.3 |
+| v1.37, the default of the pinned Kind release | v1.21.2 |
+| v1.36 | v1.21.2 |
+| v1.35 | v1.20.4 |
 | v1.34 | v1.19.6 |
 
-The two older rows pin a digest, taken from the node images published for the Kind release pinned as `KIND_VERSION` in the `Makefile`, so they have to be updated with it. The newest row pins no image and follows the Kind default.
+The three older rows pin a digest, taken from the node images published for the Kind release pinned as `KIND_VERSION` in the `Makefile`, so they have to be updated with it. The newest row pins no image and follows the Kind default.
 
 ## Enrollment against a CMP server in the cluster
 
@@ -162,7 +163,7 @@ Enrollment against Nokia NCM is verified against a dedicated CMP server, because
 It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
 pushes to `dev` and `main` and once a week, but never for pull requests. Start it from the Actions tab to
 choose different Kubernetes or cert-manager versions. Automatic runs use the default Kind node and
-cert-manager v1.20.3 and cover every enrollment and renewal without further input.
+cert-manager v1.21.2 and cover every enrollment and renewal without further input.
 
 ### What each run covers
 

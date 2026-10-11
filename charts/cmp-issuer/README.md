@@ -10,7 +10,7 @@ Full documentation is at
 
 ## Prerequisites
 
-* Kubernetes v1.31 or newer. Verified on v1.34-1.36
+* Kubernetes v1.31 or newer. Verified on v1.34-1.37
 * [cert-manager](https://cert-manager.io/docs/installation/) with external issuer support. Verified on v1.19-1.21
 * Helm v3
 * Kubernetes container runtime like Docker, containerd or CRI-O

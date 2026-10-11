@@ -10,7 +10,7 @@ covers these steps in order and ends with an issued certificate.
 
 | Requirement | Notes |
 | --- | --- |
-| Kubernetes | Verified on v1.34, v1.35 and v1.36 |
+| Kubernetes | Verified on v1.34, v1.35, v1.36 and v1.37 |
 | cert-manager with external issuer support | Verified on v1.19, v1.20 and v1.21 |
 | Helm v3 | Only for the chart installation path |
 
