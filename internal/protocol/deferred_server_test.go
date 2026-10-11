@@ -83,12 +83,13 @@ func (c *deferredCA) CheckPending(_ context.Context, _ string, _ *server.SenderI
 	return &server.Response{Certificate: certificate, CACerts: []*x509.Certificate{c.pki.CACertificate}}, nil
 }
 
-// newDeferredCMPServer starts a CMP server that defers issuance to an approval queue.
-func newDeferredCMPServer(t *testing.T, pki testPKI, password []byte, waits int, checkAfter time.Duration) (*httptest.Server, *deferredCA) {
+// newDeferredCMPServer starts a CMP server that defers issuance to an approval queue. options extend the server configuration.
+func newDeferredCMPServer(t *testing.T, pki testPKI, password []byte, waits int, checkAfter time.Duration, options ...server.Option) (*httptest.Server, *deferredCA) {
 	t.Helper()
 	authority := &deferredCA{pki: pki, waits: waits, checkAfter: checkAfter}
 	lookup := server.SecretLookupFunc(func(_ pkix.Name, _ []byte) ([]byte, error) { return password, nil })
-	handler := server.NewCAServer(authority, nil, server.WithSigner(pki.CAKey, pki.CACertificate), server.WithSecretLookup(lookup), server.WithSender(pki.CACertificate.Subject))
+	options = append([]server.Option{server.WithSigner(pki.CAKey, pki.CACertificate), server.WithSecretLookup(lookup), server.WithSender(pki.CACertificate.Subject)}, options...)
+	handler := server.NewCAServer(authority, nil, options...)
 	return httptest.NewServer(handler), authority
 }
 
