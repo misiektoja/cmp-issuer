@@ -29,7 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/server"
 )
 
 // TestPBMAlgorithmsAgainstOpenSSL checks every supported suite on the wire against an independent server.
@@ -143,5 +144,67 @@ func TestPBMRejectsUnsupportedAlgorithms(t *testing.T) {
 				t.Fatalf("expected rejection before transmission, got %v and %d messages", err, state.count())
 			}
 		})
+	}
+}
+
+// TestPBMIterationCountBounds enrolls at both ends of the supported iteration range against a server
+// that echoes the request's parameters, so request protection and response verification both see the
+// configured count.
+func TestPBMIterationCountBounds(t *testing.T) {
+	for _, iterations := range []int{100, 1048575} {
+		t.Run(fmt.Sprint(iterations), func(t *testing.T) {
+			pki := newTestPKI(t)
+			password := []byte("test-shared-secret")
+			endpoint, _ := newDeferredCMPServer(t, pki, password, 0, 20*time.Millisecond, server.WithMACIterationLimits(100, 1048575))
+			defer endpoint.Close()
+			proxy, forwarded := newSingleConnectionProxy(t, endpoint.Listener.Addr().String())
+			request := baseEnrollmentRequest(t, pki, proxy.URL)
+			request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: iterations}
+			request.ResponseCertReqID = nil
+			client := NewClient()
+			result, err := client.EnrollP10CR(context.Background(), request)
+			if err != nil {
+				t.Fatalf("EnrollP10CR returned error: %v", err)
+			}
+			if result.Pending == nil {
+				t.Fatal("expected the deferred authority to return a waiting response")
+			}
+			poll := PollRequest{Enrollment: request, RecipNonce: result.Pending.RecipNonce, CertReqID: result.Pending.CertReqID, ResponseSigner: result.Pending.ResponseSigner}
+			result, err = client.PollP10CR(context.Background(), poll)
+			if err != nil || result.Pending != nil {
+				t.Fatalf("poll: result=%+v error=%v", result, err)
+			}
+			result, err = confirmToCompletion(t, client, request, result)
+			if err != nil || !result.ExplicitConfirmation {
+				t.Fatalf("confirmation: result=%+v error=%v", result, err)
+			}
+			for index := 0; forwarded.at(index) != nil; index++ {
+				requirePBMIterationCount(t, forwarded.at(index), iterations)
+			}
+		})
+	}
+}
+
+// requirePBMIterationCount checks the iteration count a transmitted PasswordBasedMac request carries.
+func requirePBMIterationCount(t *testing.T, data []byte, iterations int) {
+	t.Helper()
+	message, err := pkicmp.ParsePKIMessage(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parameters struct {
+		Salt           []byte
+		OWF            pkix.AlgorithmIdentifier
+		IterationCount int
+		MAC            pkix.AlgorithmIdentifier
+	}
+	if message.Header.ProtectionAlg == nil {
+		t.Fatal("expected PasswordBasedMac protection")
+	}
+	if _, err := asn1.Unmarshal(message.Header.ProtectionAlg.Parameters, &parameters); err != nil {
+		t.Fatal(err)
+	}
+	if parameters.IterationCount != iterations {
+		t.Fatalf("expected %d iterations on the wire, got %d", iterations, parameters.IterationCount)
 	}
 }

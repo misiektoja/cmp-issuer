@@ -25,13 +25,14 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"math/big"
 	"testing"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // kurEnrollmentRequest creates a valid certificate-authenticated renewal request with selectable key rotation.
@@ -145,6 +146,88 @@ func TestProtectedKURIncludesOldCertID(t *testing.T) {
 	}
 	if oldCertID.SerialNumber == nil || oldCertID.SerialNumber.Cmp(current.SerialNumber) != 0 {
 		t.Fatalf("oldCertID serial %v does not identify current serial %v", oldCertID.SerialNumber, current.SerialNumber)
+	}
+}
+
+// kurSubjectCase is a certificate subject that an encoded pkix.Name does not reproduce.
+type kurSubjectCase struct {
+	name string
+	// rawSubject is the subject of the certificate being updated, empty when nil.
+	rawSubject []byte
+	// csrSubject names the same attributes in the CSR.
+	csrSubject pkix.Name
+	// want is the subject DER the KUR template must carry.
+	want []byte
+}
+
+// kurSubjectCases returns a reordered UTF8String subject and the NULL-DN of a certificate named only in subjectAltName.
+func kurSubjectCases(t *testing.T) []kurSubjectCase {
+	t.Helper()
+	reordered, name := reorderedSubject(t, "cmp-issuer-kur-test")
+	return []kurSubjectCase{
+		{name: "reordered UTF8String subject", rawSubject: reordered, csrSubject: name, want: reordered},
+		{name: "subjectAltName only", csrSubject: pkix.Name{}, want: []byte{0x30, 0x00}},
+	}
+}
+
+// kurRequestForSubject returns a same-key KUR request for a certificate with the subject of test.
+func kurRequestForSubject(t *testing.T, pki testPKI, endpoint string, test kurSubjectCase) EnrollmentRequest {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificate := certificateWithRawSubject(t, pki, test.rawSubject, key)
+	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: test.csrSubject, DNSNames: certificate.DNSNames}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := baseEnrollmentRequest(t, pki, endpoint)
+	request.Operation = OperationKUR
+	request.CSRDER = requestDER
+	request.RequestedPrivateKey = key
+	request.ResponseCertReqID = pinCertReqID(ResponseCertReqIDLegacyZero)
+	request.Protection.Signature = &SignatureProtection{PrivateKey: key, Certificate: certificate, Chain: []*x509.Certificate{pki.CACertificate}}
+	if err := ValidateKURRequest(request); err != nil {
+		t.Fatalf("ValidateKURRequest returned error: %v", err)
+	}
+	return request
+}
+
+// TestProtectedKURKeepsCertificateSubject verifies the template subject and the sender repeat the subject
+// of the certificate being updated without modification, as RFC 9483 sections 3.1 and 4.1.3 require.
+func TestProtectedKURKeepsCertificateSubject(t *testing.T) {
+	for _, test := range kurSubjectCases(t) {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			request := kurRequestForSubject(t, pki, "https://cmp.example.test", test)
+			csr, err := x509.ParseCertificateRequest(request.CSRDER)
+			if err != nil {
+				t.Fatal(err)
+			}
+			credentials, err := credentialsFor(request.Protection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, encoded, err := protectedKUR(request, csr, credentials)
+			if err != nil {
+				t.Fatal(err)
+			}
+			message, err := pkicmp.ParsePKIMessage(encoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			messages, err := message.Body.KUR()
+			if err != nil || messages == nil || len(*messages) != 1 {
+				t.Fatalf("parse KUR: %v", err)
+			}
+			if subject := (*messages)[0].CertReq.CertTemplate.RawSubject; !bytes.Equal(subject, test.want) {
+				t.Fatalf("expected template subject %x, got %x", test.want, subject)
+			}
+			if sender := directoryNameContent(t, message.Header.Sender); !bytes.Equal(sender, test.want) {
+				t.Fatalf("expected sender %x, got %x", test.want, sender)
+			}
+		})
 	}
 }
 

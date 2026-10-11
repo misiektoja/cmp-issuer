@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.3.1] - 11 Oct 2026
+
+This release fixes PasswordBasedMac enrollment with more than 500000 iterations and KUR of certificates without a subject DN. Signature-protected requests carry certificate subjects exactly as the certificates encode them. Kubernetes 1.37 joins the verified versions and the CMP library moves to go-pki-cmp, its new name.
+
+### Bug fixes
+
+* **PasswordBasedMac accepts every allowed iteration count** - An `iterationCount` from 500001 to 1048575 passed validation, but enrollment failed before any request was sent. These counts work for requests and for server responses that use the same count.
+* **Certificate subjects are sent as the certificate encodes them** - With signature protection the request sender is the subject of the protection certificate byte for byte and a KUR certificate template repeats the subject of the certificate being updated. These names were encoded again from their parsed form, which can change string types and attribute order, so a server that compares them with the certificate could reject the request.
+* **KUR sends a NULL-DN for certificates without a subject** - A certificate named only in its SANs is renewed with an empty subject name in the KUR template, as RFC 9483 requires. The subject was left out before, which servers that enforce the profile reject with `badCertTemplate`.
+
+### Project maintenance
+
+* **Verified on Kubernetes 1.34 to 1.37** - The end-to-end tests run on Kubernetes 1.37 and 1.36 with cert-manager 1.21, 1.35 with cert-manager 1.20 and 1.34 with cert-manager 1.19.
+* **CMP library go-pki-cmp v0.4.0** - The library formerly published as go-pkicmp-ng has the module path `github.com/misiektoja/go-pki-cmp`. The recipient and a configured sender name use PrintableString where the value allows it, as X.509 certificates do, instead of always UTF8String.
+
 ## [0.3.0] - 9 Oct 2026
 
 This release adds **ML-DSA** support, configured response signer certificates and SHA-384/SHA-512 PasswordBasedMac. It reports refused certificates to CMP servers and fixes Ed25519 protection and verification of responses that omit a configured anchor signer.

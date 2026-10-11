@@ -41,6 +41,8 @@ KUR proves two things before the server updates the certificate:
 1. The current valid certificate and private key protect the CMP message.
 2. The requested private key signs CRMF proof of possession.
 
+The certificate template repeats the subject of the current certificate exactly as it is encoded there. For a certificate named only in its SANs, that subject is an empty name (NULL-DN), as RFC 9483 requires.
+
 Each KUR also carries the recommended CRMF `oldCertID` control with the current certificate's exact issuer and serial number. This lets a server select the certificate being replaced even after repeated same-key updates have created several certificates for the same subject and public key.
 
 With `rotationPolicy: Always` these are different keys. With `rotationPolicy: Never` the same key makes both proofs and the server profile must allow same-key update.

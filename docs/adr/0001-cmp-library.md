@@ -6,11 +6,11 @@
 
 cmp-issuer needs CMP encoding and message protection for P10CR enrollment, KUR, polling and certificate confirmation. A library supplies the ASN.1 and cryptographic message operations. The controller must retain control over transaction state and response validation.
 
-The original dependency was `github.com/tsaarni/go-pkicmp`. Corrections to sender binding, requested-key matching and other protocol behavior were proposed in [tsaarni/go-pkicmp#3](https://github.com/tsaarni/go-pkicmp/pull/3). cmp-issuer uses the maintained derivative [go-pkicmp-ng](https://github.com/misiektoja/go-pkicmp-ng).
+The original dependency was `github.com/tsaarni/go-pkicmp`. Corrections to sender binding, requested-key matching and other protocol behavior were proposed in [tsaarni/go-pkicmp#3](https://github.com/tsaarni/go-pkicmp/pull/3). cmp-issuer uses the maintained derivative [go-pki-cmp](https://github.com/misiektoja/go-pki-cmp), published as `github.com/misiektoja/go-pkicmp-ng` up to `v0.3.2`.
 
 ## Decision
 
-Pin `github.com/misiektoja/go-pkicmp-ng` at `v0.3.1`. Keep its types inside `internal/protocol`. The controller uses the `protocol.Client` interface and project-owned request and result types.
+Pin `github.com/misiektoja/go-pki-cmp` at `v0.4.0`. Keep its types inside `internal/protocol`. The controller uses the `protocol.Client` interface and project-owned request and result types.
 
 The adapter owns HTTP policy, transaction validation, response signer state, certificate validation, confirmation and error classification. The controller persists waiting and confirmation state between calls. The adapter does not use the library's polling loop.
 

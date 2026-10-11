@@ -79,7 +79,7 @@ on:
         description: "cert-manager version to install"
         required: false
         type: string
-        default: v1.20.3
+        default: v1.21.2
   schedule:
     - cron: "23 4 * * 2"
 
@@ -90,7 +90,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CERT_MANAGER_VERSION: ${{ inputs.certManager || 'v1.20.3' }}
+  CERT_MANAGER_VERSION: ${{ inputs.certManager || 'v1.21.2' }}
   KIND_NODE_IMAGE: ${{ inputs.kubernetes || '' }}
   KIND_CLUSTER: cmp-issuer-interop
   MANAGER_IMAGE: localhost/cmp-issuer:interop

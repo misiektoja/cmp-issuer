@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/misiektoja/cmp-issuer/internal/logging"
@@ -99,13 +99,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 
 // protectedEnrollment builds and protects the enrollment message sent for this transaction.
 func protectedEnrollment(request EnrollmentRequest, csr *x509.CertificateRequest, credentials pkicmp.Credentials) (*pkicmp.PKIMessage, []byte, error) {
-	sender := pkicmp.GeneralName{}
-	if request.Sender != nil {
-		sender = pkicmp.NewDirectoryName(*request.Sender)
-	} else if request.Protection.Signature != nil {
-		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
-	}
-	message := pkicmp.NewPKIMessage(pkicmp.NewP10CRBody(csr), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID})
+	message := pkicmp.NewPKIMessage(pkicmp.NewP10CRBody(csr), pkicmp.MessageOptions{Sender: requestSender(request), Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID})
 	if request.Protection.Password != nil {
 		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
 	}
@@ -120,6 +114,29 @@ func protectedEnrollment(request EnrollmentRequest, csr *x509.CertificateRequest
 		return nil, nil, permanent("encode P10CR", "badDataFormat", err)
 	}
 	return message, requestDER, nil
+}
+
+// requestSender returns the configured sender name, else the protection certificate subject, else an empty name.
+func requestSender(request EnrollmentRequest) pkicmp.GeneralName {
+	switch {
+	case request.Sender != nil:
+		return pkicmp.NewDirectoryName(*request.Sender)
+	case request.Protection.Signature != nil:
+		return certificateSubject(request.Protection.Signature.Certificate)
+	default:
+		return pkicmp.GeneralName{}
+	}
+}
+
+// certificateSubject returns a certificate subject as a directoryName with its original encoding.
+// RFC 9483 requires the subject of the protection certificate as the sender (section 3.1) and the
+// unmodified subject of the certificate being updated in a KUR template (section 4.1.3). Encoding a
+// pkix.Name again can change attribute order and string types.
+func certificateSubject(certificate *x509.Certificate) pkicmp.GeneralName {
+	if len(certificate.RawSubject) == 0 {
+		return pkicmp.NewDirectoryName(certificate.Subject)
+	}
+	return pkicmp.NewDirectoryNameFromRawDER(certificate.RawSubject)
 }
 
 // PollP10CR sends one pollReq for a transaction the server answered with waiting and returns either
@@ -140,14 +157,8 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
-	sender := pkicmp.GeneralName{}
-	if request.Sender != nil {
-		sender = pkicmp.NewDirectoryName(*request.Sender)
-	} else if request.Protection.Signature != nil {
-		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
-	}
 	body := pkicmp.PollReqContent{poll.CertReqID}
-	message := pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&body), pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: poll.RecipNonce})
+	message := pkicmp.NewPKIMessage(pkicmp.NewPollReqBody(&body), pkicmp.MessageOptions{Sender: requestSender(request), Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: poll.RecipNonce})
 	if request.Protection.Password != nil {
 		message.Header.SenderKID = append([]byte(nil), request.Protection.Password.Reference...)
 	}
@@ -303,7 +314,7 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 		if len(request.Protection.Password.Reference) == 0 || len(request.Protection.Password.Secret) == 0 {
 			return permanent("validate PasswordBasedMac", "badRequest", fmt.Errorf("reference and shared secret are required"))
 		}
-		if request.Protection.Password.IterationCount < 100 || request.Protection.Password.IterationCount > 1048575 {
+		if request.Protection.Password.IterationCount < minPBMIterationCount || request.Protection.Password.IterationCount > maxPBMIterationCount {
 			return permanent("validate PasswordBasedMac", "badRequest", fmt.Errorf("iteration count is outside supported bounds"))
 		}
 		if _, _, err := pbmAlgorithms(*request.Protection.Password); err != nil {
@@ -317,6 +328,13 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	}
 	return nil
 }
+
+// PasswordBasedMac iteration counts the issuer sends, matching the API bounds. RFC 4211 section 4.4
+// sets the minimum. The library refuses counts above 500000 unless a wider range is passed to it.
+const (
+	minPBMIterationCount = 100
+	maxPBMIterationCount = 1048575
+)
 
 // pbmAlgorithms applies SHA-256 defaults and rejects unsupported PBM hash combinations.
 func pbmAlgorithms(password PasswordProtection) (crypto.Hash, crypto.Hash, error) {
@@ -345,7 +363,12 @@ func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 		if err != nil {
 			return nil, err
 		}
-		return pkicmp.NewMACCredentials(protection.Password.Secret, pkicmp.WithPBMAlgorithms(owf, mac), pkicmp.WithMACIterationCount(protection.Password.IterationCount))
+		return pkicmp.NewMACCredentials(
+			protection.Password.Secret,
+			pkicmp.WithPBMAlgorithms(owf, mac),
+			pkicmp.WithMACIterationCount(protection.Password.IterationCount),
+			pkicmp.WithMACIterationLimits(minPBMIterationCount, maxPBMIterationCount),
+		)
 	}
 	return pkicmp.NewSignatureCredentials(protection.Signature.PrivateKey, protection.Signature.Certificate, protection.Signature.Chain...)
 }
@@ -451,7 +474,17 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
 	}
 	var responseSigner *x509.Certificate
-	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: candidates, SenderKID: response.Header.SenderKID})
+	// A server may protect its response with the iteration count of the request, so the maximum the
+	// issuer sends is also accepted. The minimum stays at the library default for servers that choose
+	// their own count.
+	_, verificationErr := response.Verify(pkicmp.VerifyOptions{
+		RequiredProtection:   requiredProtection,
+		SharedSecret:         sharedSecret,
+		TrustPool:            request.CMPTrust,
+		ExtraCerts:           candidates,
+		SenderKID:            response.Header.SenderKID,
+		MaxMACIterationCount: maxPBMIterationCount,
+	})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
 		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust, candidates)
 	}
@@ -834,13 +867,7 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 // confirmationMessage builds the certConf that starts a confirmation, or the pollReq that resumes one.
 // A non-nil statusInfo is sent in the certConf, which rejects the certificate when it carries rejection.
 func confirmationMessage(request EnrollmentRequest, confirm ConfirmRequest, statusInfo *pkicmp.PKIStatusInfo) (*pkicmp.PKIMessage, string, error) {
-	sender := pkicmp.GeneralName{}
-	if request.Sender != nil {
-		sender = pkicmp.NewDirectoryName(*request.Sender)
-	} else if request.Protection.Signature != nil {
-		sender = pkicmp.NewDirectoryName(request.Protection.Signature.Certificate.Subject)
-	}
-	options := pkicmp.MessageOptions{Sender: sender, Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: confirm.RecipNonce}
+	options := pkicmp.MessageOptions{Sender: requestSender(request), Recipient: pkicmp.NewDirectoryName(request.Recipient), TransactionID: request.TransactionID, RecipNonce: confirm.RecipNonce}
 	// A certificate signed with ML-DSA or composite ML-DSA has no hash implied by its signature
 	// algorithm, so its CertStatus names one in hashAlg, which makes the certConf a CMPv3 message.
 	status, err := pkicmp.NewCertStatus(confirm.Certificate, confirm.CertReqID)

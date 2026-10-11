@@ -190,18 +190,24 @@ racing.
 
 ## Pre-release checklist
 
-1. `make test`, `make lint`, `make docs-build`, `make helm-lint`
-2. `make test-e2e` when controller or e2e specs changed, and `make test-e2e-ejbca` when enrollment changed
-3. Update `RELEASE_NOTES.md` with user-facing entries under a `## [<chart version>]` heading carrying the
+1. Check for new releases of Kubernetes, cert-manager, Kind and the tools pinned in the `Makefile`.
+   Dependabot updates only Go modules and GitHub Actions, and `go-patch.yml` and `ejbca-test-image.yml`
+   track Go and EJBCA. Add a new Kubernetes or cert-manager release to the `test-e2e.yml` matrix, the
+   cert-manager defaults of the e2e suite and workflows and the verified versions in the README, the
+   chart README, `Chart.yaml` and the installation guide. Keep older releases that users still run. A
+   new Kind release also changes the node image digests in the matrix
+2. `make test`, `make lint`, `make docs-build`, `make helm-lint`
+3. `make test-e2e` when controller or e2e specs changed, and `make test-e2e-ejbca` when enrollment changed
+4. Update `RELEASE_NOTES.md` with user-facing entries under a `## [<chart version>]` heading carrying the
    release date, since the release workflow publishes that section as the GitHub release description
-4. Refresh `artifacthub.io/changes` in `charts/cmp-issuer/Chart.yaml`, along with any other
+5. Refresh `artifacthub.io/changes` in `charts/cmp-issuer/Chart.yaml`, along with any other
    `artifacthub.io` annotation the release changes. Chart metadata is frozen once the version is
    published, so a correction needs a new chart version
-5. Keep the chart version and app version aligned with the release tag. Update `CITATION.cff` with
+6. Keep the chart version and app version aligned with the release tag. Update `CITATION.cff` with
    the version and release date
-6. Point `config/manager/kustomization.yaml` at the image the release will publish, which is what a
+7. Point `config/manager/kustomization.yaml` at the image the release will publish, which is what a
    clone applies when it has not run `make build-installer`
-7. Tag and push only when authorized to publish. Never create the release from the GitHub UI. See
+8. Tag and push only when authorized to publish. Never create the release from the GitHub UI. See
    [Publishing a release](#publishing-a-release)
 
 ## Supply chain verification

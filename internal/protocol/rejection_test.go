@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // macEnrollmentRequest creates a PasswordBasedMac P10CR request for the mock CMP server.

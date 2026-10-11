@@ -156,6 +156,12 @@ spec:
       chainKey: ca.crt
 ```
 
+### Sender name
+
+Each message names the subject of the protection certificate as its sender, encoded exactly as in the
+certificate, as RFC 9483 requires. A configured `spec.protocol.sender` replaces it, except in a KUR
+request, which always names the certificate being updated.
+
 ### extraCerts layout
 
 cmp-issuer sends the protection end-entity certificate first, followed by the configured intermediates.

@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/server"
+	"github.com/misiektoja/go-pki-cmp/server"
 )
 
 // deferredCA is a certificate authority that answers waiting until the configured number of polls
@@ -64,7 +64,15 @@ func (c *deferredCA) CheckPending(_ context.Context, _ string, _ *server.SenderI
 	if c.polls <= c.waits {
 		return &server.Response{Waiting: &server.WaitingResponse{CheckAfter: c.checkAfter, PollRef: "approval-queue"}}, nil
 	}
-	template := c.template
+	certificate, err := issueFromTemplate(c.pki, c.template)
+	if err != nil {
+		return nil, err
+	}
+	return &server.Response{Certificate: certificate, CACerts: []*x509.Certificate{c.pki.CACertificate}}, nil
+}
+
+// issueFromTemplate signs a template built by the CMP server with the test CA for one hour.
+func issueFromTemplate(pki testPKI, template *x509.Certificate) (*x509.Certificate, error) {
 	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
 		return nil, err
@@ -72,23 +80,20 @@ func (c *deferredCA) CheckPending(_ context.Context, _ string, _ *server.SenderI
 	template.SerialNumber = serialNumber
 	template.NotBefore = time.Now().Add(-time.Minute)
 	template.NotAfter = time.Now().Add(time.Hour)
-	certificateDER, err := x509.CreateCertificate(rand.Reader, template, c.pki.CACertificate, template.PublicKey, c.pki.CAKey)
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, template.PublicKey, pki.CAKey)
 	if err != nil {
 		return nil, err
 	}
-	certificate, err := x509.ParseCertificate(certificateDER)
-	if err != nil {
-		return nil, err
-	}
-	return &server.Response{Certificate: certificate, CACerts: []*x509.Certificate{c.pki.CACertificate}}, nil
+	return x509.ParseCertificate(certificateDER)
 }
 
-// newDeferredCMPServer starts a CMP server that defers issuance to an approval queue.
-func newDeferredCMPServer(t *testing.T, pki testPKI, password []byte, waits int, checkAfter time.Duration) (*httptest.Server, *deferredCA) {
+// newDeferredCMPServer starts a CMP server that defers issuance to an approval queue. options extend the server configuration.
+func newDeferredCMPServer(t *testing.T, pki testPKI, password []byte, waits int, checkAfter time.Duration, options ...server.Option) (*httptest.Server, *deferredCA) {
 	t.Helper()
 	authority := &deferredCA{pki: pki, waits: waits, checkAfter: checkAfter}
 	lookup := server.SecretLookupFunc(func(_ pkix.Name, _ []byte) ([]byte, error) { return password, nil })
-	handler := server.NewCAServer(authority, nil, server.WithSigner(pki.CAKey, pki.CACertificate), server.WithSecretLookup(lookup), server.WithSender(pki.CACertificate.Subject))
+	options = append([]server.Option{server.WithSigner(pki.CAKey, pki.CACertificate), server.WithSecretLookup(lookup), server.WithSender(pki.CACertificate.Subject)}, options...)
+	handler := server.NewCAServer(authority, nil, options...)
 	return httptest.NewServer(handler), authority
 }
 
