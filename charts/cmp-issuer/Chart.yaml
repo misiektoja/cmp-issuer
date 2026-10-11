@@ -8,8 +8,8 @@ type: application
 ## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
 ## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
 ## tag the registry does not have.
-version: 0.3.0
-appVersion: "v0.3.0"
+version: 0.3.1
+appVersion: "v0.3.1"
 
 ## Verified on Kubernetes v1.34, v1.35 and v1.36. The floor is set lower because nothing in the chart
 ## needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix keeps
@@ -75,17 +75,11 @@ annotations:
       displayName: CMP Transaction
       description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
   artifacthub.io/changes: |
-    - kind: added
-      description: ML-DSA certificates, CA signatures and protection credentials are supported with a compatible cert-manager build
-    - kind: added
-      description: Response signer certificates can be supplied through cmpTrust.signerCertificatesSecretRef without making them trust anchors
-    - kind: added
-      description: PasswordBasedMac supports SHA-384 and SHA-512 while retaining SHA-256 defaults
-    - kind: changed
-      description: Refused certificates are reported to CMP servers through rejection certConf messages
     - kind: fixed
-      description: Responses signed by configured trust anchors verify when extraCerts omits the signer
+      description: PasswordBasedMac iteration counts from 500001 to the 1048575 maximum enroll instead of failing before the request is sent
     - kind: fixed
-      description: Ed25519 message protection uses the signature form required by CMP servers
+      description: Signature-protected requests and KUR templates carry certificate subjects exactly as the certificate encodes them
+    - kind: fixed
+      description: KUR of a certificate named only in its SANs sends a NULL-DN subject as RFC 9483 requires
     - kind: changed
-      description: Source builds require Go 1.27.1
+      description: The CMP library is go-pki-cmp v0.4.0, formerly published as go-pkicmp-ng
