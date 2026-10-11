@@ -21,7 +21,7 @@ package protocol
 import (
 	"testing"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // FuzzParsePKIMessage checks that arbitrary DER input never panics the parser.

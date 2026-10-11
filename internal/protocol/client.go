@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/misiektoja/cmp-issuer/internal/logging"

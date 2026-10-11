@@ -29,7 +29,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // oidSHA512 identifies SHA-512, the hashAlg a certConf names for an ML-DSA-signed certificate.

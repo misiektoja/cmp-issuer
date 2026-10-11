@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // TestClassifyStatusBoundsServerText verifies text chosen by a CMP server cannot flood the controller

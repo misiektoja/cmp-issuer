@@ -41,7 +41,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // opensslMockPassword is the shared secret the OpenSSL mock server is started with.

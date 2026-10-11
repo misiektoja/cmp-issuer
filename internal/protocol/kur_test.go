@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // kurEnrollmentRequest creates a valid certificate-authenticated renewal request with selectable key rotation.

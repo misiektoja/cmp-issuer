@@ -30,7 +30,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/misiektoja/go-pkicmp-ng/pkicmp"
+	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
 // certificateWithKeyUsage signs a copy with the requested keyUsage extension.
