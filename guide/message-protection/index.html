@@ -643,6 +643,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#sender-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sender name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#extracerts-layout" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1820,6 +1831,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#sender-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sender name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#extracerts-layout" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2108,6 +2130,10 @@ keys and SEC 1 ECDSA keys are accepted too. An ML-DSA key must hold only the see
 <span class="w">      </span><span class="nt">privateKeyKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tls.key</span>
 <span class="w">      </span><span class="nt">chainKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ca.crt</span>
 </code></pre></div>
+<h3 id="sender-name">Sender name<a class="headerlink" href="#sender-name" title="Permanent link">&para;</a></h3>
+<p>Each message names the subject of the protection certificate as its sender, encoded exactly as in the
+certificate, as RFC 9483 requires. A configured <code>spec.protocol.sender</code> replaces it, except in a KUR
+request, which always names the certificate being updated.</p>
 <h3 id="extracerts-layout">extraCerts layout<a class="headerlink" href="#extracerts-layout" title="Permanent link">&para;</a></h3>
 <p>cmp-issuer sends the protection end-entity certificate first, followed by the configured intermediates.
 Some servers resolve the signing certificate from <code>extraCerts</code> using <code>senderKID</code>, and Nokia NCM requires the

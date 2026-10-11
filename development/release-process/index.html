@@ -2023,6 +2023,12 @@ concurrency group, so a release that lands while a documentation change is publi
 racing.</p>
 <h2 id="pre-release-checklist">Pre-release checklist<a class="headerlink" href="#pre-release-checklist" title="Permanent link">&para;</a></h2>
 <ol>
+<li>Check for new releases of Kubernetes, cert-manager, Kind and the tools pinned in the <code>Makefile</code>.
+   Dependabot updates only Go modules and GitHub Actions, and <code>go-patch.yml</code> and <code>ejbca-test-image.yml</code>
+   track Go and EJBCA. Add a new Kubernetes or cert-manager release to the <code>test-e2e.yml</code> matrix, the
+   cert-manager defaults of the e2e suite and workflows and the verified versions in the README, the
+   chart README, <code>Chart.yaml</code> and the installation guide. Keep older releases that users still run. A
+   new Kind release also changes the node image digests in the matrix</li>
 <li><code>make test</code>, <code>make lint</code>, <code>make docs-build</code>, <code>make helm-lint</code></li>
 <li><code>make test-e2e</code> when controller or e2e specs changed, and <code>make test-e2e-ejbca</code> when enrollment changed</li>
 <li>Update <code>RELEASE_NOTES.md</code> with user-facing entries under a <code>## [&lt;chart version&gt;]</code> heading carrying the

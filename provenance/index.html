@@ -1707,7 +1707,7 @@
 <td>Controller reconciliation contracts and signer integration</td>
 </tr>
 <tr>
-<td><a href="https://github.com/misiektoja/go-pkicmp-ng">go-pkicmp-ng</a></td>
+<td><a href="https://github.com/misiektoja/go-pki-cmp">go-pki-cmp</a></td>
 <td>Apache-2.0</td>
 <td>CMP parsing and protection behind project-owned interfaces, a maintained derivative of <a href="https://github.com/tsaarni/go-pkicmp">go-pkicmp</a> carrying verification-path corrections</td>
 </tr>
@@ -1815,7 +1815,7 @@ trusted-branch and weekly schedule after the repository becomes public. Scorecar
 CodeQL run on <code>main</code>, so its SAST result is based on a completed analysis rather than a concurrent one.
 Tool versions are pinned in the Makefile and GitHub Actions are pinned to commit digests.</p>
 <p>The OSV module scan ignores <code>GO-2026-5932</code> through the reason recorded in <code>osv-scanner.toml</code>. The module
-graph needs <code>golang.org/x/crypto/cryptobyte</code> through <code>go-pkicmp-ng</code>, but it does not need or import the
+graph needs <code>golang.org/x/crypto/cryptobyte</code> through <code>go-pki-cmp</code>, but it does not need or import the
 affected <code>golang.org/x/crypto/openpgp</code> package. The advisory has no fixed version and govulncheck reports
 no reachable vulnerable symbols, so the exception removes a module-level false positive without
 suppressing other advisories for <code>golang.org/x/crypto</code>.</p>

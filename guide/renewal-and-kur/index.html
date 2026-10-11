@@ -1760,6 +1760,7 @@
 <li>The current valid certificate and private key protect the CMP message.</li>
 <li>The requested private key signs CRMF proof of possession.</li>
 </ol>
+<p>The certificate template repeats the subject of the current certificate exactly as it is encoded there. For a certificate named only in its SANs, that subject is an empty name (NULL-DN), as RFC 9483 requires.</p>
 <p>Each KUR also carries the recommended CRMF <code>oldCertID</code> control with the current certificate's exact issuer and serial number. This lets a server select the certificate being replaced even after repeated same-key updates have created several certificates for the same subject and public key.</p>
 <p>With <code>rotationPolicy: Always</code> these are different keys. With <code>rotationPolicy: Never</code> the same key makes both proofs and the server profile must allow same-key update.</p>
 <p>The keys may be RSA, ECDSA, Ed25519 or ML-DSA. An ML-DSA <code>tls.key</code> must be in the seed-only PKCS #8 form, see <a href="../../known-limitations/#ml-dsa">Known limitations</a>.</p>

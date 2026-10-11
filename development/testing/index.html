@@ -1894,7 +1894,7 @@ checksums and signed build provenance. These checks keep metadata changes review
 <tbody>
 <tr>
 <td><code>KIND_NODE_IMAGE</code></td>
-<td>Kubernetes version of the Kind cluster, for example <code>kindest/node:v1.34.0</code>. Empty uses the default of the pinned Kind release</td>
+<td>Kubernetes version of the Kind cluster, for example <code>kindest/node:v1.34.11</code>. Empty uses the default of the pinned Kind release</td>
 </tr>
 <tr>
 <td><code>CERT_MANAGER_VERSION</code></td>
@@ -1902,7 +1902,7 @@ checksums and signed build provenance. These checks keep metadata changes review
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code>make<span class="w"> </span>test-e2e<span class="w"> </span><span class="nv">KIND_NODE_IMAGE</span><span class="o">=</span>kindest/node:v1.34.0<span class="w"> </span><span class="nv">CERT_MANAGER_VERSION</span><span class="o">=</span>v1.19.6
+<div class="highlight"><pre><span></span><code>make<span class="w"> </span>test-e2e<span class="w"> </span><span class="nv">KIND_NODE_IMAGE</span><span class="o">=</span>kindest/node:v1.34.11<span class="w"> </span><span class="nv">CERT_MANAGER_VERSION</span><span class="o">=</span>v1.19.6
 </code></pre></div>
 <p>CI runs the suite once per supported combination after a change lands on <code>dev</code> or <code>main</code>. Pull requests
 omit this expensive matrix, so a change that only works on the newest Kubernetes or cert-manager is
@@ -1916,12 +1916,16 @@ reported on the development branch before release:</p>
 </thead>
 <tbody>
 <tr>
-<td>v1.36, the default of the pinned Kind release</td>
-<td>v1.21.1</td>
+<td>v1.37, the default of the pinned Kind release</td>
+<td>v1.21.2</td>
+</tr>
+<tr>
+<td>v1.36</td>
+<td>v1.21.2</td>
 </tr>
 <tr>
 <td>v1.35</td>
-<td>v1.20.3</td>
+<td>v1.20.4</td>
 </tr>
 <tr>
 <td>v1.34</td>
@@ -1929,7 +1933,7 @@ reported on the development branch before release:</p>
 </tr>
 </tbody>
 </table>
-<p>The two older rows pin a digest, taken from the node images published for the Kind release pinned as <code>KIND_VERSION</code> in the <code>Makefile</code>, so they have to be updated with it. The newest row pins no image and follows the Kind default.</p>
+<p>The three older rows pin a digest, taken from the node images published for the Kind release pinned as <code>KIND_VERSION</code> in the <code>Makefile</code>, so they have to be updated with it. The newest row pins no image and follows the Kind default.</p>
 <h2 id="enrollment-against-a-cmp-server-in-the-cluster">Enrollment against a CMP server in the cluster<a class="headerlink" href="#enrollment-against-a-cmp-server-in-the-cluster" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>test-e2e-ejbca
 </code></pre></div>
@@ -2022,7 +2026,7 @@ build input changes.</p>
 <p>It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
 pushes to <code>dev</code> and <code>main</code> and once a week, but never for pull requests. Start it from the Actions tab to
 choose different Kubernetes or cert-manager versions. Automatic runs use the default Kind node and
-cert-manager v1.20.3 and cover every enrollment and renewal without further input.</p>
+cert-manager v1.21.2 and cover every enrollment and renewal without further input.</p>
 <h3 id="what-each-run-covers">What each run covers<a class="headerlink" href="#what-each-run-covers" title="Permanent link">&para;</a></h3>
 <p>One job runs per protection mechanism and transport, so a fully configured endpoint exercises four independent enrollments:</p>
 <table>
