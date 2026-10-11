@@ -303,7 +303,7 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 		if len(request.Protection.Password.Reference) == 0 || len(request.Protection.Password.Secret) == 0 {
 			return permanent("validate PasswordBasedMac", "badRequest", fmt.Errorf("reference and shared secret are required"))
 		}
-		if request.Protection.Password.IterationCount < 100 || request.Protection.Password.IterationCount > 1048575 {
+		if request.Protection.Password.IterationCount < minPBMIterationCount || request.Protection.Password.IterationCount > maxPBMIterationCount {
 			return permanent("validate PasswordBasedMac", "badRequest", fmt.Errorf("iteration count is outside supported bounds"))
 		}
 		if _, _, err := pbmAlgorithms(*request.Protection.Password); err != nil {
@@ -317,6 +317,13 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	}
 	return nil
 }
+
+// PasswordBasedMac iteration counts the issuer sends, matching the API bounds. RFC 4211 section 4.4
+// sets the minimum. The library refuses counts above 500000 unless a wider range is passed to it.
+const (
+	minPBMIterationCount = 100
+	maxPBMIterationCount = 1048575
+)
 
 // pbmAlgorithms applies SHA-256 defaults and rejects unsupported PBM hash combinations.
 func pbmAlgorithms(password PasswordProtection) (crypto.Hash, crypto.Hash, error) {
@@ -345,7 +352,12 @@ func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 		if err != nil {
 			return nil, err
 		}
-		return pkicmp.NewMACCredentials(protection.Password.Secret, pkicmp.WithPBMAlgorithms(owf, mac), pkicmp.WithMACIterationCount(protection.Password.IterationCount))
+		return pkicmp.NewMACCredentials(
+			protection.Password.Secret,
+			pkicmp.WithPBMAlgorithms(owf, mac),
+			pkicmp.WithMACIterationCount(protection.Password.IterationCount),
+			pkicmp.WithMACIterationLimits(minPBMIterationCount, maxPBMIterationCount),
+		)
 	}
 	return pkicmp.NewSignatureCredentials(protection.Signature.PrivateKey, protection.Signature.Certificate, protection.Signature.Chain...)
 }
@@ -451,7 +463,17 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 		candidates = append(candidates, pkicmp.CMPCertificate{Raw: certificate.Raw})
 	}
 	var responseSigner *x509.Certificate
-	_, verificationErr := response.Verify(pkicmp.VerifyOptions{RequiredProtection: requiredProtection, SharedSecret: sharedSecret, TrustPool: request.CMPTrust, ExtraCerts: candidates, SenderKID: response.Header.SenderKID})
+	// A server may protect its response with the iteration count of the request, so the maximum the
+	// issuer sends is also accepted. The minimum stays at the library default for servers that choose
+	// their own count.
+	_, verificationErr := response.Verify(pkicmp.VerifyOptions{
+		RequiredProtection:   requiredProtection,
+		SharedSecret:         sharedSecret,
+		TrustPool:            request.CMPTrust,
+		ExtraCerts:           candidates,
+		SenderKID:            response.Header.SenderKID,
+		MaxMACIterationCount: maxPBMIterationCount,
+	})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
 		responseSigner, verificationErr = verifyTrustedSignature(response, request.CMPTrust, candidates)
 	}
