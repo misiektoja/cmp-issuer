@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        The [support matrix](https://github.com/misiektoja/cmp-issuer/blob/main/docs/support-matrix.md) lists what is implemented and what is already planned, including IR and CRMF, true KUR, PBMAC1 and revocation.
+        The [support matrix](https://github.com/misiektoja/cmp-issuer/blob/main/docs/support-matrix.md) lists what is implemented and what is already planned, including PBMAC1, CMPv3 and revocation.
 
   - type: textarea
     id: problem
