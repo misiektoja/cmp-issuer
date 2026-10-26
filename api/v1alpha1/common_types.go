@@ -37,6 +37,11 @@ const (
 	RequestedValidityOmit = "Omit"
 	// RequestedValidityDuration asks the CA for the CertificateRequest duration in an IR or KUR.
 	RequestedValidityDuration = "Duration"
+	// RenewalFallbackNone fails a KUR renewal whose current certificate is missing or expired.
+	RenewalFallbackNone = "None"
+	// RenewalFallbackInitialEnrollment renews through initialEnrollment when the current certificate
+	// is missing or expired.
+	RenewalFallbackInitialEnrollment = "InitialEnrollment"
 	// ValidationProfileInteroperable accepts reviewed CMP deviations used by deployed servers.
 	ValidationProfileInteroperable = "Interoperable"
 	// ValidationProfileRFC9483 enforces the lightweight CMP profile choices supported by cmp-issuer.
@@ -132,6 +137,7 @@ type EndpointSpec struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.macResponseProtection) || self.macResponseProtection == 'Strict'",message="RFC9483 requires MAC-based protection throughout a MAC-protected operation"
 // +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.kurResponseCaPubs) || self.kurResponseCaPubs == 'RequireAbsent'",message="RFC9483 requires KUP caPubs to be absent"
 // +kubebuilder:validation:XValidation:rule="!has(self.requestedValidity) || self.requestedValidity != 'Duration' || self.initialEnrollment == 'IR' || (has(self.renewal) && self.renewal == 'KUR')",message="requestedValidity Duration needs IR initial enrollment or KUR renewal, because P10CR cannot carry it"
+// +kubebuilder:validation:XValidation:rule="!has(self.renewalFallback) || self.renewalFallback == 'None' || (has(self.renewal) ? self.renewal == 'KUR' : self.initialEnrollment == 'IR')",message="renewalFallback InitialEnrollment needs KUR renewal, because only KUR depends on the current certificate"
 type ProtocolSpec struct {
 	// Version is the CMP protocol version number.
 	// +kubebuilder:default=2
@@ -162,6 +168,16 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=Omit;Duration
 	// +optional
 	RequestedValidity string `json:"requestedValidity,omitempty"`
+	// RenewalFallback selects what a KUR renewal does when the current certificate is missing from
+	// the Certificate's Secret or has expired, so KUR cannot authenticate. None fails the request.
+	// InitialEnrollment renews through initialEnrollment instead, protected by the issuer
+	// credentials. The choice is made once before the first CMP message is sent and is recorded in
+	// the CMPTransaction. A Secret written for another Certificate never falls back. Neither does a
+	// current certificate that is not yet valid or does not match its key.
+	// +kubebuilder:default=None
+	// +kubebuilder:validation:Enum=None;InitialEnrollment
+	// +optional
+	RenewalFallback string `json:"renewalFallback,omitempty"`
 	// ValidationProfile selects a coherent set of CMP response checks. Interoperable accepts the
 	// reviewed deviations documented for supported servers. RFC9483 pins the P10CR response certReqId
 	// to -1, requires MAC-based responses to MAC-protected operations and requires KUP caPubs absent.

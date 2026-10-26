@@ -129,6 +129,13 @@ spec:
                 maximum: 3
                 minimum: 2
                 type: integer
+              renewalFallback:
+                description: RenewalFallback records why a renewal uses the initial
+                  enrollment operation instead of KUR.
+                enum:
+                - CurrentCertificateMissing
+                - CurrentCertificateExpired
+                type: string
               transactionID:
                 description: TransactionID is the CMP transactionID that every message
                   of this transaction carries.

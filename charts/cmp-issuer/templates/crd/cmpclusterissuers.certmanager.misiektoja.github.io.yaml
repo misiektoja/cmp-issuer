@@ -326,6 +326,19 @@ spec:
                     - P10CR
                     - KUR
                     type: string
+                  renewalFallback:
+                    default: None
+                    description: |-
+                      RenewalFallback selects what a KUR renewal does when the current certificate is missing from
+                      the Certificate's Secret or has expired, so KUR cannot authenticate. None fails the request.
+                      InitialEnrollment renews through initialEnrollment instead, protected by the issuer
+                      credentials. The choice is made once before the first CMP message is sent and is recorded in
+                      the CMPTransaction. A Secret written for another Certificate never falls back. Neither does a
+                      current certificate that is not yet valid or does not match its key.
+                    enum:
+                    - None
+                    - InitialEnrollment
+                    type: string
                   requestedValidity:
                     default: Omit
                     description: |-
@@ -384,6 +397,11 @@ spec:
                   rule: '!has(self.requestedValidity) || self.requestedValidity !=
                     ''Duration'' || self.initialEnrollment == ''IR'' || (has(self.renewal)
                     && self.renewal == ''KUR'')'
+                - message: renewalFallback InitialEnrollment needs KUR renewal, because
+                    only KUR depends on the current certificate
+                  rule: '!has(self.renewalFallback) || self.renewalFallback == ''None''
+                    || (has(self.renewal) ? self.renewal == ''KUR'' : self.initialEnrollment
+                    == ''IR'')'
               transaction:
                 default:
                   maximumDuration: 10m

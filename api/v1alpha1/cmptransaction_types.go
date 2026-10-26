@@ -42,6 +42,11 @@ const (
 	TransactionOperationIR = "IR"
 	// TransactionOperationKUR is the CMP operation of updating a valid certificate.
 	TransactionOperationKUR = "KUR"
+	// RenewalFallbackCurrentCertificateMissing records a renewal whose Certificate Secret is absent
+	// or holds no certificate.
+	RenewalFallbackCurrentCertificateMissing = "CurrentCertificateMissing"
+	// RenewalFallbackCurrentCertificateExpired records a renewal whose current certificate has expired.
+	RenewalFallbackCurrentCertificateExpired = "CurrentCertificateExpired"
 
 	// TransactionIssuerKindNamespaced identifies a namespaced CMPIssuer.
 	TransactionIssuerKindNamespaced = "CMPIssuer"
@@ -106,6 +111,10 @@ type CMPTransactionSpec struct {
 	// +kubebuilder:validation:Enum=P10CR;IR;KUR
 	// +optional
 	Operation string `json:"operation,omitempty"`
+	// RenewalFallback records why a renewal uses the initial enrollment operation instead of KUR.
+	// +kubebuilder:validation:Enum=CurrentCertificateMissing;CurrentCertificateExpired
+	// +optional
+	RenewalFallback string `json:"renewalFallback,omitempty"`
 	// ProtocolVersion is the CMP protocol version of every message in this transaction.
 	// +kubebuilder:validation:Minimum=2
 	// +kubebuilder:validation:Maximum=3
