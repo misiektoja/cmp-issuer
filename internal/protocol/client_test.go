@@ -103,6 +103,8 @@ type mockState struct {
 	confirmationObserved  bool
 	confirmationStatus    pkicmp.CertStatus
 	confirmationPVNO      int
+	// templates records the certificate template of every IR and KUR.
+	templates []pkicmp.CertTemplate
 }
 
 // add records one request body type.
@@ -124,6 +126,20 @@ func (s *mockState) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.bodyTypes)
+}
+
+// recordTemplate records the certificate template of a CRMF request.
+func (s *mockState) recordTemplate(template pkicmp.CertTemplate) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.templates = append(s.templates, template)
+}
+
+// receivedTemplates returns the recorded certificate templates in arrival order.
+func (s *mockState) receivedTemplates() []pkicmp.CertTemplate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]pkicmp.CertTemplate(nil), s.templates...)
 }
 
 // recordConfirmation records the CertStatus and protocol version of a certConf.
@@ -378,46 +394,27 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 			status = pkicmp.StatusGrantedWithMods
 		}
 		response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: status}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
+	case pkicmp.BodyTypeIR:
+		certificateRequests, err := message.Body.IR()
+		if err != nil {
+			t.Errorf("parse IR: %v", err)
+			return false
+		}
+		responseMessage, ok := mockCRMFResponse(t, pki, options, certificateRequests, state)
+		if !ok {
+			return false
+		}
+		response.Body = pkicmp.NewIPBody(responseMessage)
 	case pkicmp.BodyTypeKUR:
 		certificateRequests, err := message.Body.KUR()
-		if err != nil || len(*certificateRequests) != 1 {
+		if err != nil {
 			t.Errorf("parse KUR: %v", err)
 			return false
 		}
-		certificateRequest := &(*certificateRequests)[0]
-		if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
-			t.Errorf("verify KUR proof of possession: %v", err)
+		responseMessage, ok := mockCRMFResponse(t, pki, options, certificateRequests, state)
+		if !ok {
 			return false
 		}
-		publicKey, err := certificateRequest.PublicKey()
-		if err != nil {
-			t.Errorf("parse KUR public key: %v", err)
-			return false
-		}
-		if options.WrongPublicKey {
-			_, wrongKey := createCSR(t, "wrong")
-			publicKey = wrongKey.Public()
-		}
-		extensions, err := certificateRequest.Extensions()
-		if err != nil {
-			t.Errorf("parse KUR extensions: %v", err)
-			return false
-		}
-		template := &x509.Certificate{SerialNumber: big.NewInt(4), Subject: certificateRequest.Subject(), NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtraExtensions: extensions}
-		certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
-		if err != nil {
-			t.Errorf("issue KUR certificate: %v", err)
-			return false
-		}
-		if options.IssuedKeyUsage != nil {
-			certificate, err := x509.ParseCertificate(certificateDER)
-			if err != nil {
-				t.Errorf("parse issued KUR certificate: %v", err)
-				return false
-			}
-			certificateDER = certificateWithKeyUsage(t, certificate, pki.CACertificate, pki.CAKey, *options.IssuedKeyUsage, false).Raw
-		}
-		responseMessage := &pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: certificateDER}}}}}}
 		if options.KUPCAPubs {
 			responseMessage.CAPubs = []pkicmp.CMPCertificate{{Raw: pki.CACertificate.Raw}}
 		}
@@ -435,6 +432,55 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 		return false
 	}
 	return true
+}
+
+// mockCRMFResponse verifies the proof of possession of the single request of an IR or KUR and issues
+// a certificate for its template.
+func mockCRMFResponse(t *testing.T, pki testPKI, options mockOptions, certificateRequests *pkicmp.CertReqMessages, state *mockState) (*pkicmp.CertRepMessage, bool) {
+	t.Helper()
+	if len(*certificateRequests) != 1 {
+		t.Errorf("expected one certificate request, got %d", len(*certificateRequests))
+		return nil, false
+	}
+	certificateRequest := &(*certificateRequests)[0]
+	if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
+		t.Errorf("verify proof of possession: %v", err)
+		return nil, false
+	}
+	state.recordTemplate(certificateRequest.CertReq.CertTemplate)
+	publicKey, err := certificateRequest.PublicKey()
+	if err != nil {
+		t.Errorf("parse requested public key: %v", err)
+		return nil, false
+	}
+	if options.WrongPublicKey {
+		_, wrongKey := createCSR(t, "wrong")
+		publicKey = wrongKey.Public()
+	}
+	extensions, err := certificateRequest.Extensions()
+	if err != nil {
+		t.Errorf("parse requested extensions: %v", err)
+		return nil, false
+	}
+	template := &x509.Certificate{SerialNumber: big.NewInt(4), Subject: certificateRequest.Subject(), NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtraExtensions: extensions}
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
+	if err != nil {
+		t.Errorf("issue certificate: %v", err)
+		return nil, false
+	}
+	if options.IssuedKeyUsage != nil {
+		certificate, err := x509.ParseCertificate(certificateDER)
+		if err != nil {
+			t.Errorf("parse issued certificate: %v", err)
+			return nil, false
+		}
+		certificateDER = certificateWithKeyUsage(t, certificate, pki.CACertificate, pki.CAKey, *options.IssuedKeyUsage, false).Raw
+	}
+	status := pkicmp.StatusAccepted
+	if options.GrantedWithMods {
+		status = pkicmp.StatusGrantedWithMods
+	}
+	return &pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: status}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: certificateDER}}}}}}, true
 }
 
 // TestEnrollP10CRRejectsMACSubstitution verifies signature operations cannot switch to shared-secret protection.
