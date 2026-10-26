@@ -4,7 +4,7 @@ Guide for building and running cmp-issuer from source.
 
 ## Prerequisites
 
-* Go 1.27.2 or later, the minimum `go.mod` declares. This patch includes standard-library security fixes. ML-DSA support comes from Go 1.27
+* Go 1.27.3 or later, the minimum `go.mod` declares. This patch includes standard-library security fixes. ML-DSA support comes from Go 1.27
 * Docker or Podman for image builds
 * Kubebuilder v4.15 for API scaffolding (optional for day-to-day work)
 * Python with MkDocs dependencies for documentation (`make docs-deps`)
