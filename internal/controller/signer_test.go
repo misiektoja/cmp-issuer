@@ -519,10 +519,11 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 		kurCAPubs          string
 		expectPinned       bool
 		expectSignedMAC    bool
+		expectMACFloor     bool
 		expectAbsentCAPubs bool
 	}{
-		{name: "RFC9483", profile: cmpv1alpha1.ValidationProfileRFC9483, expectPinned: true, expectSignedMAC: false, expectAbsentCAPubs: true},
-		{name: "interoperable override", profile: cmpv1alpha1.ValidationProfileInteroperable, kurCAPubs: cmpv1alpha1.KURResponseCAPubsRequireAbsent, expectSignedMAC: true, expectAbsentCAPubs: true},
+		{name: "RFC9483", profile: cmpv1alpha1.ValidationProfileRFC9483, expectPinned: true, expectSignedMAC: false, expectMACFloor: true, expectAbsentCAPubs: true},
+		{name: "interoperable override", profile: cmpv1alpha1.ValidationProfileInteroperable, kurCAPubs: cmpv1alpha1.KURResponseCAPubsRequireAbsent, expectSignedMAC: true, expectMACFloor: false, expectAbsentCAPubs: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -546,6 +547,9 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 			if protocolClient.request.AllowSignedMACResponse != test.expectSignedMAC {
 				t.Fatalf("expected signed MAC response acceptance %t", test.expectSignedMAC)
 			}
+			if protocolClient.request.RequireMACIterationFloor != test.expectMACFloor {
+				t.Fatalf("expected MAC response iteration floor %t", test.expectMACFloor)
+			}
 			if protocolClient.request.RequireKUPCAPubsAbsent != test.expectAbsentCAPubs {
 				t.Fatalf("expected KUP caPubs absence %t", test.expectAbsentCAPubs)
 			}
@@ -565,7 +569,8 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 	}
 }
 
-// TestSignForwardsMACResponseProtection verifies only an explicit Strict tightens MAC response protection.
+// TestSignForwardsMACResponseProtection verifies only an explicit Strict tightens MAC response protection and
+// requires the request iteration floor of a MAC-protected response.
 func TestSignForwardsMACResponseProtection(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -590,6 +595,9 @@ func TestSignForwardsMACResponseProtection(t *testing.T) {
 			}
 			if protocolClient.request.AllowSignedMACResponse != test.allowed {
 				t.Fatalf("expected AllowSignedMACResponse %t, got %t", test.allowed, protocolClient.request.AllowSignedMACResponse)
+			}
+			if protocolClient.request.RequireMACIterationFloor == test.allowed {
+				t.Fatalf("expected RequireMACIterationFloor %t, got %t", !test.allowed, protocolClient.request.RequireMACIterationFloor)
 			}
 		})
 	}

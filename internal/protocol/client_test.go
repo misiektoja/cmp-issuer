@@ -95,6 +95,8 @@ type mockOptions struct {
 	FailCertConf bool
 	// IssuedValidity gives every IR and KUR certificate the notBefore and notAfter of this certificate.
 	IssuedValidity *x509.Certificate
+	// ResponseMACIterationCount protects MAC responses with this count instead of 1024.
+	ResponseMACIterationCount int
 }
 
 // mockState records authenticated request bodies observed by the mock server.
@@ -318,7 +320,11 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		}
 		var credentials pkicmp.Credentials
 		if (verification.MACVerified && !options.ForceSignature) || options.ForceMAC {
-			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(1024))
+			iterations := 1024
+			if options.ResponseMACIterationCount > 0 {
+				iterations = options.ResponseMACIterationCount
+			}
+			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(iterations))
 		} else {
 			credentials, err = pkicmp.NewSignatureCredentials(signer.PrivateKey, signer.Certificate)
 		}
@@ -544,6 +550,38 @@ func TestEnrollP10CRRejectsSignedMACResponseFromAnotherAuthorityWhenAllowed(t *t
 	var typed *Error
 	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testWrongAuthority {
 		t.Fatalf("expected a subordinate authority under the same anchor to be rejected, got %v", err)
+	}
+}
+
+// TestEnrollP10CRMACResponseIterationFloor verifies the request floor applies to MAC-protected responses only when required.
+func TestEnrollP10CRMACResponseIterationFloor(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		requireFloor bool
+	}{
+		{name: "library minimum", requireFloor: false},
+		{name: "request floor", requireFloor: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			password := []byte("test-shared-secret")
+			server, _ := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: -1, ResponseMACIterationCount: minPBMIterationCount - 1})
+			defer server.Close()
+			request := baseEnrollmentRequest(t, pki, server.URL)
+			request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
+			request.RequireMACIterationFloor = test.requireFloor
+			_, err := NewClient().EnrollP10CR(context.Background(), request)
+			if !test.requireFloor {
+				if err != nil {
+					t.Fatalf("expected a response below the request floor to be accepted by default, got %v", err)
+				}
+				return
+			}
+			var typed *Error
+			if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testBadMessageCheck {
+				t.Fatalf("expected a response below the request floor to be rejected, got %v", err)
+			}
+		})
 	}
 }
 
