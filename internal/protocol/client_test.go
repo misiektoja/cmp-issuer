@@ -93,6 +93,8 @@ type mockOptions struct {
 	GrantImplicitConfirm bool
 	// FailCertConf answers certConf with an HTTP error and no CMP body.
 	FailCertConf bool
+	// IssuedValidity gives every IR and KUR certificate the notBefore and notAfter of this certificate.
+	IssuedValidity *x509.Certificate
 }
 
 // mockState records authenticated request bodies observed by the mock server.
@@ -469,6 +471,9 @@ func mockCRMFResponse(t *testing.T, pki testPKI, options mockOptions, certificat
 		return nil, false
 	}
 	template := &x509.Certificate{SerialNumber: big.NewInt(4), Subject: certificateRequest.Subject(), NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtraExtensions: extensions}
+	if options.IssuedValidity != nil {
+		template.NotBefore, template.NotAfter = options.IssuedValidity.NotBefore, options.IssuedValidity.NotAfter
+	}
 	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
 	if err != nil {
 		t.Errorf("issue certificate: %v", err)
