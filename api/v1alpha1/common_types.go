@@ -27,10 +27,16 @@ const (
 	ProtectionTypeSignature = "Signature"
 	// InitialEnrollmentP10CR selects PKCS #10 initial enrollment.
 	InitialEnrollmentP10CR = "P10CR"
+	// InitialEnrollmentIR selects a CMP Initialization Request with CRMF proof of possession.
+	InitialEnrollmentIR = "IR"
 	// RenewalP10CR selects PKCS #10 repeat enrollment for certificate renewals.
 	RenewalP10CR = "P10CR"
 	// RenewalKUR selects a certificate-authenticated CMP Key Update Request for renewals.
 	RenewalKUR = "KUR"
+	// RequestedValidityOmit leaves the validity period of an IR or KUR to the CA.
+	RequestedValidityOmit = "Omit"
+	// RequestedValidityDuration asks the CA for the CertificateRequest duration in an IR or KUR.
+	RequestedValidityDuration = "Duration"
 	// ValidationProfileInteroperable accepts reviewed CMP deviations used by deployed servers.
 	ValidationProfileInteroperable = "Interoperable"
 	// ValidationProfileRFC9483 enforces the lightweight CMP profile choices supported by cmp-issuer.
@@ -125,27 +131,37 @@ type EndpointSpec struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.p10crResponseCertReqId) || self.p10crResponseCertReqId == -1",message="RFC9483 requires P10CR response certReqId -1"
 // +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.macResponseProtection) || self.macResponseProtection == 'Strict'",message="RFC9483 requires MAC-based protection throughout a MAC-protected operation"
 // +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.kurResponseCaPubs) || self.kurResponseCaPubs == 'RequireAbsent'",message="RFC9483 requires KUP caPubs to be absent"
+// +kubebuilder:validation:XValidation:rule="!has(self.requestedValidity) || self.requestedValidity != 'Duration' || self.initialEnrollment == 'IR' || (has(self.renewal) && self.renewal == 'KUR')",message="requestedValidity Duration needs IR initial enrollment or KUR renewal, because P10CR cannot carry it"
 type ProtocolSpec struct {
 	// Version is the CMP protocol version number.
 	// +kubebuilder:default=2
 	// +kubebuilder:validation:Enum=2
 	// +required
 	Version int32 `json:"version"`
-	// InitialEnrollment selects the enrollment request body.
-	// Only P10CR is implemented. IR requires CRMF proof of possession over the workload private key,
-	// which needs the key access design recorded in the threat model, so it is not accepted yet.
+	// InitialEnrollment selects the request of the first cert-manager certificate revision.
+	// P10CR forwards the CSR and reads no workload private key. IR sends a CRMF request whose proof
+	// of possession the staged private key signs, so it requires narrowly authorized access to the
+	// Certificate's staged private-key Secret and a CertificateRequest created for a Certificate.
 	// +kubebuilder:default=P10CR
-	// +kubebuilder:validation:Enum=P10CR
+	// +kubebuilder:validation:Enum=P10CR;IR
 	// +required
 	InitialEnrollment string `json:"initialEnrollment"`
 	// Renewal selects the operation used after the first cert-manager certificate revision.
-	// P10CR repeats PKCS #10 enrollment and remains the compatibility default. KUR proves ownership
-	// of the current valid certificate and requested private key, so it requires narrowly authorized
-	// access to the Certificate's current and staged private-key Secrets.
-	// +kubebuilder:default=P10CR
+	// P10CR repeats PKCS #10 enrollment. KUR proves ownership of the current valid certificate and
+	// requested private key, so it requires narrowly authorized access to the Certificate's current
+	// and staged private-key Secrets. Omission follows initialEnrollment: P10CR after P10CR and KUR
+	// after IR.
 	// +kubebuilder:validation:Enum=P10CR;KUR
 	// +optional
 	Renewal string `json:"renewal,omitempty"`
+	// RequestedValidity selects whether an IR or KUR asks the CA for a validity period. Omit leaves
+	// the validity to the CA. Duration asks for a notAfter of the transaction start plus the
+	// CertificateRequest spec.duration when that is set. The CA decides the validity it grants and
+	// may shorten or ignore the request. P10CR cannot carry it and ignores the field.
+	// +kubebuilder:default=Omit
+	// +kubebuilder:validation:Enum=Omit;Duration
+	// +optional
+	RequestedValidity string `json:"requestedValidity,omitempty"`
 	// ValidationProfile selects a coherent set of CMP response checks. Interoperable accepts the
 	// reviewed deviations documented for supported servers. RFC9483 pins the P10CR response certReqId
 	// to -1, requires MAC-based responses to MAC-protected operations and requires KUP caPubs absent.
