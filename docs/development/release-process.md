@@ -124,7 +124,7 @@ the stamp, because the linker ignores an `-X` flag it cannot resolve.
 | `supply-chain.yml` | govulncheck and gitleaks on pull requests, adding SBOM and image scan on trusted branches |
 | `go-patch.yml` | Weekly check for a newer Go patch in the targeted release series, opening the bump against `dev` |
 | `release.yml` | Build and publish the release artifacts on a version tag |
-| `publish-chart.yml` | Add the released chart to the Helm repository index when the release is published |
+| `publish-chart.yml` | Verify the released chart's build provenance and add it to the Helm repository index when the release is published |
 
 Pull requests target `dev` and run the fast unit, OpenSSL, lint, DCO and supply chain checks. The chart job
 runs only when its inputs change. The three-version Kind matrix and EJBCA are deliberately deferred
@@ -137,12 +137,15 @@ an external enrollment should not be abandoned halfway through.
 
 `release.yml` packages the chart and attaches it to a draft GitHub Release. Publishing that release
 triggers `publish-chart.yml`, which adds the new version to `charts/index.yaml` on the `gh-pages`
-branch, so `helm repo add` picks it up.
+branch, so `helm repo add` picks it up. Before indexing, it verifies the chart's build provenance
+attestation with `gh attestation verify` and requires `release.yml` of this repository as the signing
+workflow, so an archive replaced on the release page is not indexed.
 
 The chart archives stay attached to their GitHub Release and the index points at those asset URLs.
 GitHub Pages serves the index plus Artifact Hub repository metadata. Existing entries are merged rather
 than replaced, which keeps older versions installable, and both files live under `charts/` so the
-documentation site occupies the root of the same Pages site.
+documentation site occupies the root of the same Pages site. `docs.yml` refuses to publish a site
+build that contains a `charts/` path, so a documentation file cannot replace the index.
 
 The first run creates the `gh-pages` branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.
