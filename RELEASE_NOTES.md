@@ -4,13 +4,17 @@ All notable changes to this project are documented in this file.
 
 ## [0.4.0] - TBD
 
-This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop.
+This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop. A recorded `CMPTransaction` chain is validated against CMP trust again before it is reused.
 
 ### Certificate management
 
 * **Enroll with IR** - Set `spec.protocol.initialEnrollment` to `IR` to send a CRMF Initialization Request built from cert-manager's CSR. The key cert-manager staged for the `Certificate` signs proof of possession and the issuer credentials protect the message, as for P10CR. IR needs a `CertificateRequest` that cert-manager created for a `Certificate`. A `CMPClusterIssuer` using IR needs the same Secret RoleBinding in each workload namespace as one using KUR. IR has been tested with Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.5.
 * **Renewal follows the initial enrollment** - When `spec.protocol.renewal` is omitted, an issuer renews with P10CR after P10CR and with KUR after IR. Issuers created by earlier releases carry `renewal: P10CR` from the earlier default and keep renewing through P10CR.
 * **Ask for a validity period** - Set `spec.protocol.requestedValidity` to `Duration` to ask in each IR and KUR for a `notAfter` of the transaction start plus `Certificate.spec.duration`. The default `Omit` leaves the validity to the CA. The CA decides what it grants: NCM may answer `grantedWithMods`, which fails the request under the default `spec.policy.grantedModifications: Reject`. The tested EJBCA profile ignores the request. See [requested validity](https://misiektoja.github.io/cmp-issuer/guide/enrollment/#requested-validity).
+
+### Security and reliability
+
+* **Recorded transaction chains are validated against CMP trust before they are reused** - When a `CMPTransaction` resumes in phase `Issued` or `Confirming`, its recorded chain is checked against the issuer's current `spec.cmpTrust` anchors before cert-manager receives it or a `certConf` is sent. A record that lacks its CSR digest, operation or configuration digest is not resumed. Earlier releases trusted the record itself, so a principal with write access to `cmptransactions` and `cmptransactions/status` in a namespace could choose the certificate a `CertificateRequest` received there. No role shipped with cmp-issuer grants that access. Recovering an issued chain now reads the trust Secrets, so an issuer whose trust Secret is missing stays not ready until it is restored.
 
 ### Bug fixes
 
