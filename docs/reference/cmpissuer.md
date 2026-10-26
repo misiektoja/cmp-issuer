@@ -59,8 +59,9 @@ spec:
 | Field | Required | Default | Description |
 | --- | --- | --- | --- |
 | `version` | yes | `2` | CMP version; only `2` is supported |
-| `initialEnrollment` | yes | `P10CR` | Only `P10CR` is implemented |
-| `renewal` | no | `P10CR` | `P10CR` repeats enrollment. `KUR` uses the current certificate and CRMF proof of possession for later cert-manager revisions |
+| `initialEnrollment` | yes | `P10CR` | `P10CR` sends cert-manager's CSR. `IR` sends a CRMF request whose proof of possession the staged workload key signs, so it needs a `CertificateRequest` that cert-manager created for a `Certificate`. See [Enrollment](../guide/enrollment.md) |
+| `renewal` | no | follows `initialEnrollment` | `P10CR` re-enrolls. `KUR` uses the current certificate and CRMF proof of possession for later cert-manager revisions. Omitted, it is `P10CR` after P10CR and `KUR` after IR |
+| `requestedValidity` | no | `Omit` | `Omit` leaves the validity to the CA. `Duration` asks in each IR and KUR for the `CertificateRequest` duration and needs `initialEnrollment: IR` or `renewal: KUR`. See [Requested validity](../guide/enrollment.md#requested-validity) |
 | `validationProfile` | no | `Interoperable` | `Interoperable` uses safe receiver compatibility defaults. `RFC9483` pins P10CR response `certReqId` to `-1`, requires MAC-based responses to MAC-protected operations and requires KUP `caPubs` absent |
 | `kurResponseCaPubs` | no | inherit profile | `Accept` treats KUP `caPubs` as untrusted chain candidates. `RequireAbsent` rejects any KUP that contains them |
 | `recipient` | yes | | RFC 4514 recipient DN. Also the authority every response must be sent by, compared ignoring attribute order |
@@ -116,7 +117,7 @@ Ready condition follows issuer-lib conventions. When credential or trust Secrets
 
 ## RBAC
 
-The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact current and staged workload Secret reads needed when `renewal: KUR` is selected. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
+The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact workload Secret reads that IR and KUR need: the staged key for IR and the current and staged keys for KUR. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
 
 ## Related pages
 

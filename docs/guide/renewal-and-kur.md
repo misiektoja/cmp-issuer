@@ -16,12 +16,12 @@ spec:
 
 ## cert-manager renewal
 
-When a `Certificate` nears expiry cert-manager creates a new `CertificateRequest`. Revision one always uses P10CR. Later revisions use the configured renewal operation.
+When a `Certificate` nears expiry cert-manager creates a new `CertificateRequest`. Revision one uses `initialEnrollment`. Later revisions use `renewal`, which follows `initialEnrollment` when omitted: P10CR after P10CR and KUR after IR.
 
 | `renewal` | CMP operation | Workload key access | Server requirement |
 | --- | --- | --- | --- |
-| `P10CR` or omitted | Fresh P10CR | None | Repeat enrollment for the same identity |
-| `KUR` | Certificate-authenticated KUR | Current and staged keys | KUR enabled for the existing certificate |
+| `P10CR` or omitted after P10CR | Fresh P10CR | None | Repeat enrollment for the same identity |
+| `KUR` or omitted after IR | Certificate-authenticated KUR | Current and staged keys | KUR enabled for the existing certificate |
 
 ## P10CR compatibility renewal
 
@@ -51,7 +51,11 @@ The keys may be RSA, ECDSA, Ed25519 or ML-DSA. An ML-DSA `tls.key` must be in th
 
 cmp-issuer rejects KUR before network traffic when the current certificate is expired, its key does not match, its Key Usage extension forbids digital signatures, the staged key does not match the CSR or the subject or SAN values changed. The CA must reject a revoked current certificate.
 
-A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or `oldCertID`. Server policy still decides whether that certificate is eligible for key update.
+A certificate originally issued through P10CR or IR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or `oldCertID`. Server policy still decides whether that certificate is eligible for key update.
+
+With `requestedValidity: Duration` the KUR template also asks for a validity. See [Requested validity](enrollment.md#requested-validity).
+
+The updated certificate must get a new validity. When the CA returns the `notBefore` and `notAfter` of the certificate being updated, cert-manager finds the renewal time already passed and renews again at once. cmp-issuer rejects such a certificate in `certConf` and fails the request. Configure the CA to compute a new validity on key update or use `renewal: P10CR`. NCM needs a policy setting for this, see [Tested PKIs](../interoperability/tested-pkis.md#certificate-validity).
 
 No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.
 
@@ -109,7 +113,7 @@ Some Nokia deployments expose certificate renewal through NCM REST APIs. That pa
 | P10CR initial enrollment | Implemented |
 | P10CR repeat enrollment | Server dependent. Verified against NCM 26.7 for both rotation policies |
 | KUR | Implemented for unchanged subject and SANs. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 with both rotation policies |
-| IR (CRMF) | Planned |
+| IR initial enrollment | Implemented. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 with both protection modes. NCM and EJBCA renewed the IR certificate through KUR |
 | Nokia NCM REST renewal | Unsupported |
 
 See [Tested PKIs](../interoperability/tested-pkis.md) for server-specific validation and configuration.

@@ -17,6 +17,12 @@ The end-to-end suite covers this boundary: a crafted annotation pointing at a se
 
 RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.
 
+## IR: one narrowly authorized key proof
+
+IR reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, revision one with no earlier revision in `Certificate.status`, issuer reference, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
+
+The staged key signs CRMF proof of possession. The issuer's own credentials protect the CMP message, so IR reads no other workload Secret. Only `tls.key` is parsed from the staged Secret. Its UID and a digest of `tls.key` are bound into the durable transaction configuration digest.
+
 ## KUR: two narrowly authorized key proofs
 
 KUR reads the current workload key and the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, immediately previous revision, issuer reference, current output Secret, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
@@ -30,10 +36,6 @@ Only `tls.key` is parsed from the staged Secret. The current Secret contributes 
 ## Annotation is not authorization
 
 `cert-manager.io/private-key-secret-name` names where cert-manager stores the workload key. It is not permission for the external issuer to read that Secret. cmp-issuer uses it only after the value matches the authenticated `Certificate.status.nextPrivateKeySecretName` and the Secret's owner and label.
-
-## Future IR
-
-Initial Registration with CRMF requires proof of possession over the workload private key. IR remains planned and can reuse the KUR authorization boundary only after its separate API and protocol design is accepted.
 
 ## Related pages
 

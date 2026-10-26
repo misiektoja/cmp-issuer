@@ -58,12 +58,12 @@ issuers live in more than one namespace.
 
 The RoleBinding does not let the controller read Secrets in any other namespace. Credential references contain no namespace field so an issuer cannot redirect a read across this boundary.
 
-## Workload Secrets for KUR
+## Workload Secrets for IR and KUR
 
 P10CR does not require the workload private key and never follows cert-manager's private-key annotation.
 
-KUR needs `get` access to the current and staged workload Secrets. The same namespace RoleBinding used for issuer credentials grants that access. For a namespaced `CMPIssuer` the issuer and workload already share a namespace. For a `CMPClusterIssuer` each workload namespace that uses KUR must be listed in `credentialNamespaces` or receive the manual RoleBinding above.
+IR needs `get` access to the staged workload Secret. KUR needs `get` access to the current and staged workload Secrets. The same namespace RoleBinding used for issuer credentials grants that access. For a namespaced `CMPIssuer` the issuer and workload already share a namespace. For a `CMPClusterIssuer` each workload namespace that uses IR or KUR must be listed in `credentialNamespaces` or receive the manual RoleBinding above.
 
-The permission alone does not select a Secret. cmp-issuer first verifies the controlling cert-manager `Certificate`, exact UID, revision, issuer reference, current Secret name and cert-manager provenance, next-key status, staged Secret owner and label plus CSR key equality. An annotation alone cannot authorize a read.
+The permission alone does not select a Secret. cmp-issuer first verifies the controlling cert-manager `Certificate`, exact UID, revision, issuer reference, next-key status, staged Secret owner and label plus CSR key equality. KUR also verifies the current Secret name and its cert-manager provenance. An annotation alone cannot authorize a read.
 
 The manager also has cluster-wide `get` permission for `Certificate` resources so it can authenticate this ownership chain. It does not receive list, watch, create, update or delete permission for Certificates.

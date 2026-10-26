@@ -1,6 +1,6 @@
 # Tested PKIs
 
-cmp-issuer has completed protected P10CR enrollment and renewal tests against the servers below. KUR coverage is stated separately because support depends on the server profile and alias mode. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.
+cmp-issuer has completed protected P10CR enrollment and renewal tests against the servers below. IR and KUR coverage is stated separately because support depends on the server profile and alias mode. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.
 
 ## Contents
 
@@ -60,6 +60,21 @@ This is P10CR re-enrollment rather than KUR. It differs from a retransmission, w
 
 CI repeats the `Always` case on every run, over every configured transport. The `Never` case remains a lab result.
 
+### IR enrollment
+
+The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying `certReqId` `0` and explicit confirmation completed. An issuer with `initialEnrollment: IR` and no `renewal` then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI.
+
+### Certificate validity
+
+The validity NCM grants is set by the `set-validity-period` policy module of the certificate profile. Its "Overwrite old?" setting decides both how key update and how a requested validity are treated:
+
+| "Overwrite old?" | KUR | IR or KUR with `requestedValidity: Duration` |
+| --- | --- | --- |
+| Unticked | The updated certificate keeps the `notBefore` and `notAfter` of the old one | IR keeps the requested `notAfter`. KUR answers `grantedWithMods` and keeps the old validity |
+| Ticked | The updated certificate gets a new validity from the policy period | NCM answers `grantedWithMods` |
+
+cmp-issuer rejects a KUR certificate that keeps the old validity, because cert-manager would renew it again at once. Tick "Overwrite old?" in profiles used for KUR and leave `requestedValidity` at `Omit`. NCM caps every validity at the expiry of the issuing CA certificate.
+
 ### KUR renewal
 
 The same lab profile accepted a P10CR-issued certificate as the authentication credential for later KUR on the same endpoint. Both cert-manager rotation policies completed with explicit confirmation. `Always` produced a new serial and public key while `Never` produced a new serial with the exact existing public key. A repeated same-key KUR without CRMF `oldCertID` was rejected after the key had more than one certificate. Sending the current certificate issuer and serial in `oldCertID` resolved the ambiguity and the next repeated same-key KUR completed. NCM recorded signature-protected `keyUpReq`, `keyUpResp`, `certConfirm` and final confirmation messages.
@@ -110,6 +125,10 @@ An EJBCA CMP alias decides how it protects its answers with `responseprotection`
 
 **Signature credential shape.** EJBCA resolves the certificate from its database. The Secret needs only `tls.crt` and `tls.key`; `chainKey` may be omitted.
 
+### IR in RA mode
+
+An RA mode alias accepts IR with PasswordBasedMac and with certificate signature protection. The CI suite enrolls an identity through IR on the shared-secret RA alias with `requestedValidity: Duration` and renews it through KUR on the key-update alias. The issued certificates carry the validity of the certificate profile, so EJBCA ignores the requested validity when the profile does not allow a validity override and still answers `accepted`.
+
 ### KUR in client mode
 
 Initial P10CR uses a client-mode HMAC alias. KUR uses a separate `EndEntityCertificate` alias with Automatic Key Update enabled. Configure the first URL as `endpoint.url`, the key-update alias as `endpoint.renewalUrl` and select `protocol.renewal: KUR`.
@@ -130,7 +149,7 @@ EJBCA answers a repeat of an enrollment it already accepted with a protected err
 
 ## OpenSSL CMP mock
 
-CI runs delayed enrollment, delayed confirmation, pinned transaction and KUR flows against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
+CI runs delayed enrollment, delayed confirmation, pinned transaction, IR and KUR flows against the CMP mock built into OpenSSL 3.6. IR is exercised with both protection modes, with and without a requested validity. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
 
 Signature-protected P10CR and both KUR rotation variants are also tested without `-rsp_extracerts`.
 The configured CMP trust anchor signs the responses and explicit confirmation completes without the
@@ -149,6 +168,6 @@ The mock keeps one transaction per TCP connection. The test reaches it through a
 ## What is not claimed
 
 * Compatibility with arbitrary CMP servers or profiles
-* IR, revocation or CMPv3
+* Revocation or CMPv3
 
 See [Support matrix](../support-matrix.md).

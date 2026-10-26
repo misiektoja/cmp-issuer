@@ -17,7 +17,7 @@ Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrol
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-Enrollment uses P10CR, with optional KUR for certificate renewal.
+Initial enrollment uses P10CR or IR. Renewal uses P10CR re-enrollment or KUR.
 
 > This repository is under active initial development. The API group is served at `v1alpha1` and may
 > change.
@@ -151,10 +151,13 @@ demo-tls   True    demo-tls   12s
 
 **Enrollment.** cert-manager creates the private key and the PKCS #10 request. The controller picks up
 the approved `CertificateRequest`, sends the request to your CMP server in a protected P10CR and hands
-the issued chain back to cert-manager. `initialEnrollment` accepts only `P10CR` for now.
+the issued chain back to cert-manager. With `initialEnrollment: IR` it sends a CRMF Initialization
+Request instead, whose proof of possession is signed with the private key cert-manager staged for the
+`Certificate`. See [Enrollment](https://misiektoja.github.io/cmp-issuer/guide/enrollment/).
 
-**Renewal.** A renewal sends another P10CR unless you set `spec.protocol.renewal` to `KUR`.
-KUR authenticates the request using the current valid certificate and proves possession of the key that
+**Renewal.** An issuer that enrolls with P10CR renews with P10CR re-enrollment and one that enrolls
+with IR renews with KUR. Set `spec.protocol.renewal` to choose either operation explicitly. KUR
+authenticates the request using the current valid certificate and proves possession of the key that
 cert-manager requested. Use `spec.endpoint.renewalUrl` for a separate KUR endpoint. See
 [Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/).
 
@@ -163,11 +166,12 @@ polls until the certificate arrives. Every transaction is recorded in a `CMPTran
 first message goes out, so a controller restart resumes that transaction instead of enrolling a second
 time. Follow them with `kubectl get cmptransactions -A`.
 
-**Private keys and secrets.** P10CR never reads workload private keys. KUR reads only the current and
-staged keys of the certificate being renewed, after checking the controlling cert-manager `Certificate`,
-its owner UID, revision, issuer reference and Secret ownership. The controller reads Secrets only in the
-namespaces you name at install time. TLS trust and CMP response trust are configured separately and
-every response must come from the authority set as `recipient`.
+**Private keys and secrets.** P10CR never reads workload private keys. IR reads only the staged key of
+the certificate being enrolled and KUR only the current and staged keys of the certificate being
+renewed, after checking the controlling cert-manager `Certificate`, its owner UID, revision, issuer
+reference and Secret ownership. The controller reads Secrets only in the namespaces you name at
+install time. TLS trust and CMP response trust are configured separately and every response must come
+from the authority set as `recipient`.
 
 **CMP server differences.** `spec.protocol.validationProfile` defaults to `Interoperable`, which tolerates
 the deviations real CMP servers show. It accepts `certReqId` `-1` or `0` in a P10CR response, echoes the

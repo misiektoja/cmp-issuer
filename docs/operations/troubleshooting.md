@@ -172,6 +172,7 @@ Return the level to `info` afterwards, since debug is noisy on a busy cluster.
 | --- | --- | --- |
 | Ready=False, message names a Secret | Credential or trust Secret missing or unreadable | Create the Secret; for `CMPIssuer` authorize the namespace with `credentialNamespaces` or the RoleBinding from [Credential Secret access](secret-access.md) |
 | Ready=False after install | Controller not running | `kubectl -n cmp-issuer-system get pods` |
+| Apply refused: `requestedValidity Duration needs IR initial enrollment or KUR renewal` | Only P10CR can be selected. A PKCS #10 request cannot carry a validity | Set `initialEnrollment: IR` or `renewal: KUR` or remove `requestedValidity` |
 
 ## CertificateRequest stuck or failed
 
@@ -184,12 +185,14 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | Condition message pattern | Likely cause |
 | --- | --- |
 | P10CR CP certReqId | Server returned an unexpected identifier; adjust `p10crResponseCertReqId` or use default |
+| IR needs a CertificateRequest that cert-manager created for a Certificate | The request has no cert-manager revision state, for example a hand-written `CertificateRequest`. Request the certificate through a `Certificate` or use an issuer with `initialEnrollment: P10CR` |
 | KUR requires a certificate revision greater than one | A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager `Certificate` |
-| KUR current or staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
+| IR staged Secret or KUR current or staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
 | authorize KUR current certificate | The Secret named by `Certificate.spec.secretName` is not the output Secret cert-manager wrote for that `Certificate`. Compare its `cert-manager.io/certificate-name` annotation and any controller owner reference with the `Certificate`, and check whether a second `Certificate` targets the same Secret |
 | KUR certificate identity | The renewal CSR changed the subject or SAN set. Use the P10CR compatibility mode where the CA permits re-enrollment or wait for CR support |
 | KUP caPubs must be absent | `validationProfile` is `RFC9483` or `kurResponseCaPubs` is `RequireAbsent`, but the server delivered CA certificates in that field. Configure the server to omit them or use the default `Interoperable` profile, which treats them only as untrusted chain candidates |
-| KUR certReqId mismatch | The KUP did not use the fixed KUR identifier `0`. Correct the CMP server profile |
+| KUR `server issued the updated certificate with the notBefore and notAfter of the certificate it replaces` | The CA kept the validity of the old certificate on key update. cert-manager would renew again at once, so the certificate was rejected in `certConf`. Let the CA compute a new validity on key update or set `renewal: P10CR`. For NCM see below |
+| KUR certReqId mismatch or `IR IP certReqId must be 0` | The KUP or IP did not use the fixed identifier `0`. Correct the CMP server profile |
 | Response protection / trust | Wrong CMP trust anchors or unexpected signer |
 | `message is signature-protected but MAC-based protection is required` | `spec.protocol.macResponseProtection` is `Strict` and the server signs its answer to a `PasswordBasedMac` request. Remove the value to fall back to the `AllowSignature` default, or configure the server to protect the answer with the shared secret |
 | Response sender does not name the configured recipient | The server answers under a different name than `spec.protocol.recipient`. Set the recipient to the name the server puts in its responses. Attribute order does not matter, so only a genuine difference in attributes or values causes this |
@@ -217,6 +220,8 @@ The transaction `Phase` column tells you where a request stopped. `Enrolling` me
 | Header protection failed with vendor client | Missing end-entity cert in P10CR extraCerts | Use cmp-issuer layout or fix client |
 | pkiConf verification failed before fix | Signer not retained | Upgrade to a build with confirmation signer retention |
 | Pinning certReqId -1 | NCM returns 0 | Omit pin or set `p10crResponseCertReqId: 0` |
+| KUR fails because the updated certificate keeps the old validity | The `set-validity-period` policy module leaves "Overwrite old?" unticked | Tick "Overwrite old?" so key update gets a new validity, see [certificate validity](../interoperability/tested-pkis.md#certificate-validity) |
+| IR or KUR with `requestedValidity: Duration` fails with `grantedWithMods` | The `set-validity-period` policy module does not grant the requested validity as asked | Remove `requestedValidity` or set `policy.grantedModifications: Accept` |
 
 ## Requests stay pending and nothing happens
 
