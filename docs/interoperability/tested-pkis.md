@@ -62,7 +62,11 @@ CI repeats the `Always` case on every run, over every configured transport. The 
 
 ### IR enrollment
 
-The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying `certReqId` `0` and explicit confirmation completed. An issuer with `initialEnrollment: IR` and no `renewal` then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI. A renewal fallback to IR for an identity that already holds a certificate was not tested on NCM.
+The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying `certReqId` `0` and explicit confirmation completed. An issuer with `initialEnrollment: IR` and no `renewal` then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI.
+
+### Renewal fallback
+
+With `renewalFallback: InitialEnrollment`, deleting the `Certificate` Secret made cert-manager issue revision two, which cmp-issuer sent as an initial enrollment for an identity that already holds a certificate. NCM accepted IR with PasswordBasedMac and with signature protection. It also accepted P10CR from an issuer with `initialEnrollment: P10CR` and `renewal: KUR`. Each answer carried a new certificate under a new serial number. NCM did not revoke the old certificate. The next renewal of each new certificate went through KUR. The fallback after an expired certificate was not tested on NCM. These are lab results and are not repeated in CI.
 
 ### Certificate validity
 
