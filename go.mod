@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/cert-manager/cert-manager v1.21.3
 	github.com/cert-manager/issuer-lib v0.12.1
-	github.com/misiektoja/go-pki-cmp v0.7.2
+	github.com/misiektoja/go-pki-cmp v0.8.0
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/prometheus/client_golang v1.25.0

@@ -145,8 +145,8 @@ github.com/mfridman/tparse v0.18.0 h1:wh6dzOKaIwkUGyKgOntDW4liXSo37qg5AXbIhkMV3v
 github.com/mfridman/tparse v0.18.0/go.mod h1:gEvqZTuCgEhPbYk/2lS3Kcxg1GmTxxU7kTC8DvP0i/A=
 github.com/misiektoja/go-composite-mldsa v0.2.1 h1:Qf5JSW0jJvlwXDisVob1iC5M5LKlsWhbupPku+a7sDY=
 github.com/misiektoja/go-composite-mldsa v0.2.1/go.mod h1:VDbjLFqIpOSO6Oga14SE3vrdIe5PgfZlk2JtajaUT50=
-github.com/misiektoja/go-pki-cmp v0.7.2 h1:m64gjIVC1KvlkCGlry1IaGTXZPKXy65XX37BYpCjATA=
-github.com/misiektoja/go-pki-cmp v0.7.2/go.mod h1:dfq/zYepohnXBUcrLoiGjXMr87Mv6/LOTKe1GhmDSbM=
+github.com/misiektoja/go-pki-cmp v0.8.0 h1:nqFETKvLBhf4/y4uQeOEyvTidgexgFbb0R5b2n1KcTQ=
+github.com/misiektoja/go-pki-cmp v0.8.0/go.mod h1:dfq/zYepohnXBUcrLoiGjXMr87Mv6/LOTKe1GhmDSbM=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w8PVh93nsPXa1VrQ6jlwL5oN8l14QlcNfg=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
