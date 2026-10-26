@@ -486,9 +486,9 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	}
 	var responseSigner *x509.Certificate
 	// A server may protect its response with the iteration count of the request, so the maximum the
-	// issuer sends is also accepted. The minimum stays at the library default for servers that choose
-	// their own count unless the issuer requires the request floor of its response too.
-	minIterationCount := 0
+	// issuer sends is also accepted. Without the request floor a response may use any count the server
+	// chose, including one below the RFC 4211 minimum that the library refuses by default.
+	minIterationCount := 1
 	if request.RequireMACIterationFloor {
 		minIterationCount = minPBMIterationCount
 	}

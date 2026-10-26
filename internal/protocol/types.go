@@ -90,8 +90,8 @@ type EnrollmentRequest struct {
 	// signer chains to CMPTrust. It is ignored when the request is signature-protected already.
 	AllowSignedMACResponse bool
 	// RequireMACIterationFloor rejects a MAC-protected response whose iteration count is below the floor
-	// the issuer applies to its own requests. Off, the library minimum of one iteration is accepted,
-	// because servers choose their own count.
+	// the issuer applies to its own requests. Off, any count from one iteration is accepted, because
+	// servers choose their own count.
 	RequireMACIterationFloor bool
 	ResponseCertReqID        *int64
 	RequireKUPCAPubsAbsent   bool
