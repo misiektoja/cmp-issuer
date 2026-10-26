@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [0.4.0] - TBD
 
-This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop. A recorded `CMPTransaction` chain is validated against CMP trust again before it is reused.
+This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop. A recorded `CMPTransaction` chain is validated against CMP trust again before it is reused and the strict MAC profiles require at least 100 iterations on MAC-protected responses.
 
 ### Certificate management
 
@@ -15,6 +15,7 @@ This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a
 ### Security and reliability
 
 * **Recorded transaction chains are validated against CMP trust before they are reused** - When a `CMPTransaction` resumes in phase `Issued` or `Confirming`, its recorded chain is checked against the issuer's current `spec.cmpTrust` anchors before cert-manager receives it or a `certConf` is sent. A record that lacks its CSR digest, operation or configuration digest is not resumed. Earlier releases trusted the record itself, so a principal with write access to `cmptransactions` and `cmptransactions/status` in a namespace could choose the certificate a `CertificateRequest` received there. No role shipped with cmp-issuer grants that access. Recovering an issued chain now reads the trust Secrets, so an issuer whose trust Secret is missing stays not ready until it is restored.
+* **Strict MAC response protection requires the request iteration floor** - Under `spec.protocol.validationProfile: RFC9483` or `spec.protocol.macResponseProtection: Strict`, a MAC-protected response must use at least 100 iterations, the floor that already applies to `spec.protection.password.iterationCount` on requests. A response with fewer iterations fails the request with `badMessageCheck`. The interoperable default still accepts the count the server chose. See [message protection](https://misiektoja.github.io/cmp-issuer/guide/message-protection/).
 
 ### Bug fixes
 
@@ -24,6 +25,8 @@ This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a
 
 * **Built with Go 1.27.3** - Includes the `crypto/x509` fix that distrusts compromised intermediate certificates (GO-2026-6809). Building from source needs Go 1.27.3.
 * **CMP library go-pki-cmp v0.8.0** - Encodes the certificate template validity that `requestedValidity` sends.
+* **Leader election without ConfigMap access** - The leader-election Role in the chart and the installer manifest grants Leases and Events only. The controller elects its leader through a Lease, so the ConfigMap rule was unused.
+* **Supply chain checks** - The manager image is built from base images pinned by digest. The chart repository workflow verifies the released chart's build provenance attestation before indexing it and the documentation publisher refuses a site that would overwrite the chart index on `gh-pages`.
 
 ## [0.3.1] - 11 Oct 2026
 
