@@ -4,13 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [0.4.0] - TBD
 
-This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop. A recorded `CMPTransaction` chain is validated against CMP trust again before it is reused and the strict MAC profiles require at least 100 iterations on MAC-protected responses.
+This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR renewal can fall back to the initial enrollment operation when the current certificate is missing or expired. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop. A recorded `CMPTransaction` chain is validated against CMP trust again before it is reused and the strict MAC profiles require at least 100 iterations on MAC-protected responses.
 
 ### Certificate management
 
 * **Enroll with IR** - Set `spec.protocol.initialEnrollment` to `IR` to send a CRMF Initialization Request built from cert-manager's CSR. The key cert-manager staged for the `Certificate` signs proof of possession and the issuer credentials protect the message, as for P10CR. IR needs a `CertificateRequest` that cert-manager created for a `Certificate`. A `CMPClusterIssuer` using IR needs the same Secret RoleBinding in each workload namespace as one using KUR. IR has been tested with Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.5.
 * **Renewal follows the initial enrollment** - When `spec.protocol.renewal` is omitted, an issuer renews with P10CR after P10CR and with KUR after IR. Issuers created by earlier releases carry `renewal: P10CR` from the earlier default and keep renewing through P10CR.
 * **Ask for a validity period** - Set `spec.protocol.requestedValidity` to `Duration` to ask in each IR and KUR for a `notAfter` of the transaction start plus `Certificate.spec.duration`. The default `Omit` leaves the validity to the CA. The CA decides what it grants: NCM may answer `grantedWithMods`, which fails the request under the default `spec.policy.grantedModifications: Reject`. The tested EJBCA profile ignores the request. See [requested validity](https://misiektoja.github.io/cmp-issuer/guide/enrollment/#requested-validity).
+* **Renew when the current certificate is missing or expired** - Set `spec.protocol.renewalFallback` to `InitialEnrollment` to renew with the `initialEnrollment` operation when KUR cannot authenticate because the `Certificate` Secret was deleted, holds no certificate or holds an expired one. An IR issuer renews with IR. An issuer with `initialEnrollment: P10CR` and `renewal: KUR` renews with P10CR. Both go to `endpoint.url` under the issuer credentials. The choice is made before the first CMP message and recorded in the `CMPTransaction` field `spec.renewalFallback`. The controller logs it and records a `RenewalFallback` Warning Event on the `CertificateRequest`. A Secret that cert-manager did not write for the `Certificate` never falls back. The default `None` keeps KUR. The IR fallback has been tested with EJBCA Community Edition 9.3.7 in RA mode. See [missing or expired current certificate](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/#missing-or-expired-current-certificate).
 
 ### Security and reliability
 
@@ -19,6 +20,7 @@ This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a
 
 ### Bug fixes
 
+* **KUR fails when the current certificate Secret is deleted** - A KUR renewal whose `Certificate` Secret was deleted or held no certificate stayed Pending without end and read the Secret every second. It fails with a message that names the Secret and the ways to recover: set `renewalFallback: InitialEnrollment`, set `renewal: P10CR` or recreate the `Certificate`.
 * **KUR no longer renews in a loop when the CA keeps the old validity** - When a KUR certificate had the `notBefore` and `notAfter` of the certificate it replaced, cert-manager found its renewal time already passed and renewed again at once, without end. cmp-issuer rejects such a certificate in `certConf` and fails the `CertificateRequest`. NCM keeps the old validity unless "Overwrite old?" is ticked in its `set-validity-period` policy module, see [certificate validity on NCM](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/#certificate-validity).
 
 ### Project maintenance
