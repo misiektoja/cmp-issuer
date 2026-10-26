@@ -332,6 +332,15 @@ func TestValidateSpec(t *testing.T) {
 			spec.Protocol.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
 			spec.Protocol.Renewal = cmpv1alpha1.RenewalP10CR
 		}},
+		{name: "unsupported renewal fallback", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.RenewalFallback = "OnFailure" }},
+		{name: "renewal fallback with P10CR renewal", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.Protocol.Renewal = cmpv1alpha1.RenewalP10CR
+			spec.Protocol.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback with only P10CR", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
 		{name: "unsupported P10CR response certReqId", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			unsupported := int64(1)
 			spec.Protocol.P10CRResponseCertReqID = &unsupported
@@ -399,7 +408,8 @@ func TestValidateSpecAllowsOmittedOptionalObjects(t *testing.T) {
 	}
 }
 
-// TestValidateSpecAllowsCRMFOperations verifies IR, KUR and a requested validity for either are accepted.
+// TestValidateSpecAllowsCRMFOperations verifies IR, KUR, a requested validity for either and a
+// renewal fallback for KUR are accepted.
 func TestValidateSpecAllowsCRMFOperations(t *testing.T) {
 	for _, test := range []struct {
 		name   string
@@ -419,6 +429,15 @@ func TestValidateSpecAllowsCRMFOperations(t *testing.T) {
 			spec.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
 		}},
 		{name: "omitted requested validity", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RequestedValidity = cmpv1alpha1.RequestedValidityOmit }},
+		{name: "renewal fallback for the KUR an IR issuer implies", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback for KUR after P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.Renewal = cmpv1alpha1.RenewalKUR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback None with P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RenewalFallback = cmpv1alpha1.RenewalFallbackNone }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			spec := validSpec("https://example.test/cmp")

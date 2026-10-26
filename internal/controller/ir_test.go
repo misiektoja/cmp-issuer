@@ -356,7 +356,8 @@ func TestSignRequestsValidity(t *testing.T) {
 }
 
 // TestCRMFOperationsAgainstAPIServer verifies the schema accepts IR, leaves renewal to follow
-// initialEnrollment and refuses a requested validity that no selected operation can carry.
+// initialEnrollment and refuses a requested validity that no selected operation can carry and a
+// renewal fallback without KUR.
 func TestCRMFOperationsAgainstAPIServer(t *testing.T) {
 	kube := startEnvtest(t)
 	ctx := context.Background()
@@ -384,6 +385,23 @@ func TestCRMFOperationsAgainstAPIServer(t *testing.T) {
 			spec.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
 		}},
 		{name: "unknown initial enrollment", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.InitialEnrollment = "CR" }},
+		{name: "renewal fallback for implied KUR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}, valid: true, renewal: cmpv1alpha1.TransactionOperationKUR},
+		{name: "renewal fallback for KUR after P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.Renewal = cmpv1alpha1.RenewalKUR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}, valid: true, renewal: cmpv1alpha1.TransactionOperationKUR},
+		{name: "renewal fallback with implied P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback with P10CR renewal after IR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.Renewal = cmpv1alpha1.RenewalP10CR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "unknown renewal fallback", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RenewalFallback = "OnFailure" }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			issuer := &cmpv1alpha1.CMPClusterIssuer{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("crmf-%d", i)}, Spec: validSpec("https://example.test/cmp")}
@@ -402,8 +420,8 @@ func TestCRMFOperationsAgainstAPIServer(t *testing.T) {
 			if _, err := validateSpec(&stored.Spec); err != nil {
 				t.Fatalf("the API server accepted an issuer the controller rejects: %v", err)
 			}
-			if stored.Spec.Protocol.RequestedValidity == "" {
-				t.Fatal("expected requestedValidity to be defaulted")
+			if stored.Spec.Protocol.RequestedValidity == "" || stored.Spec.Protocol.RenewalFallback == "" {
+				t.Fatal("expected requestedValidity and renewalFallback to be defaulted")
 			}
 			if operation := renewalOperation(stored.Spec.Protocol); operation != test.renewal {
 				t.Fatalf("expected renewal %s, got %s with renewal %q", test.renewal, operation, stored.Spec.Protocol.Renewal)
@@ -419,6 +437,18 @@ func TestCRMFOperationsAgainstAPIServer(t *testing.T) {
 		transaction := &cmpv1alpha1.CMPTransaction{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: namespace}, Spec: cmpv1alpha1.CMPTransactionSpec{CertificateRequestName: testRequestName, CertificateRequestUID: string(testRequestUID), TransactionID: []byte("ir-transaction"), Deadline: metav1.NewTime(time.Now().Add(time.Minute)), Operation: cmpv1alpha1.TransactionOperationIR}}
 		if err := kube.Create(ctx, transaction); err != nil {
 			t.Fatalf("an IR transaction is rejected by the API server: %v", err)
+		}
+		fallback := transaction.DeepCopy()
+		fallback.ObjectMeta = metav1.ObjectMeta{Name: testRequestName + "-fallback", Namespace: namespace}
+		fallback.Spec.RenewalFallback = cmpv1alpha1.RenewalFallbackCurrentCertificateMissing
+		if err := kube.Create(ctx, fallback); err != nil {
+			t.Fatalf("an IR fallback transaction is rejected by the API server: %v", err)
+		}
+		unknown := transaction.DeepCopy()
+		unknown.ObjectMeta = metav1.ObjectMeta{Name: testRequestName + "-unknown", Namespace: namespace}
+		unknown.Spec.RenewalFallback = "Revoked"
+		if err := kube.Create(ctx, unknown); err == nil {
+			t.Fatal("expected an unknown renewal fallback reason to be rejected")
 		}
 	})
 }
