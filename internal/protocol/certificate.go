@@ -22,6 +22,7 @@ import (
 	"crypto/mldsa"
 	"crypto/x509"
 	"fmt"
+	"slices"
 )
 
 // ValidateMLDSAKeyUsage enforces RFC 9881 section 5 for an ML-DSA subject public key.
@@ -40,6 +41,18 @@ func ValidateMLDSAKeyUsage(certificate *x509.Certificate) error {
 		return fmt.Errorf("ML-DSA keyUsage extension must not contain encipherment or key agreement usages")
 	}
 	return nil
+}
+
+// ValidateIssuedChain checks that a leaf-first chain terminates at one of the roots, using the rest of
+// the chain and the candidates as untrusted intermediates. It returns the chain leaf first without the root.
+func ValidateIssuedChain(chain []*x509.Certificate, candidates []*x509.Certificate, roots *x509.CertPool) ([]*x509.Certificate, error) {
+	if len(chain) == 0 || chain[0] == nil {
+		return nil, fmt.Errorf("certificate chain is empty")
+	}
+	if roots == nil {
+		return nil, fmt.Errorf("CMP trust anchors are absent")
+	}
+	return validateAndOrderChain(chain[0], append(slices.Clone(chain[1:]), candidates...), roots)
 }
 
 // verifyCertificateChain selects a trusted chain whose ML-DSA keys satisfy RFC 9881.

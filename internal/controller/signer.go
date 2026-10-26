@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"time"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -166,7 +167,7 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 		// The transaction outlives this reconcile, so issuance is timed from the record that started it.
 		enrollmentStarted = transactionStartTime(transaction, enrollmentStarted)
 		if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseIssued {
-			return recoverIssuedChain(ctx, transaction, requestDER)
+			return s.recoverIssuedChain(ctx, transaction, issuer, requestDER)
 		}
 		if transaction.Spec.IssuerRef.Generation != expectedIssuer.Generation {
 			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("issuer spec changed during the recorded CMP transaction")})
@@ -204,7 +205,7 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 		}
 	}
 	if resumed {
-		if transaction.Spec.ConfigurationDigest == "" || transaction.Spec.ConfigurationDigest != runtimeConfiguration.ConfigurationDigest {
+		if transaction.Spec.ConfigurationDigest != runtimeConfiguration.ConfigurationDigest {
 			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("issuer credentials changed during the recorded CMP transaction")})
 		}
 	} else {
@@ -242,15 +243,20 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(result.Chain)}, nil
 }
 
-// validateResumedTransaction binds a recorded transaction to the same request, operation and issuer identity.
+// validateResumedTransaction binds a recorded transaction to the same request, operation and issuer
+// identity. Every binding the controller records is required, so a record written by something else
+// cannot skip a check by leaving a field empty.
 func validateResumedTransaction(transaction *cmpv1alpha1.CMPTransaction, csrDigest string, operation string, expectedIssuer cmpv1alpha1.TransactionIssuerReference) error {
-	if transaction.Spec.CSRDigest != "" && transaction.Spec.CSRDigest != csrDigest {
+	if transaction.Spec.CSRDigest == "" || transaction.Spec.ConfigurationDigest == "" || transaction.Spec.Operation == "" {
+		return fmt.Errorf("recorded CMP transaction is missing the request, configuration or operation binding")
+	}
+	if transaction.Spec.CSRDigest != csrDigest {
 		return fmt.Errorf("recorded CMP transaction enrolls a different certificate signing request")
 	}
 	if transaction.Spec.IssuerRef == nil || transaction.Spec.IssuerRef.Name != expectedIssuer.Name || transaction.Spec.IssuerRef.Kind != expectedIssuer.Kind || transaction.Spec.IssuerRef.UID != expectedIssuer.UID {
 		return fmt.Errorf("recorded CMP transaction belongs to a different issuer identity")
 	}
-	if transaction.Spec.Operation != "" && transaction.Spec.Operation != operation {
+	if transaction.Spec.Operation != operation {
 		return fmt.Errorf("recorded CMP transaction uses a different enrollment operation")
 	}
 	return nil
@@ -331,10 +337,15 @@ func certificateRequestDuration(request issuersigner.CertificateRequestObject) t
 func (s *Signer) resumeConfirmation(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, enrollmentRequest protocol.EnrollmentRequest, limits cmpv1alpha1.TransactionSpec, csrDER []byte, enrollmentStarted time.Time) (issuersigner.PEMBundle, error) {
 	chain, err := recordedChain(transaction, csrDER)
 	if err != nil {
-		return issuersigner.PEMBundle{}, err
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
+	}
+	candidates := append(slices.Clone(enrollmentRequest.CMPTrustCertificates), enrollmentRequest.CMPResponseCertificates...)
+	chain, err = trustedRecordedChain(chain, enrollmentRequest.CMPTrust, candidates)
+	if err != nil {
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
 	}
 	if transaction.Status.CertReqID == nil {
-		return issuersigner.PEMBundle{}, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction is missing the state required to confirm")}
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP transaction is missing the state required to confirm")})
 	}
 	pending := &protocol.PendingTransaction{CertReqID: *transaction.Status.CertReqID, RecipNonce: transaction.Status.RecipNonce, RequestNonce: transaction.Status.RequestNonce}
 	if len(transaction.Status.ResponseSigner) > 0 {
@@ -398,14 +409,35 @@ func (s *Signer) continueConfirming(ctx context.Context, transaction *cmpv1alpha
 }
 
 // recoverIssuedChain returns the chain recorded for a transaction that already obtained a
-// certificate, after checking that it still matches the request being signed.
-func recoverIssuedChain(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, csrDER []byte) (issuersigner.PEMBundle, error) {
+// certificate, after checking that it still matches the request being signed and chains to the CMP
+// trust anchors the issuer configures. Only the trust Secrets are read, so a credential rotation or
+// an issuer spec change after issuance does not block the recovery.
+func (s *Signer) recoverIssuedChain(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, issuer issuerapi.Issuer, csrDER []byte) (issuersigner.PEMBundle, error) {
 	chain, err := recordedChain(transaction, csrDER)
 	if err != nil {
-		return issuersigner.PEMBundle{}, err
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
+	}
+	roots, candidates, configurationErr := s.loadCMPTrust(ctx, issuer)
+	if configurationErr != nil {
+		return issuersigner.PEMBundle{}, issuersigner.IssuerError{Err: configurationErr}
+	}
+	chain, err = trustedRecordedChain(chain, roots, candidates)
+	if err != nil {
+		return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, err)
 	}
 	log.FromContext(ctx).Info("Returned the certificate already recorded for this CMP transaction", certificateLogValues(chain)...)
 	return issuersigner.PEMBundle{ChainPEM: encodeChainPEM(chain)}, nil
+}
+
+// trustedRecordedChain validates a recorded chain against the CMP trust anchors the issuer currently
+// configures. A CMPTransaction is Kubernetes state that any principal with write access to it can
+// change, so what it records has to satisfy the same anchors a live response would.
+func trustedRecordedChain(chain []*x509.Certificate, roots *x509.CertPool, candidates []*x509.Certificate) ([]*x509.Certificate, error) {
+	validated, err := protocol.ValidateIssuedChain(chain, candidates, roots)
+	if err != nil {
+		return nil, issuersigner.PermanentError{Err: fmt.Errorf("recorded CMP certificate chain does not chain to the configured CMP trust: %w", err)}
+	}
+	return validated, nil
 }
 
 // recordedChain validates stored key usages and binds the recorded chain to the request being signed.

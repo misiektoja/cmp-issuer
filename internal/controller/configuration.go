@@ -95,22 +95,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if err != nil {
 		return runtimeConfiguration{}, permanentConfiguration("validate issuer spec", err)
 	}
-	secrets := map[types.NamespacedName]*corev1.Secret{}
-	getSecret := func(reference cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError) {
-		key := types.NamespacedName{Namespace: namespace, Name: reference.Name}
-		if secret, found := secrets[key]; found {
-			return secret, nil
-		}
-		secret := &corev1.Secret{}
-		if err := s.KubeClient.Get(ctx, key, secret); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil, retryableConfiguration("read credential Secret", fmt.Errorf("referenced Secret %q is not available", reference.Name))
-			}
-			return nil, retryableConfiguration("read credential Secret", err)
-		}
-		secrets[key] = secret
-		return secret, nil
-	}
+	getSecret, secrets := s.secretGetter(ctx, namespace)
 	cmpTrust, cmpTrustCertificates, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
@@ -195,6 +180,50 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		ConfigurationDigest:  configurationDigest,
 		ConfigurationSecrets: fingerprints,
 	}, nil
+}
+
+// secretGetter returns a reader for the Secrets an issuer references in one namespace. Each Secret is
+// read once through the uncached API reader and kept, so a digest taken afterwards covers exactly
+// the versions that were loaded.
+func (s *Signer) secretGetter(ctx context.Context, namespace string) (func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), map[types.NamespacedName]*corev1.Secret) {
+	secrets := map[types.NamespacedName]*corev1.Secret{}
+	getSecret := func(reference cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError) {
+		key := types.NamespacedName{Namespace: namespace, Name: reference.Name}
+		if secret, found := secrets[key]; found {
+			return secret, nil
+		}
+		secret := &corev1.Secret{}
+		if err := s.KubeClient.Get(ctx, key, secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, retryableConfiguration("read credential Secret", fmt.Errorf("referenced Secret %q is not available", reference.Name))
+			}
+			return nil, retryableConfiguration("read credential Secret", err)
+		}
+		secrets[key] = secret
+		return secret, nil
+	}
+	return getSecret, secrets
+}
+
+// loadCMPTrust reads the CMP trust anchors and the configured response signer certificates of an
+// issuer without touching its credentials. It serves the recovery of a recorded chain, which has to
+// chain to the anchors but no longer needs the credentials that protected its enrollment. The anchors
+// and signer certificates are returned as untrusted chain candidates next to the trust pool.
+func (s *Signer) loadCMPTrust(ctx context.Context, issuer issuerapi.Issuer) (*x509.CertPool, []*x509.Certificate, *configurationError) {
+	spec, namespace, err := s.issuerSpecAndNamespace(issuer)
+	if err != nil {
+		return nil, nil, permanentConfiguration("resolve issuer", err)
+	}
+	getSecret, _ := s.secretGetter(ctx, namespace)
+	roots, anchors, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
+	if configurationErr != nil {
+		return nil, nil, configurationErr
+	}
+	responseCertificates, configurationErr := loadResponseCertificates(getSecret, spec.CMPTrust.SignerCertificatesSecretRef)
+	if configurationErr != nil {
+		return nil, nil, configurationErr
+	}
+	return roots, append(anchors, responseCertificates...), nil
 }
 
 // runtimeConfigurationDigest identifies the issuer generation and the Secret versions used by a transaction.
