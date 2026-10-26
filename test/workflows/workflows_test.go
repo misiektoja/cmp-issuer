@@ -252,9 +252,10 @@ func TestReleaseWorkflowPublishesChecksumsAndArtifactProvenance(t *testing.T) {
 	}
 }
 
-// TestPublishChartWorkflowPublishesArtifactHubMetadata checks metadata publication beside the chart index.
-func TestPublishChartWorkflowPublishesArtifactHubMetadata(t *testing.T) {
-	document := readWorkflow(t, "publish-chart.yml")
+// workflowScripts joins every run script of a workflow in file order.
+func workflowScripts(t *testing.T, name string) string {
+	t.Helper()
+	document := readWorkflow(t, name)
 	var scripts strings.Builder
 	for _, job := range document.Jobs {
 		for _, step := range job.Steps {
@@ -262,11 +263,38 @@ func TestPublishChartWorkflowPublishesArtifactHubMetadata(t *testing.T) {
 			scripts.WriteByte('\n')
 		}
 	}
+	return scripts.String()
+}
+
+// TestDocsWorkflowRefusesChartCollision keeps the chart repository guard ahead of the site copy.
+func TestDocsWorkflowRefusesChartCollision(t *testing.T) {
+	scripts := workflowScripts(t, "docs.yml")
+	guard := strings.Index(scripts, "if [ -e site/charts ]; then")
+	replace := strings.Index(scripts, "cp -R site/. published/")
+	if guard < 0 || replace < 0 || guard > replace {
+		t.Fatal("docs.yml must refuse a built site containing charts/ before it copies the site onto gh-pages")
+	}
+}
+
+// TestPublishChartWorkflowVerifiesChartProvenance keeps the attestation check ahead of indexing.
+func TestPublishChartWorkflowVerifiesChartProvenance(t *testing.T) {
+	scripts := workflowScripts(t, "publish-chart.yml")
+	verify := strings.Index(scripts, `gh attestation verify "staging/cmp-issuer-${VERSION#v}.tgz" `+
+		`--repo "$GITHUB_REPOSITORY" --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml"`)
+	index := strings.Index(scripts, "./bin/helm repo index staging")
+	if verify < 0 || index < 0 || verify > index {
+		t.Fatal("publish-chart.yml must verify the chart attestation against release.yml before indexing it")
+	}
+}
+
+// TestPublishChartWorkflowPublishesArtifactHubMetadata checks metadata publication beside the chart index.
+func TestPublishChartWorkflowPublishesArtifactHubMetadata(t *testing.T) {
+	scripts := workflowScripts(t, "publish-chart.yml")
 	for _, required := range []string{
 		"cp charts/artifacthub-repo.yml published/charts/artifacthub-repo.yml",
 		"git -C published add charts/index.yaml charts/artifacthub-repo.yml .nojekyll",
 	} {
-		if !strings.Contains(scripts.String(), required) {
+		if !strings.Contains(scripts, required) {
 			t.Errorf("chart publication is missing %q", required)
 		}
 	}
