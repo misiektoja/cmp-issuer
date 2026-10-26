@@ -62,12 +62,12 @@ spec:
 | `initialEnrollment` | yes | `P10CR` | `P10CR` sends cert-manager's CSR. `IR` sends a CRMF request whose proof of possession the staged workload key signs, so it needs a `CertificateRequest` that cert-manager created for a `Certificate`. See [Enrollment](../guide/enrollment.md) |
 | `renewal` | no | follows `initialEnrollment` | `P10CR` re-enrolls. `KUR` uses the current certificate and CRMF proof of possession for later cert-manager revisions. Omitted, it is `P10CR` after P10CR and `KUR` after IR |
 | `requestedValidity` | no | `Omit` | `Omit` leaves the validity to the CA. `Duration` asks in each IR and KUR for the `CertificateRequest` duration and needs `initialEnrollment: IR` or `renewal: KUR`. See [Requested validity](../guide/enrollment.md#requested-validity) |
-| `validationProfile` | no | `Interoperable` | `Interoperable` uses safe receiver compatibility defaults. `RFC9483` pins P10CR response `certReqId` to `-1`, requires MAC-based responses to MAC-protected operations and requires KUP `caPubs` absent |
+| `validationProfile` | no | `Interoperable` | `Interoperable` uses safe receiver compatibility defaults. `RFC9483` pins P10CR response `certReqId` to `-1`, requires MAC-based responses with at least 100 iterations to MAC-protected operations and requires KUP `caPubs` absent |
 | `kurResponseCaPubs` | no | inherit profile | `Accept` treats KUP `caPubs` as untrusted chain candidates. `RequireAbsent` rejects any KUP that contains them |
 | `recipient` | yes | | RFC 4514 recipient DN. Also the authority every response must be sent by, compared ignoring attribute order |
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
 | `p10crResponseCertReqId` | no | inherit profile | `Interoperable` accepts `-1` or `0`. `RFC9483` requires `-1`. Pin either value for a known server under the interoperable profile |
-| `macResponseProtection` | no | inherit profile | `Interoperable` uses `AllowSignature`, which accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `RFC9483` uses `Strict`, which requires MAC-based protection throughout |
+| `macResponseProtection` | no | inherit profile | `Interoperable` uses `AllowSignature`, which accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `RFC9483` uses `Strict`, which requires MAC-based protection with at least 100 iterations throughout |
 | `certProfile` | no | | Reserved until its CMP encoding is implemented. A non-empty value is rejected |
 | `sender` | no | | Optional sender DN. Without it, `Signature` protection sends the subject of the protection certificate |
 
