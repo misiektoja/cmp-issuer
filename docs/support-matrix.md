@@ -8,7 +8,6 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | --- | --- |
 | **Implemented** | Code exists and unit or envtest coverage exercises it |
 | **Interoperability tested** | Verified against at least one independent CMP server or oracle |
-| **Experimental** | Implemented but the API or behavior may still change |
 | **Planned** | Recorded on the roadmap, not implemented |
 | **Unsupported** | Out of scope for the current release |
 
@@ -67,8 +66,8 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| `CMPIssuer` (namespaced) | Experimental | API group `certmanager.misiektoja.github.io/v1alpha1` |
-| `CMPClusterIssuer` (cluster) | Experimental | Credentials read from cluster resource namespace |
+| `CMPIssuer` (namespaced) | Implemented, Interoperability tested | API group `certmanager.misiektoja.github.io/v1alpha1`, see [API stability](known-limitations.md#api-stability) |
+| `CMPClusterIssuer` (cluster) | Implemented | Credentials read from cluster resource namespace |
 | `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Interoperable profile accepts `-1` or `0`. RFC 9483 profile requires `-1` |
