@@ -49,6 +49,8 @@ type runtimeConfiguration struct {
 	Transaction          cmpv1alpha1.TransactionSpec
 	ConfigurationDigest  string
 	ConfigurationSecrets map[types.NamespacedName]secretFingerprint
+	// RequestedValidity is the issuer's requestedValidity setting for IR and KUR templates.
+	RequestedValidity string
 }
 
 // secretFingerprint identifies the version of one Secret a transaction depends on. A credential
@@ -187,6 +189,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	return runtimeConfiguration{
 		EndpointScheme:       endpointScheme,
 		RenewalEndpointURL:   spec.Endpoint.RenewalURL,
+		RequestedValidity:    spec.Protocol.RequestedValidity,
 		EnrollmentRequest:    request,
 		Transaction:          transactionLimitsWithDefaults(spec.Transaction),
 		ConfigurationDigest:  configurationDigest,
@@ -316,14 +319,20 @@ func validateEndpointURL(value string) (*url.URL, error) {
 
 // validateProtocol checks enrollment, renewal, confirmation and response validation settings.
 func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
-	if spec.Version != 2 || spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentP10CR {
-		return fmt.Errorf("only CMPv2 P10CR initial enrollment is implemented")
+	if spec.Version != 2 {
+		return fmt.Errorf("only CMPv2 is implemented")
+	}
+	if spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentP10CR && spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentIR {
+		return fmt.Errorf("initialEnrollment must be P10CR or IR")
 	}
 	if spec.CertProfile != "" {
 		return fmt.Errorf("certProfile is reserved until its CMP encoding is implemented")
 	}
 	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
 		return fmt.Errorf("renewal must be P10CR or KUR")
+	}
+	if err := validateRequestedValidity(spec); err != nil {
+		return err
 	}
 	if spec.ValidationProfile != "" && spec.ValidationProfile != cmpv1alpha1.ValidationProfileInteroperable && spec.ValidationProfile != cmpv1alpha1.ValidationProfileRFC9483 {
 		return fmt.Errorf("validationProfile must be Interoperable or RFC9483")
@@ -354,6 +363,22 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 		}
 	}
 	return nil
+}
+
+// validateRequestedValidity accepts Duration only when an IR or KUR can carry the requested validity.
+func validateRequestedValidity(spec cmpv1alpha1.ProtocolSpec) error {
+	// An empty value is an issuer written before the field existed and reads as Omit.
+	switch spec.RequestedValidity {
+	case "", cmpv1alpha1.RequestedValidityOmit:
+		return nil
+	case cmpv1alpha1.RequestedValidityDuration:
+		if spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentIR && renewalOperation(spec) != cmpv1alpha1.TransactionOperationKUR {
+			return fmt.Errorf("requestedValidity Duration needs IR initial enrollment or KUR renewal, because P10CR cannot carry it")
+		}
+		return nil
+	default:
+		return fmt.Errorf("requestedValidity must be Omit or Duration")
+	}
 }
 
 // validateProtection enforces the selected discriminated protection configuration.
