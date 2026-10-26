@@ -324,7 +324,8 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 			if options.ResponseMACIterationCount > 0 {
 				iterations = options.ResponseMACIterationCount
 			}
-			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(iterations))
+			// The lower limit lets the mock protect with a count below the RFC 4211 minimum.
+			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(iterations), pkicmp.WithMACIterationLimits(1, maxPBMIterationCount))
 		} else {
 			credentials, err = pkicmp.NewSignatureCredentials(signer.PrivateKey, signer.Certificate)
 		}
@@ -559,7 +560,7 @@ func TestEnrollP10CRMACResponseIterationFloor(t *testing.T) {
 		name         string
 		requireFloor bool
 	}{
-		{name: "library minimum", requireFloor: false},
+		{name: "server count", requireFloor: false},
 		{name: "request floor", requireFloor: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
