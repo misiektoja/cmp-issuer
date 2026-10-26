@@ -1,6 +1,6 @@
 # ADR 0004: Add IR initial enrollment
 
-* Status: Accepted
+* Status: Accepted, amended by [ADR 0005](0005-renewal-fallback.md)
 * Date: 2026-10-26
 
 ## Context

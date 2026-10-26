@@ -73,3 +73,4 @@ nav:
       - Issuer reconciliation library: adr/0002-issuer-lib.md
       - KUR renewal: adr/0003-kur-renewal.md
       - IR initial enrollment: adr/0004-ir-initial-enrollment.md
+      - Renewal fallback: adr/0005-renewal-fallback.md

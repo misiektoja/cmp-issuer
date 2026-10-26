@@ -1,6 +1,6 @@
 # ADR 0003: Select renewal operation explicitly
 
-* Status: Accepted, amended by [ADR 0004](0004-ir-initial-enrollment.md)
+* Status: Accepted, amended by [ADR 0004](0004-ir-initial-enrollment.md) and [ADR 0005](0005-renewal-fallback.md)
 * Date: 2026-08-24
 
 ## Context
