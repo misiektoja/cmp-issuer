@@ -12,7 +12,7 @@ This page summarizes how cmp-issuer enforces security goals. Detailed analysis l
 | Reject substituted certificates | CSR public-key match and CMP trust chain validation |
 | Limit blast radius | Bounded timeouts, response size, poll counts and transaction duration |
 | Fail closed on ambiguity | No partial TLS Secret on verification failure |
-| Survive a restart without re-enrolling | Record the transaction and configuration identity before the first send and the validated chain before it is returned in a `CMPTransaction` |
+| Survive a restart without re-enrolling | Record the transaction and configuration identity before the first send and the validated chain before it is returned in a `CMPTransaction`. Validate the recorded chain against the current CMP trust anchors again before it is reused |
 
 ## Trust boundaries
 
@@ -55,7 +55,7 @@ flowchart TB
 
 * The CMP library and adapter share a maintainer. See [ADR 0001](../adr/0001-cmp-library.md) for independent validation requirements.
 * CMP interoperability depends on server configuration.
-* A `CMPTransaction` records the transaction identifier, nonces, issuer identity, credential and KUR workload Secret versions plus the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests`.
+* A `CMPTransaction` records the transaction identifier, nonces, issuer identity, credential and KUR workload Secret versions plus the issued chain. It holds no key material, credential values or protected message, so it cannot be used to enroll. A record is resumed only with the bindings the controller wrote and its recorded chain and signer are validated against the current CMP trust anchors before use. Grant read access to `cmptransactions` as narrowly as you grant it to `certificaterequests` and write access to the controller only.
 * Transaction persistence gaps leave specific ambiguous failure modes open. See [Known limitations](../known-limitations.md).
 
 ## Supply chain

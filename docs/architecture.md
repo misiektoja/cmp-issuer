@@ -31,7 +31,7 @@ The Kubernetes CSR controller bundled with issuer-lib is **disabled**. cmp-issue
 
 1. cert-manager creates a `CertificateRequest` with a signed PKCS #10 CSR.
 2. issuer-lib approves or denies the request. Unapproved or denied requests send **no** CMP traffic.
-3. The signer loads any existing transaction and validates its CSR and issuer binding. An `Issued` transaction returns its recorded chain without reading credentials.
+3. The signer loads any existing transaction and validates its CSR, operation, configuration and issuer binding. An `Issued` transaction returns its recorded chain after validating it against the current CMP trust anchors, without reading credentials.
 4. For an unfinished or new transaction the signer loads issuer credentials and CMP trust from Secrets authorized by RBAC.
 5. For P10CR the signer forwards the CSR bytes and never reads the workload private key. For KUR it authenticates the controlling `Certificate` and reads the exact current and staged keys needed for message protection and CRMF proof of possession.
 6. Before the first CMP message the signer creates a `CMPTransaction` owned by the `CertificateRequest` and records the operation, issuer identity, credential and workload Secret configuration identity plus transaction identifier.
