@@ -246,7 +246,13 @@ func createCSRWithKey(t *testing.T, commonName string, key crypto.Signer) []byte
 // issueLeaf creates a leaf certificate containing the CSR identity and selected public key.
 func issueLeaf(t *testing.T, pki testPKI, request *x509.CertificateRequest, publicKey any) *x509.Certificate {
 	t.Helper()
-	template := &x509.Certificate{SerialNumber: big.NewInt(3), Subject: request.Subject, DNSNames: request.DNSNames, NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}
+	return issueLeafWithValidity(t, pki, request, publicKey, time.Now().Add(-time.Minute), time.Now().Add(time.Hour))
+}
+
+// issueLeafWithValidity issues a client certificate for the CSR identity and publicKey with the given validity.
+func issueLeafWithValidity(t *testing.T, pki testPKI, request *x509.CertificateRequest, publicKey any, notBefore time.Time, notAfter time.Time) *x509.Certificate {
+	t.Helper()
+	template := &x509.Certificate{SerialNumber: big.NewInt(3), Subject: request.Subject, DNSNames: request.DNSNames, NotBefore: notBefore, NotAfter: notAfter, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}
 	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
 	if err != nil {
 		t.Fatal(err)

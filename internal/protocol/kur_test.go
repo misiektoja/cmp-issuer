@@ -35,6 +35,12 @@ import (
 	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
 
+// currentCertificateValidity returns the validity of a certificate that a KUR updates. It starts before
+// the certificates the test servers issue, so an updated certificate never repeats it.
+func currentCertificateValidity() (time.Time, time.Time) {
+	return time.Now().Add(-30 * time.Minute), time.Now().Add(30 * time.Minute)
+}
+
 // kurEnrollmentRequest creates a valid certificate-authenticated renewal request with selectable key rotation.
 func kurEnrollmentRequest(t *testing.T, pki testPKI, endpoint string, rotateKey bool) EnrollmentRequest {
 	t.Helper()
@@ -43,7 +49,8 @@ func kurEnrollmentRequest(t *testing.T, pki testPKI, endpoint string, rotateKey 
 	if err != nil {
 		t.Fatal(err)
 	}
-	currentCertificate := issueLeaf(t, pki, currentCSR, currentKey.Public())
+	notBefore, notAfter := currentCertificateValidity()
+	currentCertificate := issueLeafWithValidity(t, pki, currentCSR, currentKey.Public(), notBefore, notAfter)
 	requestedKey := currentKey
 	if rotateKey {
 		requestedKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
