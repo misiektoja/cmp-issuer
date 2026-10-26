@@ -19,9 +19,6 @@ CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
 Initial enrollment uses P10CR or IR. Renewal uses P10CR re-enrollment or KUR.
 
-> This repository is under active initial development. The API group is served at `v1alpha1` and may
-> change.
-
 ## Contents
 
 * [Prerequisites](#prerequisites)
@@ -149,49 +146,23 @@ demo-tls   True    demo-tls   12s
 
 ## How it works
 
-**Enrollment.** cert-manager creates the private key and the PKCS #10 request. The controller picks up
-the approved `CertificateRequest`, sends the request to your CMP server in a protected P10CR and hands
-the issued chain back to cert-manager. With `initialEnrollment: IR` it sends a CRMF Initialization
-Request instead, whose proof of possession is signed with the private key cert-manager staged for the
-`Certificate`. See [Enrollment](https://misiektoja.github.io/cmp-issuer/guide/enrollment/).
+cert-manager creates the private key and the CSR. The controller sends each approved `CertificateRequest`
+to your CMP server in a protected CMP message and hands the issued chain back to cert-manager.
+[Architecture](https://misiektoja.github.io/cmp-issuer/architecture/) shows the components and the
+message flow.
 
-**Renewal.** An issuer that enrolls with P10CR renews with P10CR re-enrollment and one that enrolls
-with IR renews with KUR. Set `spec.protocol.renewal` to choose either operation explicitly. KUR
-authenticates the request using the current valid certificate and proves possession of the key that
-cert-manager requested. Use `spec.endpoint.renewalUrl` for a separate KUR endpoint. When the current
-certificate is missing or expired, `spec.protocol.renewalFallback: InitialEnrollment` renews with the
-initial enrollment operation instead. See
-[Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/).
-
-**Slow or queued requests.** When the CA cannot issue right away it answers `waiting` and the issuer
-polls until the certificate arrives. Every transaction is recorded in a `CMPTransaction` before the
-first message goes out, so a controller restart resumes that transaction instead of enrolling a second
-time. Follow them with `kubectl get cmptransactions -A`.
-
-**Private keys and secrets.** P10CR never reads workload private keys. IR reads only the staged key of
-the certificate being enrolled and KUR only the current and staged keys of the certificate being
-renewed, after checking the controlling cert-manager `Certificate`, its owner UID, revision, issuer
-reference and Secret ownership. The controller reads Secrets only in the namespaces you name at
-install time. TLS trust and CMP response trust are configured separately and every response must come
-from the authority set as `recipient`.
-
-**CMP server differences.** `spec.protocol.validationProfile` defaults to `Interoperable`, which tolerates
-the deviations real CMP servers show. It accepts `certReqId` `-1` or `0` in a P10CR response, echoes the
-received value back in `certConf` and treats KUP `caPubs` as untrusted chain candidates rather than
-trust anchors. Choose `RFC9483` for the strict checks or pin a single behavior you already know, such as
-`spec.protocol.p10crResponseCertReqId`.
-
-**Logs and metrics.** Each completed enrollment writes one `Issued certificate` log line with the
-subject, serial, validity and issuing CA. Prometheus metrics count enrollments, durations and classified
-failures per issuer, with renewals kept separate from first enrollments. See
-[Metrics](https://misiektoja.github.io/cmp-issuer/operations/metrics/).
-
-**Built on cert-manager's own library.** Approval, denial, retry classification, Ready conditions and
-Events come from [issuer-lib](https://github.com/cert-manager/issuer-lib), maintained by the
-cert-manager project and pinned to an exact version. See
-[ADR 0002](https://misiektoja.github.io/cmp-issuer/adr/0002-issuer-lib/).
-
-**Interoperability.** Results for EJBCA and Nokia NCM are documented in [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
+* **Restarts** - Every transaction is recorded in a `CMPTransaction` before the first message goes
+  out, so a controller restart resumes it instead of enrolling twice. See
+  [Transaction recovery](https://misiektoja.github.io/cmp-issuer/guide/transaction-recovery/).
+* **Secrets** - The controller reads Secrets only in the namespaces named at install time. P10CR never
+  reads workload private keys. IR and KUR read only the keys of the certificate being enrolled or
+  renewed. See [Private key handling](https://misiektoja.github.io/cmp-issuer/guide/private-key-handling/).
+* **CMP servers** - The default `Interoperable` validation profile tolerates deviations seen on real
+  servers and `RFC9483` applies the strict checks. See
+  [Tested PKIs](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/).
+* **Logs and metrics** - Each enrollment writes one `Issued certificate` log line and Prometheus
+  metrics count enrollments, durations and failures per issuer. See
+  [Metrics](https://misiektoja.github.io/cmp-issuer/operations/metrics/).
 
 ## Documentation
 
