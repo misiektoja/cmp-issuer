@@ -57,7 +57,37 @@ With `requestedValidity: Duration` the KUR template also asks for a validity. Se
 
 The updated certificate must get a new validity. When the CA returns the `notBefore` and `notAfter` of the certificate being updated, cert-manager finds the renewal time already passed and renews again at once. cmp-issuer rejects such a certificate in `certConf` and fails the request. Configure the CA to compute a new validity on key update or use `renewal: P10CR`. NCM needs a policy setting for this, see [Tested PKIs](../interoperability/tested-pkis.md#certificate-validity).
 
-No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.
+The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier. A KUR that was sent never changes to another operation.
+
+## Missing or expired current certificate
+
+KUR authenticates with the current certificate. It cannot do so after the `Certificate` Secret was deleted or emptied or after renewals kept failing until the certificate expired. By default the request then fails:
+
+| Current certificate | Result with `renewalFallback: None` |
+| --- | --- |
+| Secret deleted or without `tls.crt` | Permanent failure that names the Secret and the ways to recover |
+| Expired | Permanent `badTime` failure before any CMP traffic |
+
+Set `renewalFallback: InitialEnrollment` to renew with the `initialEnrollment` operation instead:
+
+```yaml
+spec:
+  protocol:
+    initialEnrollment: IR
+    renewalFallback: InitialEnrollment
+```
+
+An IR issuer then renews with IR. An issuer with `initialEnrollment: P10CR` and `renewal: KUR` renews with P10CR. The fallback goes to `endpoint.url` rather than `renewalUrl` and the issuer credentials protect it. The CMP server must accept an initial enrollment for an identity that already holds a certificate. The old certificate is not revoked.
+
+A Secret that exists falls back only when cert-manager wrote it for the `Certificate`, so its `cert-manager.io/certificate-name` annotation must name the `Certificate`. A Secret written by another tool fails as it does for KUR. A certificate that is not yet valid, does not match its key or no longer matches the CSR identity still renews with KUR and fails with the KUR error.
+
+The choice is made once before the first CMP message. The `CMPTransaction` records the operation in `spec.operation` and the reason in `spec.renewalFallback`, which is `CurrentCertificateMissing` or `CurrentCertificateExpired`. A retry uses the recorded operation even when the certificate returns. A transaction that started as KUR never falls back, so a certificate that expires during an unfinished KUR does not change the operation. The controller logs the fallback and records a `RenewalFallback` Warning Event on the `CertificateRequest`:
+
+```bash
+kubectl describe certificaterequest <name> -n <namespace>
+```
+
+Without the fallback, set `renewal: P10CR` or delete and recreate the `Certificate`, whose first revision uses `initialEnrollment`.
 
 ## Response validation profiles
 
@@ -114,6 +144,7 @@ Some Nokia deployments expose certificate renewal through NCM REST APIs. That pa
 | P10CR repeat enrollment | Server dependent. Verified against NCM 26.7 for both rotation policies |
 | KUR | Implemented for unchanged subject and SANs. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 with both rotation policies |
 | IR initial enrollment | Implemented. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 with both protection modes. NCM and EJBCA renewed the IR certificate through KUR |
+| Renewal fallback to `initialEnrollment` | Implemented. Verified with IR against EJBCA 9.3.7 in RA mode after the `Certificate` Secret was deleted |
 | Nokia NCM REST renewal | Unsupported |
 
 See [Tested PKIs](../interoperability/tested-pkis.md) for server-specific validation and configuration.

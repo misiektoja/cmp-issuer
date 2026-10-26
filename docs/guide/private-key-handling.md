@@ -21,7 +21,9 @@ RBAC reinforces the boundary. The controller ClusterRole grants no default Secre
 
 IR reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, revision one with no earlier revision in `Certificate.status`, issuer reference, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
 
-The staged key signs CRMF proof of possession. The issuer's own credentials protect the CMP message, so IR reads no other workload Secret. Only `tls.key` is parsed from the staged Secret. Its UID and a digest of `tls.key` are bound into the durable transaction configuration digest.
+A later revision uses IR only as a renewal fallback under `renewalFallback: InitialEnrollment`. It then requires the immediately previous revision in `Certificate.status`, as KUR does. Before it falls back, the controller reads the current output Secret once and parses only its `tls.crt` to find the certificate missing or expired. See [Missing or expired current certificate](renewal-and-kur.md#missing-or-expired-current-certificate).
+
+The staged key signs CRMF proof of possession. The issuer's own credentials protect the CMP message, so IR reads no other workload key. Only `tls.key` is parsed from the staged Secret. Its UID and a digest of `tls.key` are bound into the durable transaction configuration digest.
 
 ## KUR: two narrowly authorized key proofs
 

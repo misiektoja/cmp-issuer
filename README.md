@@ -158,7 +158,9 @@ Request instead, whose proof of possession is signed with the private key cert-m
 **Renewal.** An issuer that enrolls with P10CR renews with P10CR re-enrollment and one that enrolls
 with IR renews with KUR. Set `spec.protocol.renewal` to choose either operation explicitly. KUR
 authenticates the request using the current valid certificate and proves possession of the key that
-cert-manager requested. Use `spec.endpoint.renewalUrl` for a separate KUR endpoint. See
+cert-manager requested. Use `spec.endpoint.renewalUrl` for a separate KUR endpoint. When the current
+certificate is missing or expired, `spec.protocol.renewalFallback: InitialEnrollment` renews with the
+initial enrollment operation instead. See
 [Renewal with P10CR or KUR](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/).
 
 **Slow or queued requests.** When the CA cannot issue right away it answers `waiting` and the issuer

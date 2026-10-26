@@ -173,6 +173,7 @@ Return the level to `info` afterwards, since debug is noisy on a busy cluster.
 | Ready=False, message names a Secret | Credential or trust Secret missing or unreadable | Create the Secret; for `CMPIssuer` authorize the namespace with `credentialNamespaces` or the RoleBinding from [Credential Secret access](secret-access.md) |
 | Ready=False after install | Controller not running | `kubectl -n cmp-issuer-system get pods` |
 | Apply refused: `requestedValidity Duration needs IR initial enrollment or KUR renewal` | Only P10CR can be selected. A PKCS #10 request cannot carry a validity | Set `initialEnrollment: IR` or `renewal: KUR` or remove `requestedValidity` |
+| Apply refused: `renewalFallback InitialEnrollment needs KUR renewal` | `renewal` resolves to P10CR, which does not use the current certificate | Set `renewal: KUR` or remove `renewalFallback` |
 
 ## CertificateRequest stuck or failed
 
@@ -186,8 +187,11 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | --- | --- |
 | P10CR CP certReqId | Server returned an unexpected identifier; adjust `p10crResponseCertReqId` or use default |
 | IR needs a CertificateRequest that cert-manager created for a Certificate | The request has no cert-manager revision state, for example a hand-written `CertificateRequest`. Request the certificate through a `Certificate` or use an issuer with `initialEnrollment: P10CR` |
-| KUR requires a certificate revision greater than one | A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager `Certificate` |
-| IR staged Secret or KUR current or staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
+| KUR renewal requires a certificate revision greater than one | A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager `Certificate` |
+| IR or KUR staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
+| current certificate Secret `does not exist` or `holds no certificate`, so KUR cannot authenticate | The `Certificate` Secret was deleted or emptied. Set `renewalFallback: InitialEnrollment`, set `renewal: P10CR` or recreate the `Certificate`, see [Missing or expired current certificate](../guide/renewal-and-kur.md#missing-or-expired-current-certificate) |
+| KUR protection certificate `badTime`, certificate being updated is not currently valid | The current certificate has expired or is not yet valid. For an expired certificate set `renewalFallback: InitialEnrollment`, set `renewal: P10CR` or recreate the `Certificate` |
+| recorded CMP transaction falls back from KUR to an operation the issuer does not allow | `renewalFallback` or `initialEnrollment` changed while a fallback transaction was unfinished. cert-manager retries with a new `CertificateRequest` |
 | authorize KUR current certificate | The Secret named by `Certificate.spec.secretName` is not the output Secret cert-manager wrote for that `Certificate`. Compare its `cert-manager.io/certificate-name` annotation and any controller owner reference with the `Certificate`, and check whether a second `Certificate` targets the same Secret |
 | KUR certificate identity | The renewal CSR changed the subject or SAN set. Use the P10CR compatibility mode where the CA permits re-enrollment or wait for CR support |
 | KUP caPubs must be absent | `validationProfile` is `RFC9483` or `kurResponseCaPubs` is `RequireAbsent`, but the server delivered CA certificates in that field. Configure the server to omit them or use the default `Interoperable` profile, which treats them only as untrusted chain candidates |

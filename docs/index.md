@@ -14,7 +14,7 @@ Point a cert-manager `Certificate` at a `CMPIssuer` and the certificate is enrol
 
 CMP message protection is mandatory. HTTP and HTTPS are both supported.
 
-Initial enrollment uses P10CR or a CRMF IR. A renewal re-enrolls with P10CR or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update. An omitted renewal operation follows the initial one: P10CR after P10CR and KUR after IR.
+Initial enrollment uses P10CR or a CRMF IR. A renewal re-enrolls with P10CR or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update. An omitted renewal operation follows the initial one: P10CR after P10CR and KUR after IR. A KUR renewal can fall back to the initial enrollment operation when the current certificate is missing or expired.
 
 ## Start here
 
@@ -46,7 +46,7 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 * [Transaction recovery](guide/transaction-recovery.md) - what survives a controller restart
 * [Security model](security/security-model.md) and [Threat model](security/threat-model.md)
 * [Provenance and supply chain](provenance.md)
-* [CMP library selection](adr/0001-cmp-library.md), [issuer reconciliation library](adr/0002-issuer-lib.md), [KUR renewal design](adr/0003-kur-renewal.md) and [IR initial enrollment](adr/0004-ir-initial-enrollment.md)
+* [CMP library selection](adr/0001-cmp-library.md), [issuer reconciliation library](adr/0002-issuer-lib.md), [KUR renewal design](adr/0003-kur-renewal.md), [IR initial enrollment](adr/0004-ir-initial-enrollment.md) and [renewal fallback](adr/0005-renewal-fallback.md)
 
 ## Contributing
 

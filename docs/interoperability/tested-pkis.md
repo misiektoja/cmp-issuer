@@ -62,7 +62,7 @@ CI repeats the `Always` case on every run, over every configured transport. The 
 
 ### IR enrollment
 
-The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying `certReqId` `0` and explicit confirmation completed. An issuer with `initialEnrollment: IR` and no `renewal` then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI.
+The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying `certReqId` `0` and explicit confirmation completed. An issuer with `initialEnrollment: IR` and no `renewal` then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI. A renewal fallback to IR for an identity that already holds a certificate was not tested on NCM.
 
 ### Certificate validity
 
@@ -128,6 +128,8 @@ An EJBCA CMP alias decides how it protects its answers with `responseprotection`
 ### IR in RA mode
 
 An RA mode alias accepts IR with PasswordBasedMac and with certificate signature protection. The CI suite enrolls an identity through IR on the shared-secret RA alias with `requestedValidity: Duration` and renews it through KUR on the key-update alias. The issued certificates carry the validity of the certificate profile, so EJBCA ignores the requested validity when the profile does not allow a validity override and still answers `accepted`.
+
+The suite also enrolls a second identity through IR under `renewalFallback: InitialEnrollment`, deletes its Secret and renews revision two through IR on the same RA alias. EJBCA answers the repeated IR with a new certificate. A client mode alias refuses the repeated request unless the end entity profile allows multiple requests, see [client mode constraints](#client-mode-constraints).
 
 ### KUR in client mode
 

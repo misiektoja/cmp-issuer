@@ -112,6 +112,7 @@ This runs a second set of specs that enroll real certificates from EJBCA Communi
 | KUR with key rotation | P10CR revision one then certificate-authenticated KUR with a new requested key |
 | KUR with key reuse | P10CR revision one then certificate-authenticated KUR with the existing key |
 | IR then KUR | `PasswordBasedMac` protected IR with a requested validity, then the KUR an omitted `renewal` selects |
+| Renewal fallback | IR revision one, then IR revision two under `renewalFallback: InitialEnrollment` after the Secret is deleted, with the recorded reason and the Warning Event checked |
 | Transaction records | one `CMPTransaction` per enrollment, each reporting `Issued` |
 
 Each issued certificate is checked against the authority that signed it and against the chain stored in its Secret. The CMP response trust anchor and the endpoint TLS trust anchor are two different authorities, so a run also proves the two trust decisions stay separate.

@@ -23,7 +23,8 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | `csrDigest` | SHA-256 of the enrolled CSR, in lowercase hexadecimal |
 | `issuerRef` | Name, kind, UID and generation of the issuer that served the transaction |
 | `configurationDigest` | SHA-256 identity of that issuer generation and every credential or KUR workload Secret version it loaded |
-| `operation` | CMP operation selected before sending, `P10CR` or `KUR` |
+| `operation` | CMP operation selected before sending, `P10CR`, `IR` or `KUR` |
+| `renewalFallback` | Why a renewal uses the initial enrollment operation instead of KUR, `CurrentCertificateMissing` or `CurrentCertificateExpired`. Empty otherwise |
 | `protocolVersion` | Enrollment protocol version, currently CMPv2. Certificate confirmation may use CMPv3 for an ML-DSA-signed certificate |
 
 **Status** (updated during the transaction):
@@ -90,7 +91,7 @@ Neither server issued a second certificate. Both answers are protected and echo 
 
 Reusing the recorded identifier rather than generating a fresh one is what makes this outcome reliable. A new identifier presents the retry to the server as an unrelated enrollment, which is accepted and yields a second certificate.
 
-KUR never falls back to P10CR after an ambiguous send. The operation is recorded with the transaction and a retry repeats only KUR under the same identifier.
+KUR never falls back to another operation after an ambiguous send. The operation is recorded with the transaction and a retry repeats only KUR under the same identifier. A [renewal fallback](renewal-and-kur.md#missing-or-expired-current-certificate) is decided before the first send and is recorded the same way.
 
 ### Crash between issuance and storage
 

@@ -20,6 +20,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | CMPv2 IR (CRMF) initial enrollment | Implemented, Interoperability tested | CRMF request built from the CSR. The staged workload key signs proof of possession. Verified against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 |
 | CMPv2 KUR (true key update) | Implemented, Interoperability tested | Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 |
 | cert-manager Certificate renewal | Implemented as selectable P10CR or KUR | An omitted `protocol.renewal` follows `initialEnrollment`: P10CR after P10CR and KUR after IR |
+| Renewal fallback to `initialEnrollment` | Implemented, Interoperability tested | `protocol.renewalFallback: InitialEnrollment` renews with IR or P10CR when the current certificate is missing or expired. Verified with IR against EJBCA 9.3.7 in RA mode after the `Certificate` Secret was deleted |
 | Explicit `certConf` confirmation | Implemented, Interoperability tested | Default |
 | Rejecting `certConf` for a refused certificate | Implemented | Sent when the issued certificate does not certify the CSR key, fails chain validation, carries modifications refused by `policy.grantedModifications: Reject` or is a KUR certificate that keeps the validity of the certificate it updates |
 | Server-granted implicit confirmation | Implemented | Set `protocol.confirmation: Implicit` |
@@ -72,6 +73,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Interoperable profile accepts `-1` or `0`. RFC 9483 profile requires `-1` |
 | `protocol.renewal` | Implemented | `P10CR` or `KUR` for later cert-manager revisions. Follows `initialEnrollment` when omitted |
+| `protocol.renewalFallback` | Implemented | `None` by default. `InitialEnrollment` renews with the initial enrollment operation when KUR has no usable current certificate |
 | `protocol.validationProfile` | Implemented | `Interoperable` by default or bundled RFC 9483 receiver checks for implemented P10CR, IR and KUR flows |
 | `protocol.kurResponseCaPubs` | Implemented | Accept untrusted KUP chain candidates by default or require the field absent |
 | `endpoint.renewalUrl` | Implemented | Optional KUR endpoint for servers with separate initial and key-update aliases |
