@@ -141,7 +141,7 @@ Some Nokia deployments expose certificate renewal through NCM REST APIs. That pa
 | Operation | Status |
 | --- | --- |
 | P10CR initial enrollment | Implemented |
-| P10CR repeat enrollment | Server dependent. Verified against NCM 26.7 for both rotation policies |
+| P10CR re-enrollment | Server dependent. Verified against NCM 26.7 for both rotation policies |
 | KUR | Implemented for unchanged subject and SANs. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 with both rotation policies |
 | IR initial enrollment | Implemented. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 with both protection modes. NCM and EJBCA renewed the IR certificate through KUR |
 | Renewal fallback to `initialEnrollment` | Implemented. Verified after the `Certificate` Secret was deleted with IR and P10CR against NCM 26.7 and with IR against EJBCA 9.3.7 in RA mode |
