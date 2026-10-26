@@ -1,6 +1,6 @@
 # ADR 0003: Select renewal operation explicitly
 
-* Status: Accepted
+* Status: Accepted, amended by [ADR 0004](0004-ir-initial-enrollment.md)
 * Date: 2026-08-24
 
 ## Context
@@ -48,4 +48,4 @@ P10CR keeps its previous private-key boundary and never reads workload Secrets. 
 
 Same-key KUR remains server-profile dependent. The server is also responsible for checking revocation of the old certificate.
 
-IR is not part of this decision. It may reuse this authorization boundary in a later release.
+[ADR 0004](0004-ir-initial-enrollment.md) adds IR initial enrollment on this authorization boundary and makes an omitted `renewal` follow `initialEnrollment`.
