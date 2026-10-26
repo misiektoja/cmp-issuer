@@ -255,6 +255,11 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 	if err != nil {
 		return EnrollmentResult{}, refuse("certificate validation failed"), security("validate issued chain", "signerNotTrusted", err)
 	}
+	// A CA can keep the validity of the certificate being updated. cert-manager would then find the
+	// renewal time of the new certificate already passed and renew it again at once, without end.
+	if request.Operation == OperationKUR && sameValidity(issued.Certificate, request.Protection.Signature.Certificate) {
+		return EnrollmentResult{}, refuse("certificate keeps the validity of the certificate being updated"), permanent("validate issued certificate", "validityNotRenewed", fmt.Errorf("server issued the updated certificate with the notBefore and notAfter of the certificate it replaces, which would make cert-manager renew it again at once"))
+	}
 	if implicitlyConfirmed {
 		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil, nil
 	}
@@ -263,6 +268,11 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 	// confirmation instead of failing a request whose certificate the server already issued.
 	pending := &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner}
 	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil, nil
+}
+
+// sameValidity reports whether two certificates have the same notBefore and notAfter.
+func sameValidity(first *x509.Certificate, second *x509.Certificate) bool {
+	return first.NotBefore.Equal(second.NotBefore) && first.NotAfter.Equal(second.NotAfter)
 }
 
 // extractPollRep validates a pollRep body and returns the state required for the next poll.
