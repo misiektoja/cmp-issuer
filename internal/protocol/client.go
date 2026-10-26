@@ -43,13 +43,14 @@ import (
 )
 
 const (
-	operationEnrollment   = "p10cr"
-	operationKeyUpdate    = "kur"
-	operationPoll         = "pollReq"
-	operationConfirmation = "certConf"
+	operationEnrollment     = "p10cr"
+	operationInitialization = "ir"
+	operationKeyUpdate      = "kur"
+	operationPoll           = "pollReq"
+	operationConfirmation   = "certConf"
 )
 
-// CMPClient handles CMP enrollment, key update, polling and certificate confirmation.
+// CMPClient handles CMP enrollment, initialization, key update, polling and certificate confirmation.
 type CMPClient struct{}
 
 // NewClient constructs the default project-owned CMP client.
@@ -294,7 +295,7 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	if request.Operation == "" {
 		request.Operation = OperationP10CR
 	}
-	if request.Operation != OperationP10CR && request.Operation != OperationKUR {
+	if request.Operation != OperationP10CR && request.Operation != OperationIR && request.Operation != OperationKUR {
 		return permanent("validate operation", "badRequest", fmt.Errorf("unsupported enrollment operation %q", request.Operation))
 	}
 	parsedURL, err := url.Parse(request.EndpointURL)
@@ -611,7 +612,7 @@ type issuedCertificate struct {
 	Waiting bool
 }
 
-// extractEnrollmentResponse validates a CP or KUP and returns the issued certificate with its candidates.
+// extractEnrollmentResponse validates a CP, IP or KUP and returns the issued certificate with its candidates.
 func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRequest) (issuedCertificate, error) {
 	if response.Body.Type == pkicmp.BodyTypeError {
 		content, err := response.Body.Error()
@@ -620,20 +621,28 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 		}
 		return issuedCertificate{}, classifyStatus(content.PKIStatusInfo)
 	}
+	operation := request.Operation
+	if operation == "" {
+		operation = OperationP10CR
+	}
 	expectedBody := pkicmp.BodyTypeCP
-	operation := "P10CR"
-	if request.Operation == OperationKUR {
+	switch operation {
+	case OperationIR:
+		expectedBody = pkicmp.BodyTypeIP
+	case OperationKUR:
 		expectedBody = pkicmp.BodyTypeKUP
-		operation = "KUR"
 	}
 	if response.Body.Type != expectedBody {
 		return issuedCertificate{}, permanent("validate response body", "unsupportedBody", fmt.Errorf("expected %s response", expectedBody.String()))
 	}
 	var reply *pkicmp.CertRepMessage
 	var err error
-	if request.Operation == OperationKUR {
+	switch operation {
+	case OperationIR:
+		reply, err = response.Body.IP()
+	case OperationKUR:
 		reply, err = response.Body.KUP()
-	} else {
+	default:
 		reply, err = response.Body.CP()
 	}
 	if err != nil {
@@ -698,7 +707,14 @@ func parseResponseCertificates(groups ...[]pkicmp.CMPCertificate) ([]*x509.Certi
 
 // acceptResponseCertReqID enforces the operation-specific certificate response identifier.
 func acceptResponseCertReqID(operation string, observed int64, pinned *int64) error {
-	if operation == "KUR" {
+	// RFC 9483 sections 4.1.1 and 4.1.3 fix the certReqId of a CRMF request and its response to 0.
+	switch operation {
+	case OperationIR:
+		if observed != 0 {
+			return security("validate IP certReqId", "certReqIdMismatch", fmt.Errorf("IR IP certReqId must be 0 but response contained %d", observed))
+		}
+		return nil
+	case OperationKUR:
 		if observed != 0 {
 			return security("validate KUP certReqId", "certReqIdMismatch", fmt.Errorf("KUR KUP certReqId must be 0 but response contained %d", observed))
 		}
