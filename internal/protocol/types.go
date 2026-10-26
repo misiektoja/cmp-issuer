@@ -89,10 +89,14 @@ type EnrollmentRequest struct {
 	// AllowSignedMACResponse accepts a signature-protected answer to a MAC-protected request when the
 	// signer chains to CMPTrust. It is ignored when the request is signature-protected already.
 	AllowSignedMACResponse bool
-	ResponseCertReqID      *int64
-	RequireKUPCAPubsAbsent bool
-	TransactionID          []byte
-	CSRDER                 []byte
+	// RequireMACIterationFloor rejects a MAC-protected response whose iteration count is below the floor
+	// the issuer applies to its own requests. Off, the library minimum of one iteration is accepted,
+	// because servers choose their own count.
+	RequireMACIterationFloor bool
+	ResponseCertReqID        *int64
+	RequireKUPCAPubsAbsent   bool
+	TransactionID            []byte
+	CSRDER                   []byte
 	// RequestedPrivateKey signs the CRMF proof of possession of an IR or KUR.
 	RequestedPrivateKey crypto.Signer
 	// RequestedNotAfter asks the CA for this notAfter in the certificate template of an IR or KUR.

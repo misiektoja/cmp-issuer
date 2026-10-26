@@ -143,20 +143,23 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		responseCertReqID = &pinned
 	}
 	requireKUPCAPubsAbsent := strictRFC9483 || spec.Protocol.KURResponseCAPubs == cmpv1alpha1.KURResponseCAPubsRequireAbsent
+	// Strict MAC responses must use the shared secret and at least the iteration floor of a request.
+	strictMACResponses := strictRFC9483 || spec.Protocol.MACResponseProtection == cmpv1alpha1.MACResponseProtectionStrict
 	request := protocol.EnrollmentRequest{
-		EndpointURL:            spec.Endpoint.URL,
-		Timeout:                spec.Endpoint.Timeout.Duration,
-		MaxResponseSize:        spec.Endpoint.MaxResponseSize,
-		Recipient:              recipient,
-		ImplicitConfirm:        spec.Protocol.Confirmation == "Implicit",
-		RejectGrantedMods:      spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept,
-		AllowSignedMACResponse: !strictRFC9483 && spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict,
-		ResponseCertReqID:      responseCertReqID,
-		RequireKUPCAPubsAbsent: requireKUPCAPubsAbsent,
-		Protection:             protection,
-		CMPTrust:               cmpTrust,
-		CMPTrustCertificates:   cmpTrustCertificates,
-		TLSRoots:               tlsRoots,
+		EndpointURL:              spec.Endpoint.URL,
+		Timeout:                  spec.Endpoint.Timeout.Duration,
+		MaxResponseSize:          spec.Endpoint.MaxResponseSize,
+		Recipient:                recipient,
+		ImplicitConfirm:          spec.Protocol.Confirmation == "Implicit",
+		RejectGrantedMods:        spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept,
+		AllowSignedMACResponse:   !strictMACResponses,
+		RequireMACIterationFloor: strictMACResponses,
+		ResponseCertReqID:        responseCertReqID,
+		RequireKUPCAPubsAbsent:   requireKUPCAPubsAbsent,
+		Protection:               protection,
+		CMPTrust:                 cmpTrust,
+		CMPTrustCertificates:     cmpTrustCertificates,
+		TLSRoots:                 tlsRoots,
 	}
 	if sender != nil {
 		request.Sender = sender

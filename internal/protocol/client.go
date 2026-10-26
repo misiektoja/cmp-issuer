@@ -487,13 +487,18 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	var responseSigner *x509.Certificate
 	// A server may protect its response with the iteration count of the request, so the maximum the
 	// issuer sends is also accepted. The minimum stays at the library default for servers that choose
-	// their own count.
+	// their own count unless the issuer requires the request floor of its response too.
+	minIterationCount := 0
+	if request.RequireMACIterationFloor {
+		minIterationCount = minPBMIterationCount
+	}
 	_, verificationErr := response.Verify(pkicmp.VerifyOptions{
 		RequiredProtection:   requiredProtection,
 		SharedSecret:         sharedSecret,
 		TrustPool:            request.CMPTrust,
 		ExtraCerts:           candidates,
 		SenderKID:            response.Header.SenderKID,
+		MinMACIterationCount: minIterationCount,
 		MaxMACIterationCount: maxPBMIterationCount,
 	})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
