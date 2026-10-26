@@ -75,6 +75,10 @@ const (
 	ejbcaIRIssuer = "cmp-issuer-e2e-ejbca-ir"
 	// ejbcaIRCertificate is the Certificate enrolled through ejbcaIRIssuer.
 	ejbcaIRCertificate = "cmp-issuer-e2e-ir"
+	// ejbcaIRFallbackIssuer enrolls with IR and renews with IR when the current certificate is missing.
+	ejbcaIRFallbackIssuer = "cmp-issuer-e2e-ejbca-ir-fallback"
+	// ejbcaIRFallbackCertificate is the Certificate enrolled through ejbcaIRFallbackIssuer.
+	ejbcaIRFallbackCertificate = "cmp-issuer-e2e-ir-fallback"
 	// ejbcaReadyTimeout bounds the start of the CMP server, which deploys an application server.
 	ejbcaReadyTimeout = 10 * time.Minute
 	// ejbcaEnrollmentTimeout bounds one enrollment through cert-manager.
@@ -87,7 +91,7 @@ const (
 var ejbcaHostname = fmt.Sprintf("%s.%s.svc.cluster.local", ejbcaWorkload, ejbcaNamespace)
 
 // ejbcaIssuers are the issuers that cert-manager is allowed to approve requests for.
-var ejbcaIssuers = []string{ejbcaPasswordHTTPIssuer, ejbcaPasswordHTTPSIssuer, ejbcaSignatureHTTPIssuer, ejbcaKURAlwaysIssuer, ejbcaKURNeverIssuer, ejbcaIRIssuer}
+var ejbcaIssuers = []string{ejbcaPasswordHTTPIssuer, ejbcaPasswordHTTPSIssuer, ejbcaSignatureHTTPIssuer, ejbcaKURAlwaysIssuer, ejbcaKURNeverIssuer, ejbcaIRIssuer, ejbcaIRFallbackIssuer}
 
 // ejbcaConfiguration is the configuration that the CMP server image was built with.
 type ejbcaConfiguration struct {
@@ -182,6 +186,12 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 				name: ejbcaIRIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
 				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, initialEnrollment: "IR", renewalURL: configuration.endpointURL("http", configuration.kurAlias), requestedValidity: "Duration",
 			},
+			{
+				// The fallback renews through the RA-mode alias of the initial enrollment, so the client-mode
+				// KUR alias is configured only to show that a fallback does not use it.
+				name: ejbcaIRFallbackIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, initialEnrollment: "IR", renewalURL: configuration.endpointURL("http", configuration.kurAlias), renewalFallback: "InitialEnrollment",
+			},
 		} {
 			Expect(kubectlApply(ejbcaNamespace, issuer.manifest())).To(Succeed())
 		}
@@ -252,13 +262,17 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		renewThroughKUR(configuration, ejbcaIRIssuer, ejbcaIRCertificate, "IR", "Always", true, false)
 	})
 
+	It("renews with IR when the current certificate Secret is deleted", func() {
+		renewAfterDeletingSecret(configuration, ejbcaIRFallbackIssuer, ejbcaIRFallbackCertificate)
+	})
+
 	It("records a completed transaction for every enrollment", func() {
 		By("listing the transactions that the enrollments left behind")
 		arguments := []string{"get", "cmptransaction", "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].status.phase}"}
 		output, err := utils.Run(exec.Command("kubectl", arguments...))
 		Expect(err).NotTo(HaveOccurred())
 		phases := strings.Fields(output)
-		Expect(phases).To(HaveLen(len(ejbcaIssuers)+3), "expected one transaction per initial enrollment and KUR")
+		Expect(phases).To(HaveLen(len(ejbcaIssuers)+4), "expected one transaction per initial enrollment, KUR and fallback renewal")
 		for _, phase := range phases {
 			Expect(phase).To(Equal("Issued"))
 		}
@@ -266,8 +280,8 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		output, err = utils.Run(exec.Command("kubectl", arguments...))
 		Expect(err).NotTo(HaveOccurred())
 		operations := strings.Fields(output)
-		Expect(operations).To(HaveLen(len(ejbcaIssuers) + 3))
-		Expect(operations).To(ConsistOf("P10CR", "P10CR", "P10CR", "P10CR", "P10CR", "IR", "KUR", "KUR", "KUR"))
+		Expect(operations).To(HaveLen(len(ejbcaIssuers) + 4))
+		Expect(operations).To(ConsistOf("P10CR", "P10CR", "P10CR", "P10CR", "P10CR", "IR", "IR", "IR", "KUR", "KUR", "KUR"))
 	})
 })
 
@@ -424,6 +438,58 @@ func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificat
 
 	By("confirming the CMP operation of each revision")
 	Expect(issuerOperations(issuer)).To(ConsistOf(initialOperation, "KUR"))
+}
+
+// renewAfterDeletingSecret proves that revision two of a Certificate whose Secret was deleted is
+// enrolled through the initial enrollment operation of an issuer that falls back from KUR, and that
+// the fallback is recorded and reported.
+func renewAfterDeletingSecret(configuration ejbcaConfiguration, issuer string, certificate string) {
+	By("requesting the initial IR certificate from " + issuer)
+	Expect(kubectlApply(ejbcaNamespace, ejbcaKURCertificateManifest(certificate, "Always", issuer))).To(Succeed())
+	Eventually(func(g Gomega) {
+		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
+	initialSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
+	Expect(err).NotTo(HaveOccurred())
+	initialCertificate, err := parseCertificate(initialSecret["tls.crt"])
+	Expect(err).NotTo(HaveOccurred())
+
+	By("deleting the current certificate Secret so that cert-manager issues revision two")
+	_, err = utils.Run(exec.Command("kubectl", "delete", "secret", certificate+"-tls", "-n", ejbcaNamespace))
+	Expect(err).NotTo(HaveOccurred())
+	Eventually(func(g Gomega) {
+		arguments := []string{"get", "certificate", certificate, "-n", ejbcaNamespace, "-o", "jsonpath={.status.revision}"}
+		revision, err := utils.Run(exec.Command("kubectl", arguments...))
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(strings.TrimSpace(revision)).To(Equal("2"))
+		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
+	renewedSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
+	Expect(err).NotTo(HaveOccurred())
+	renewedCertificate, err := parseCertificate(renewedSecret["tls.crt"])
+	Expect(err).NotTo(HaveOccurred())
+	Expect(renewedCertificate.SerialNumber).NotTo(Equal(initialCertificate.SerialNumber))
+	expectIssuedBy(certificate, configuration.responseTrust)
+
+	By("confirming that both revisions used IR and that the renewal recorded the fallback")
+	Expect(issuerOperations(issuer)).To(ConsistOf("IR", "IR"))
+	arguments := []string{
+		"get", "cmptransaction", "-n", ejbcaNamespace,
+		"-o", fmt.Sprintf(`jsonpath={.items[?(@.spec.issuerRef.name=="%s")].spec.renewalFallback}`, issuer),
+	}
+	output, err := utils.Run(exec.Command("kubectl", arguments...))
+	Expect(err).NotTo(HaveOccurred())
+	Expect(strings.Fields(output)).To(ConsistOf("CurrentCertificateMissing"))
+
+	By("confirming that the fallback was reported in a Warning Event")
+	arguments = []string{"get", "events", "-n", ejbcaNamespace, "--field-selector", "reason=RenewalFallback,type=Warning", "-o", "jsonpath={.items[*].message}"}
+	output, err = utils.Run(exec.Command("kubectl", arguments...))
+	Expect(err).NotTo(HaveOccurred())
+	Expect(output).To(ContainSubstring("Renewing with IR instead of KUR"))
 }
 
 // issuerOperations returns the CMP operation of every transaction recorded for one issuer in the EJBCA namespace.

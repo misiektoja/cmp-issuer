@@ -175,6 +175,7 @@ type ejbcaIssuer struct {
 	validationProfile string
 	kurResponseCAPubs string
 	requestedValidity string
+	renewalFallback   string
 }
 
 // ejbcaWorkloadManifest renders the CMP server Deployment and the Service that publishes it.
@@ -196,6 +197,9 @@ func (issuer ejbcaIssuer) manifest() string {
 	}
 	if issuer.requestedValidity != "" {
 		renewal += "    requestedValidity: " + issuer.requestedValidity + "\n"
+	}
+	if issuer.renewalFallback != "" {
+		renewal += "    renewalFallback: " + issuer.renewalFallback + "\n"
 	}
 	initialEnrollment := issuer.initialEnrollment
 	if initialEnrollment == "" {
