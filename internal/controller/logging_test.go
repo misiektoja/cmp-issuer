@@ -93,7 +93,7 @@ func (r *logRecorder) requireNotLogged(t *testing.T, fragments ...string) {
 func issuedFixture(t *testing.T) *asyncFixture {
 	t.Helper()
 	fixture := newAsyncFixture(t, nil)
-	fixture.protocol.queue = []fakeExchange{{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issuedCertificateFor(t, fixture.request.details.CSR)}}}}
+	fixture.protocol.queue = []fakeExchange{{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{fixture.issuedCertificate(t)}}}}
 	return fixture
 }
 
@@ -113,7 +113,7 @@ func TestSignLogsIssuedCertificate(t *testing.T) {
 		`"serialNumber":"2"`,
 		`"notBefore":"`,
 		`"notAfter":"`,
-		`"issuingCA":"CN=workload"`,
+		`"issuingCA":"CN=CMP Root"`,
 		`"keyType":"ECDSA"`,
 		`"keySize":256`,
 		`"signatureAlgorithm":"ECDSA-SHA256"`,
@@ -172,7 +172,7 @@ func TestSignLogsPollingProgress(t *testing.T) {
 func TestSignLogsResumedConfirmation(t *testing.T) {
 	recorder := newLogRecorder()
 	fixture := newAsyncFixture(t, nil)
-	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	issued := fixture.issuedCertificate(t)
 	fixture.protocol.queue = []fakeExchange{
 		{result: confirmingResult(issued, "confirm-nonce")},
 		{result: protocol.EnrollmentResult{PendingConfirmation: &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte("delayed-nonce"), RequestNonce: []byte("certconf-nonce"), CheckAfter: 2 * time.Second}}},

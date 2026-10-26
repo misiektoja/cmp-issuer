@@ -297,12 +297,20 @@ func testKURRequestObjectsWithKeys(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, 
 	return request, certificate, currentSecret, stagedSecret
 }
 
+// credentialSecretsWithSigner returns valid PasswordBasedMac and CMP trust Secrets together with the
+// key of the trust anchor, so a test can issue certificates that chain to it.
+func credentialSecretsWithSigner(t *testing.T, namespace string) (*corev1.Secret, *corev1.Secret, *x509.Certificate, *ecdsa.PrivateKey) {
+	t.Helper()
+	certificate, key, certificatePEM := testCertificateMaterial(t, "CMP Root")
+	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
+	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testTrustSecretName, Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
+	return auth, trust, certificate, key
+}
+
 // credentialSecrets returns valid PasswordBasedMac and CMP trust Secrets.
 func credentialSecrets(t *testing.T, namespace string) (*corev1.Secret, *corev1.Secret, *x509.Certificate) {
 	t.Helper()
-	certificate, _, certificatePEM := testCertificateMaterial(t, "CMP Root")
-	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
-	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testTrustSecretName, Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
+	auth, trust, certificate, _ := credentialSecretsWithSigner(t, namespace)
 	return auth, trust, certificate
 }
 

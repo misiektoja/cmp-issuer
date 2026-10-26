@@ -21,6 +21,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/mldsa"
@@ -67,18 +68,19 @@ type asyncFixture struct {
 	protocol *fakeProtocolClient
 	kube     client.Client
 	leaf     *x509.Certificate
+	caKey    crypto.Signer
 }
 
 // newAsyncFixture builds a signer whose protocol client returns the queued exchanges in order.
 func newAsyncFixture(t *testing.T, queue []fakeExchange) *asyncFixture {
 	t.Helper()
-	auth, trust, leaf := credentialSecrets(t, testIssuerNamespace)
+	auth, trust, leaf, caKey := credentialSecretsWithSigner(t, testIssuerNamespace)
 	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
 	protocolClient := &fakeProtocolClient{queue: queue}
 	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
 	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 3}, Spec: validSpec("https://example.test/cmp")}
 	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID}, details: issuersigner.CertificateDetails{CSR: testCSR(t)}}
-	return &asyncFixture{signer: signer, issuer: issuer, request: request, protocol: protocolClient, kube: kubeClient, leaf: leaf}
+	return &asyncFixture{signer: signer, issuer: issuer, request: request, protocol: protocolClient, kube: kubeClient, leaf: leaf, caKey: caKey}
 }
 
 // sign runs one reconcile of the signer against the fixture.
@@ -261,9 +263,27 @@ func TestSignReusesThePinnedTransactionAfterInterruption(t *testing.T) {
 	}
 }
 
-// issuedCertificateFor mints a certificate carrying the public key of a CSR, as a CMP server would,
-// so that a recorded chain can be checked against the request it belongs to.
+// issuedCertificateFor mints a self-signed certificate carrying the public key of a CSR for tests
+// whose fake exchange never resumes a recorded chain.
 func issuedCertificateFor(t *testing.T, csrPEM []byte) *x509.Certificate {
+	t.Helper()
+	issuingKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate an issuing key: %v", err)
+	}
+	return certificateIssuedBy(t, csrPEM, nil, issuingKey)
+}
+
+// issuedCertificate mints a certificate for the fixture CSR that chains to the fixture CMP trust
+// anchor, as the configured CA would issue it.
+func (f *asyncFixture) issuedCertificate(t *testing.T) *x509.Certificate {
+	t.Helper()
+	return certificateIssuedBy(t, f.request.details.CSR, f.leaf, f.caKey)
+}
+
+// certificateIssuedBy mints a certificate carrying the public key of a CSR, as a CMP server would,
+// signed by the given issuer or self-signed when the issuer is nil.
+func certificateIssuedBy(t *testing.T, csrPEM []byte, issuer *x509.Certificate, issuingKey crypto.Signer) *x509.Certificate {
 	t.Helper()
 	block, _ := pem.Decode(csrPEM)
 	if block == nil {
@@ -273,12 +293,12 @@ func issuedCertificateFor(t *testing.T, csrPEM []byte) *x509.Certificate {
 	if err != nil {
 		t.Fatalf("parse the fixture CSR: %v", err)
 	}
-	issuingKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("generate an issuing key: %v", err)
-	}
 	template := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: csr.Subject, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour)}
-	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, csr.PublicKey, issuingKey)
+	parent := template
+	if issuer != nil {
+		parent = issuer
+	}
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, parent, csr.PublicKey, issuingKey)
 	if err != nil {
 		t.Fatalf("issue the fixture certificate: %v", err)
 	}
@@ -292,7 +312,7 @@ func issuedCertificateFor(t *testing.T, csrPEM []byte) *x509.Certificate {
 // TestSignReturnsRecordedChainAfterRestart verifies an issued transaction is not enrolled again.
 func TestSignReturnsRecordedChainAfterRestart(t *testing.T) {
 	fixture := newAsyncFixture(t, nil)
-	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	issued := fixture.issuedCertificate(t)
 	fixture.protocol.queue = []fakeExchange{{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}}
 	bundle, err := fixture.sign(t)
 	if err != nil {
@@ -319,7 +339,7 @@ func confirmingResult(issued *x509.Certificate, nonce string) protocol.Enrollmen
 // sent, which is what allows an interrupted confirmation to resume rather than lose a certificate.
 func TestSignRecordsTheChainBeforeConfirming(t *testing.T) {
 	fixture := newAsyncFixture(t, nil)
-	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	issued := fixture.issuedCertificate(t)
 	fixture.protocol.queue = []fakeExchange{
 		{result: confirmingResult(issued, "confirm-nonce")},
 		{result: protocol.EnrollmentResult{ExplicitConfirmation: true}},
@@ -351,7 +371,7 @@ func TestSignRecordsTheChainBeforeConfirming(t *testing.T) {
 func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
 	fixture := newAsyncFixture(t, nil)
 	fixture.issuer.Spec.Transaction.MaximumPolls = 1
-	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	issued := fixture.issuedCertificate(t)
 	fixture.protocol.queue = []fakeExchange{
 		{result: confirmingResult(issued, "confirm-nonce")},
 		{result: protocol.EnrollmentResult{PendingConfirmation: &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte("delayed-nonce"), RequestNonce: []byte("certconf-nonce"), CheckAfter: 2 * time.Second}}},
@@ -392,7 +412,7 @@ func TestSignResumesADelayedConfirmationAfterRestart(t *testing.T) {
 // enrollment resends certConf instead of polling for a certConf that was never sent.
 func TestSignResendsCertConfAfterADelayedEnrollment(t *testing.T) {
 	fixture := newAsyncFixture(t, nil)
-	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	issued := fixture.issuedCertificate(t)
 	fixture.protocol.queue = []fakeExchange{
 		{result: waitingResult(protocol.ResponseCertReqIDStandard, "nonce-one", 0)},
 		{result: confirmingResult(issued, "cp-nonce")},
@@ -491,20 +511,19 @@ func TestSignRejectsCredentialRotationDuringTransaction(t *testing.T) {
 	}
 }
 
-// TestSignRecoversIssuedChainWithoutCredentials verifies durable issuance does not depend on live Secrets.
+// TestSignRecoversIssuedChainWithoutCredentials verifies durable issuance does not depend on live
+// credential Secrets or on a valid issuer spec. Only the CMP trust Secret is still read.
 func TestSignRecoversIssuedChainWithoutCredentials(t *testing.T) {
 	fixture := newAsyncFixture(t, nil)
-	issued := issuedCertificateFor(t, fixture.request.details.CSR)
+	issued := fixture.issuedCertificate(t)
 	fixture.protocol.queue = []fakeExchange{{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}}
 	want, err := fixture.sign(t)
 	if err != nil {
 		t.Fatalf("complete enrollment: %v", err)
 	}
-	for _, name := range []string{testAuthSecretName, testTrustSecretName} {
-		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testIssuerNamespace}}
-		if err := fixture.kube.Delete(context.Background(), secret); err != nil {
-			t.Fatalf("delete fixture Secret %s: %v", name, err)
-		}
+	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: testIssuerNamespace}}
+	if err := fixture.kube.Delete(context.Background(), auth); err != nil {
+		t.Fatalf("delete the credential Secret: %v", err)
 	}
 	fixture.issuer.Generation++
 	fixture.issuer.Spec.Endpoint.URL = "not a valid endpoint"
@@ -579,7 +598,7 @@ func TestSignRetainsAnchorSignerAcrossRestart(t *testing.T) {
 			pending := waitingResult(0, "nonce-one", 0)
 			pending.Pending.ResponseSigner = anchor
 			if confirmation {
-				issued := issuedCertificateFor(t, fixture.request.details.CSR)
+				issued := fixture.issuedCertificate(t)
 				pending = confirmingResult(issued, "confirm-nonce")
 				pending.PendingConfirmation.ResponseSigner = anchor
 				fixture.protocol.queue = []fakeExchange{{result: pending}, {result: protocol.EnrollmentResult{PendingConfirmation: &protocol.PendingTransaction{CertReqID: protocol.ResponseCertReqIDStandard, RecipNonce: []byte("delayed-nonce"), RequestNonce: []byte("certconf-nonce"), ResponseSigner: anchor}}}}
