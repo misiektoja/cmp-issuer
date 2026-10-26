@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/sha256"
@@ -363,7 +364,7 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
 		return fmt.Errorf("renewal must be P10CR or KUR")
 	}
-	if err := validateRequestedValidity(spec); err != nil {
+	if err := cmp.Or(validateRequestedValidity(spec), validateRenewalFallback(spec)); err != nil {
 		return err
 	}
 	if spec.ValidationProfile != "" && spec.ValidationProfile != cmpv1alpha1.ValidationProfileInteroperable && spec.ValidationProfile != cmpv1alpha1.ValidationProfileRFC9483 {
@@ -410,6 +411,23 @@ func validateRequestedValidity(spec cmpv1alpha1.ProtocolSpec) error {
 		return nil
 	default:
 		return fmt.Errorf("requestedValidity must be Omit or Duration")
+	}
+}
+
+// validateRenewalFallback accepts InitialEnrollment only for a KUR renewal, the only renewal that
+// depends on the current certificate.
+func validateRenewalFallback(spec cmpv1alpha1.ProtocolSpec) error {
+	// An empty value is an issuer written before the field existed and reads as None.
+	switch spec.RenewalFallback {
+	case "", cmpv1alpha1.RenewalFallbackNone:
+		return nil
+	case cmpv1alpha1.RenewalFallbackInitialEnrollment:
+		if renewalOperation(spec) != cmpv1alpha1.TransactionOperationKUR {
+			return fmt.Errorf("renewalFallback InitialEnrollment needs KUR renewal, because only KUR depends on the current certificate")
+		}
+		return nil
+	default:
+		return fmt.Errorf("renewalFallback must be None or InitialEnrollment")
 	}
 }
 

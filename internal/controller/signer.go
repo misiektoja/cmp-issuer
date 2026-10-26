@@ -51,6 +51,7 @@ import (
 const (
 	fieldOwner              = "cmp-issuer.certmanager.misiektoja.github.io"
 	eventHTTPNoConfidential = "HTTPTransportNoConfidentiality"
+	eventRenewalFallback    = "RenewalFallback"
 	pemCertificateBlockType = "CERTIFICATE"
 	schemeHTTP              = "http"
 	schemeHTTPS             = "https"
@@ -161,9 +162,12 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	if resumed {
 		logResumedTransaction(ctx, transaction)
 		expectedIssuer := issuerReference(issuer)
-		if validationErr := validateResumedTransaction(transaction, csrDigest, operation, expectedIssuer); validationErr != nil {
+		if validationErr := validateResumedTransaction(transaction, csrDigest, operation, renewalFallbackOperation(issuer), expectedIssuer); validationErr != nil {
 			return issuersigner.PEMBundle{}, s.failTransaction(ctx, transaction, issuersigner.PermanentError{Err: validationErr})
 		}
+		// The recorded operation is authoritative, so a resumed transaction never changes operation
+		// and its current certificate is not classified again.
+		operation = transaction.Spec.Operation
 		// The transaction outlives this reconcile, so issuance is timed from the record that started it.
 		enrollmentStarted = transactionStartTime(transaction, enrollmentStarted)
 		if transaction.Status.Phase == cmpv1alpha1.TransactionPhaseIssued {
@@ -177,6 +181,15 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	if configurationErr != nil {
 		return issuersigner.PEMBundle{}, issuersigner.IssuerError{Err: configurationErr}
 	}
+	var fallback *renewalFallback
+	fallbackReason := ""
+	if resumed {
+		fallbackReason = transaction.Spec.RenewalFallback
+	} else if operation, fallback, err = s.selectRenewalFallback(ctx, request, issuer, operation); err != nil {
+		return issuersigner.PEMBundle{}, err
+	} else if fallback != nil {
+		fallbackReason = fallback.Reason
+	}
 	enrollmentRequest := runtimeConfiguration.EnrollmentRequest
 	enrollmentRequest.CSRDER = requestDER
 	enrollmentRequest.Operation = operation
@@ -185,7 +198,7 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 	}
 	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("endpoint", logging.Text(enrollmentRequest.EndpointURL)))
 	if operation == cmpv1alpha1.TransactionOperationIR || operation == cmpv1alpha1.TransactionOperationKUR {
-		if preparationErr := s.prepareWorkloadKeyEnrollment(ctx, request, issuer, operation, requestDER, &runtimeConfiguration, &enrollmentRequest); preparationErr != nil {
+		if preparationErr := s.prepareWorkloadKeyEnrollment(ctx, request, issuer, operation, fallbackReason, requestDER, &runtimeConfiguration, &enrollmentRequest); preparationErr != nil {
 			return issuersigner.PEMBundle{}, preparationErr
 		}
 	}
@@ -198,6 +211,7 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 			IssuerRef:           issuerReference(issuer),
 			ConfigurationDigest: runtimeConfiguration.ConfigurationDigest,
 			Operation:           operation,
+			RenewalFallback:     fallbackReason,
 			ProtocolVersion:     cmpProtocolVersion,
 		})
 		if err != nil {
@@ -210,6 +224,9 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 		}
 	} else {
 		log.FromContext(ctx).V(1).Info("Recorded CMP transaction before sending the first message", "operation", enrollmentLogValue(transaction), "deadline", timestampLogValue(transaction.Spec.Deadline.Time))
+		if fallback != nil {
+			s.reportRenewalFallback(ctx, request, operation, *fallback)
+		}
 	}
 	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("transactionID", transactionIDLogValue(transaction.Spec.TransactionID)))
 	enrollmentRequest.TransactionID = transaction.Spec.TransactionID
@@ -245,8 +262,9 @@ func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateReque
 
 // validateResumedTransaction binds a recorded transaction to the same request, operation and issuer
 // identity. Every binding the controller records is required, so a record written by something else
-// cannot skip a check by leaving a field empty.
-func validateResumedTransaction(transaction *cmpv1alpha1.CMPTransaction, csrDigest string, operation string, expectedIssuer cmpv1alpha1.TransactionIssuerReference) error {
+// cannot skip a check by leaving a field empty. A recorded renewal fallback is accepted only for a KUR
+// renewal whose issuer still falls back to the recorded operation.
+func validateResumedTransaction(transaction *cmpv1alpha1.CMPTransaction, csrDigest string, operation string, fallbackOperation string, expectedIssuer cmpv1alpha1.TransactionIssuerReference) error {
 	if transaction.Spec.CSRDigest == "" || transaction.Spec.ConfigurationDigest == "" || transaction.Spec.Operation == "" {
 		return fmt.Errorf("recorded CMP transaction is missing the request, configuration or operation binding")
 	}
@@ -255,6 +273,13 @@ func validateResumedTransaction(transaction *cmpv1alpha1.CMPTransaction, csrDige
 	}
 	if transaction.Spec.IssuerRef == nil || transaction.Spec.IssuerRef.Name != expectedIssuer.Name || transaction.Spec.IssuerRef.Kind != expectedIssuer.Kind || transaction.Spec.IssuerRef.UID != expectedIssuer.UID {
 		return fmt.Errorf("recorded CMP transaction belongs to a different issuer identity")
+	}
+	if reason := transaction.Spec.RenewalFallback; reason != "" {
+		known := reason == cmpv1alpha1.RenewalFallbackCurrentCertificateMissing || reason == cmpv1alpha1.RenewalFallbackCurrentCertificateExpired
+		if !known || operation != cmpv1alpha1.TransactionOperationKUR || fallbackOperation == "" || transaction.Spec.Operation != fallbackOperation {
+			return fmt.Errorf("recorded CMP transaction falls back from KUR to an operation the issuer does not allow")
+		}
+		return nil
 	}
 	if transaction.Spec.Operation != operation {
 		return fmt.Errorf("recorded CMP transaction uses a different enrollment operation")
@@ -270,19 +295,48 @@ func transactionStartTime(transaction *cmpv1alpha1.CMPTransaction, fallback time
 	return transaction.CreationTimestamp.Time
 }
 
-// prepareWorkloadKeyEnrollment authorizes the workload keys of an IR or KUR and binds them to the
-// runtime request and configuration digest.
-func (s *Signer) prepareWorkloadKeyEnrollment(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, operation string, requestDER []byte, runtimeConfiguration *runtimeConfiguration, enrollmentRequest *protocol.EnrollmentRequest) error {
-	loadMaterial, validateRequest := s.loadIRMaterial, protocol.ValidateIRRequest
-	if operation == cmpv1alpha1.TransactionOperationKUR {
-		loadMaterial, validateRequest = s.loadKURMaterial, protocol.ValidateKURRequest
+// selectRenewalFallback returns the operation a new transaction uses. A KUR renewal whose issuer
+// enables the fallback uses the initial enrollment operation when the current certificate is missing
+// or expired. The returned fallback records why.
+func (s *Signer) selectRenewalFallback(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, operation string) (string, *renewalFallback, error) {
+	fallbackOperation := renewalFallbackOperation(issuer)
+	if operation != cmpv1alpha1.TransactionOperationKUR || fallbackOperation == "" {
+		return operation, nil, nil
 	}
-	material, materialErr := loadMaterial(ctx, request, issuer, requestDER)
+	fallback, configurationErr := s.classifyRenewalFallback(ctx, request, issuer, time.Now())
+	if configurationErr != nil {
+		return "", nil, workloadConfigurationError(configurationErr)
+	}
+	if fallback == nil {
+		return operation, nil, nil
+	}
+	return fallbackOperation, fallback, nil
+}
+
+// workloadConfigurationError maps a workload Certificate or Secret failure to issuer-lib and retries a
+// transient one after a second.
+func workloadConfigurationError(err *configurationError) error {
+	if err.Permanent {
+		return issuersigner.PermanentError{Err: err}
+	}
+	return issuersigner.PendingError{Err: err, RequeueAfter: time.Second}
+}
+
+// prepareWorkloadKeyEnrollment authorizes the workload keys of an IR or KUR and binds them to the
+// runtime request and configuration digest. A renewal fallback reason authorizes an IR that falls back
+// from KUR.
+func (s *Signer) prepareWorkloadKeyEnrollment(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, operation string, renewalFallbackReason string, requestDER []byte, runtimeConfiguration *runtimeConfiguration, enrollmentRequest *protocol.EnrollmentRequest) error {
+	var material workloadKeyMaterial
+	var materialErr *configurationError
+	validateRequest := protocol.ValidateIRRequest
+	if operation == cmpv1alpha1.TransactionOperationKUR {
+		validateRequest = protocol.ValidateKURRequest
+		material, materialErr = s.loadKURMaterial(ctx, request, issuer, requestDER)
+	} else {
+		material, materialErr = s.loadIRMaterial(ctx, request, issuer, requestDER, renewalFallbackReason)
+	}
 	if materialErr != nil {
-		if materialErr.Permanent {
-			return issuersigner.PermanentError{Err: materialErr}
-		}
-		return issuersigner.PendingError{Err: materialErr, RequeueAfter: time.Second}
+		return workloadConfigurationError(materialErr)
 	}
 	// IR keeps the issuer's protection, while KUR is protected by the certificate it updates.
 	if material.Protection != nil {
@@ -319,17 +373,23 @@ func requestedNotAfter(requestedValidity string, operation string, request issue
 // when it is unset. issuer-lib reports cert-manager's default duration for an unset field, so the
 // value is read from the CertificateRequest itself.
 func certificateRequestDuration(request issuersigner.CertificateRequestObject) time.Duration {
-	source, ok := request.(interface {
-		DeepCopy() *certmanagerv1.CertificateRequest
-	})
-	if !ok {
-		return 0
-	}
-	certificateRequest := source.DeepCopy()
+	certificateRequest := certificateRequestResource(request)
 	if certificateRequest == nil || certificateRequest.Spec.Duration == nil {
 		return 0
 	}
 	return certificateRequest.Spec.Duration.Duration
+}
+
+// certificateRequestResource returns a copy of the cert-manager CertificateRequest behind an
+// issuer-lib request object. It returns nil for an object that wraps none.
+func certificateRequestResource(request issuersigner.CertificateRequestObject) *certmanagerv1.CertificateRequest {
+	source, ok := request.(interface {
+		DeepCopy() *certmanagerv1.CertificateRequest
+	})
+	if !ok {
+		return nil
+	}
+	return source.DeepCopy()
 }
 
 // resumeConfirmation continues the confirmation of a certificate an earlier reconcile already

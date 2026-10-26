@@ -53,19 +53,11 @@ type workloadKeyMaterial struct {
 // selectedTransactionOperation chooses the initial enrollment operation for the first cert-manager
 // revision and the renewal operation for later ones.
 func selectedTransactionOperation(issuer issuerapi.Issuer, request issuersigner.CertificateRequestObject) (string, error) {
-	var spec *cmpv1alpha1.CMPIssuerSpec
-	switch typed := issuer.(type) {
-	case *cmpv1alpha1.CMPIssuer:
-		spec = &typed.Spec
-	case *cmpv1alpha1.CMPClusterIssuer:
-		spec = &typed.Spec
-	default:
-		return "", fmt.Errorf("unsupported issuer type %T", issuer)
+	spec, err := cmpIssuerSpec(issuer)
+	if err != nil {
+		return "", err
 	}
-	initial := cmpv1alpha1.TransactionOperationP10CR
-	if spec.Protocol.InitialEnrollment == cmpv1alpha1.InitialEnrollmentIR {
-		initial = cmpv1alpha1.TransactionOperationIR
-	}
+	initial := initialOperation(spec.Protocol)
 	renewal := renewalOperation(spec.Protocol)
 	if initial == cmpv1alpha1.TransactionOperationP10CR && renewal == cmpv1alpha1.TransactionOperationP10CR {
 		return cmpv1alpha1.TransactionOperationP10CR, nil
@@ -91,6 +83,26 @@ func selectedTransactionOperation(issuer issuerapi.Issuer, request issuersigner.
 	return initial, nil
 }
 
+// cmpIssuerSpec returns the spec of a CMPIssuer or CMPClusterIssuer.
+func cmpIssuerSpec(issuer issuerapi.Issuer) (*cmpv1alpha1.CMPIssuerSpec, error) {
+	switch typed := issuer.(type) {
+	case *cmpv1alpha1.CMPIssuer:
+		return &typed.Spec, nil
+	case *cmpv1alpha1.CMPClusterIssuer:
+		return &typed.Spec, nil
+	default:
+		return nil, fmt.Errorf("unsupported issuer type %T", issuer)
+	}
+}
+
+// initialOperation returns the configured initial enrollment operation.
+func initialOperation(protocolSpec cmpv1alpha1.ProtocolSpec) string {
+	if protocolSpec.InitialEnrollment == cmpv1alpha1.InitialEnrollmentIR {
+		return cmpv1alpha1.TransactionOperationIR
+	}
+	return cmpv1alpha1.TransactionOperationP10CR
+}
+
 // renewalOperation returns the configured renewal operation, which follows initialEnrollment when
 // omitted: P10CR after P10CR and KUR after IR.
 func renewalOperation(protocolSpec cmpv1alpha1.ProtocolSpec) string {
@@ -107,8 +119,15 @@ func renewalOperation(protocolSpec cmpv1alpha1.ProtocolSpec) string {
 }
 
 // loadIRMaterial authorizes the CertificateRequest owner chain before reading the staged workload key.
-func (s *Signer) loadIRMaterial(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, csrDER []byte) (workloadKeyMaterial, *configurationError) {
-	certificate, configurationErr := s.authorizeOwningCertificate(ctx, request, issuer, cmpv1alpha1.TransactionOperationIR)
+// IR serves the first revision. A later revision is authorized only when the issuer falls back from
+// KUR to IR and the caller passes a renewal fallback reason from its own classification of the current
+// certificate or from the recorded transaction.
+func (s *Signer) loadIRMaterial(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, csrDER []byte, renewalFallbackReason string) (workloadKeyMaterial, *configurationError) {
+	renewal := renewalFallbackReason != ""
+	if renewal && renewalFallbackOperation(issuer) != cmpv1alpha1.TransactionOperationIR {
+		return workloadKeyMaterial{}, permanentConfiguration("authorize IR CertificateRequest", fmt.Errorf("issuer does not fall back from KUR to IR"))
+	}
+	certificate, configurationErr := s.authorizeOwningCertificate(ctx, request, issuer, cmpv1alpha1.TransactionOperationIR, renewal)
 	if configurationErr != nil {
 		return workloadKeyMaterial{}, configurationErr
 	}
@@ -127,7 +146,7 @@ func (s *Signer) loadIRMaterial(ctx context.Context, request issuersigner.Certif
 
 // loadKURMaterial authorizes the CertificateRequest owner chain before reading current and staged workload keys.
 func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, csrDER []byte) (workloadKeyMaterial, *configurationError) {
-	certificate, configurationErr := s.authorizeOwningCertificate(ctx, request, issuer, cmpv1alpha1.TransactionOperationKUR)
+	certificate, configurationErr := s.authorizeOwningCertificate(ctx, request, issuer, cmpv1alpha1.TransactionOperationKUR, true)
 	if configurationErr != nil {
 		return workloadKeyMaterial{}, configurationErr
 	}
@@ -139,9 +158,12 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 		return workloadKeyMaterial{}, permanentConfiguration("authorize KUR current certificate", fmt.Errorf("certificate current and staged Secret names must be distinct"))
 	}
 	currentKey := types.NamespacedName{Namespace: request.GetNamespace(), Name: certificate.Spec.SecretName}
-	currentSecret, configurationErr := s.readWorkloadSecret(ctx, currentKey, "current certificate Secret")
+	currentSecret, configurationErr := s.readCurrentSecret(ctx, currentKey)
 	if configurationErr != nil {
 		return workloadKeyMaterial{}, configurationErr
+	}
+	if currentSecret == nil {
+		return workloadKeyMaterial{}, permanentConfiguration("read current certificate Secret", currentCertificateUnavailable(currentKey.Name, "does not exist"))
 	}
 	if err := currentSecretIssuedForCertificate(currentSecret, certificate); err != nil {
 		return workloadKeyMaterial{}, permanentConfiguration("authorize KUR current certificate", err)
@@ -150,6 +172,9 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 	stagedSecret, requestedKey, configurationErr := s.loadStagedKey(ctx, stagedKey, certificate, csrDER, cmpv1alpha1.TransactionOperationKUR)
 	if configurationErr != nil {
 		return workloadKeyMaterial{}, configurationErr
+	}
+	if len(currentSecret.Data[corev1.TLSCertKey]) == 0 {
+		return workloadKeyMaterial{}, permanentConfiguration("parse KUR current certificate", currentCertificateUnavailable(currentKey.Name, "holds no certificate"))
 	}
 	certificates, err := protocol.ParseCertificates(currentSecret.Data[corev1.TLSCertKey])
 	if err != nil || len(certificates) == 0 {
@@ -172,15 +197,16 @@ func (s *Signer) loadKURMaterial(ctx context.Context, request issuersigner.Certi
 
 // authorizeOwningCertificate returns the live controlling Certificate of an IR or KUR request after
 // checking that the request is its next revision and that it names the issuer serving the request.
-// IR serves the first revision and KUR a later one.
-func (s *Signer) authorizeOwningCertificate(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, operation string) (*certmanagerv1.Certificate, *configurationError) {
+// A renewal, which is every KUR and an IR that falls back from KUR, serves a revision greater than
+// one. An initial enrollment serves the first revision.
+func (s *Signer) authorizeOwningCertificate(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, operation string, renewal bool) (*certmanagerv1.Certificate, *configurationError) {
 	authorization := "authorize " + operation + " CertificateRequest"
 	revision, err := certificateRequestRevision(request)
-	if err == nil && operation == cmpv1alpha1.TransactionOperationIR && revision != 1 {
-		err = fmt.Errorf("IR requires the first certificate revision")
+	if err == nil && !renewal && revision != 1 {
+		err = fmt.Errorf("%s requires the first certificate revision", operation)
 	}
-	if err == nil && operation == cmpv1alpha1.TransactionOperationKUR && revision < 2 {
-		err = fmt.Errorf("KUR requires a certificate revision greater than one")
+	if err == nil && renewal && revision < 2 {
+		err = fmt.Errorf("%s renewal requires a certificate revision greater than one", operation)
 	}
 	if err != nil {
 		return nil, permanentConfiguration(authorization, err)
