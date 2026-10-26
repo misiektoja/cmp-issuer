@@ -89,8 +89,8 @@ reported on the development branch before release:
 
 | Kubernetes | cert-manager |
 | --- | --- |
-| v1.37, the default of the pinned Kind release | v1.21.2 |
-| v1.36 | v1.21.2 |
+| v1.37, the default of the pinned Kind release | v1.21.3 |
+| v1.36 | v1.21.3 |
 | v1.35 | v1.20.4 |
 | v1.34 | v1.19.6 |
 
@@ -163,7 +163,7 @@ Enrollment against Nokia NCM is verified against a dedicated CMP server, because
 It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
 pushes to `dev` and `main` and once a week, but never for pull requests. Start it from the Actions tab to
 choose different Kubernetes or cert-manager versions. Automatic runs use the default Kind node and
-cert-manager v1.21.2 and cover every enrollment and renewal without further input.
+cert-manager v1.21.3 and cover every enrollment and renewal without further input.
 
 ### What each run covers
 
