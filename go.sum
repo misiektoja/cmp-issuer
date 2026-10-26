@@ -14,12 +14,14 @@ github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM
 github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
-github.com/cert-manager/cert-manager v1.21.2 h1:UWgoYM+KLNtRlqmoWOKjKBOBUPVHeepQ6/ac3ERJW68=
-github.com/cert-manager/cert-manager v1.21.2/go.mod h1:cUXqp2Ki46IovJB+XpkfaFNzitQDJjyfjrCAsl5Jnns=
+github.com/cert-manager/cert-manager v1.21.3 h1:s5xNJPfWSiBWLAxMmXw8runfcXMVVWM4kcMpZ1OODbY=
+github.com/cert-manager/cert-manager v1.21.3/go.mod h1:Y0beWPQTPpBNIdxwDX2EAL24ONep1H4jGOmSKPvoa0I=
 github.com/cert-manager/issuer-lib v0.12.1 h1:ogJmpkroFXIa/rndQc5DTYm/eu/RZJDwAImO0+b1Xhs=
 github.com/cert-manager/issuer-lib v0.12.1/go.mod h1:LdTWN+6i8F5/IUpSw95+78woXkpPUoK/HjYxq5Jal1c=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+github.com/cloudflare/circl v1.6.5 h1:O64F26HEqNhznd/hrC5KZXVKYuKM2rx4deZDTc4ihQA=
+github.com/cloudflare/circl v1.6.5/go.mod h1:h5LNyxAc5nTue9DS5jT+48en2PSDYt3zdGnz5OstK6c=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -143,8 +145,8 @@ github.com/mfridman/tparse v0.18.0 h1:wh6dzOKaIwkUGyKgOntDW4liXSo37qg5AXbIhkMV3v
 github.com/mfridman/tparse v0.18.0/go.mod h1:gEvqZTuCgEhPbYk/2lS3Kcxg1GmTxxU7kTC8DvP0i/A=
 github.com/misiektoja/go-composite-mldsa v0.2.1 h1:Qf5JSW0jJvlwXDisVob1iC5M5LKlsWhbupPku+a7sDY=
 github.com/misiektoja/go-composite-mldsa v0.2.1/go.mod h1:VDbjLFqIpOSO6Oga14SE3vrdIe5PgfZlk2JtajaUT50=
-github.com/misiektoja/go-pki-cmp v0.6.0 h1:rJQW/fIbRaxha565/k7D/i+EzuhFWeZT29hm08RjB2E=
-github.com/misiektoja/go-pki-cmp v0.6.0/go.mod h1:tF3+PF9p4qRNReOVyl4S/kE84P2ggNMYXXagqKwRFY0=
+github.com/misiektoja/go-pki-cmp v0.7.2 h1:m64gjIVC1KvlkCGlry1IaGTXZPKXy65XX37BYpCjATA=
+github.com/misiektoja/go-pki-cmp v0.7.2/go.mod h1:dfq/zYepohnXBUcrLoiGjXMr87Mv6/LOTKe1GhmDSbM=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w8PVh93nsPXa1VrQ6jlwL5oN8l14QlcNfg=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
