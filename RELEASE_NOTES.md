@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.4.0] - TBD
+
+This release adds **IR** initial enrollment and lets IR and KUR ask the CA for a validity period. An issuer that enrolls with IR renews with KUR unless told otherwise. A KUR certificate that keeps the validity of the certificate it replaces is refused instead of making cert-manager renew in a loop.
+
+### Certificate management
+
+* **Enroll with IR** - Set `spec.protocol.initialEnrollment` to `IR` to send a CRMF Initialization Request built from cert-manager's CSR. The key cert-manager staged for the `Certificate` signs proof of possession and the issuer credentials protect the message, as for P10CR. IR needs a `CertificateRequest` that cert-manager created for a `Certificate`. A `CMPClusterIssuer` using IR needs the same Secret RoleBinding in each workload namespace as one using KUR. IR has been tested with Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.5.
+* **Renewal follows the initial enrollment** - When `spec.protocol.renewal` is omitted, an issuer renews with P10CR after P10CR and with KUR after IR. Issuers created by earlier releases carry `renewal: P10CR` from the earlier default and keep renewing through P10CR.
+* **Ask for a validity period** - Set `spec.protocol.requestedValidity` to `Duration` to ask in each IR and KUR for a `notAfter` of the transaction start plus `Certificate.spec.duration`. The default `Omit` leaves the validity to the CA. The CA decides what it grants: NCM may answer `grantedWithMods`, which fails the request under the default `spec.policy.grantedModifications: Reject`. The tested EJBCA profile ignores the request. See [requested validity](https://misiektoja.github.io/cmp-issuer/guide/enrollment/#requested-validity).
+
+### Bug fixes
+
+* **KUR no longer renews in a loop when the CA keeps the old validity** - When a KUR certificate had the `notBefore` and `notAfter` of the certificate it replaced, cert-manager found its renewal time already passed and renewed again at once, without end. cmp-issuer rejects such a certificate in `certConf` and fails the `CertificateRequest`. NCM keeps the old validity unless "Overwrite old?" is ticked in its `set-validity-period` policy module, see [certificate validity on NCM](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/#certificate-validity).
+
+### Project maintenance
+
+* **Built with Go 1.27.3** - Includes the `crypto/x509` fix that distrusts compromised intermediate certificates (GO-2026-6809). Building from source needs Go 1.27.3.
+* **CMP library go-pki-cmp v0.8.0** - Encodes the certificate template validity that `requestedValidity` sends.
+
 ## [0.3.1] - 11 Oct 2026
 
 This release fixes PasswordBasedMac enrollment with more than 500000 iterations and KUR of certificates without a subject DN. Signature-protected requests carry certificate subjects exactly as the certificates encode them. Kubernetes 1.37 joins the verified versions and the CMP library moves to go-pki-cmp, its new name.
