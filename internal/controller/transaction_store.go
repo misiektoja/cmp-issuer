@@ -51,6 +51,8 @@ type transactionDetail struct {
 	ConfigurationDigest string
 	Operation           string
 	ProtocolVersion     int32
+	// RenewalFallback is the reason a renewal uses the initial enrollment operation, or empty.
+	RenewalFallback string
 }
 
 // transactionStore persists CMP transaction state so an asynchronous enrollment survives a restart.
@@ -109,6 +111,7 @@ func (t *transactionStore) create(ctx context.Context, namespace string, name st
 			IssuerRef:              &issuerRef,
 			ConfigurationDigest:    detail.ConfigurationDigest,
 			Operation:              detail.Operation,
+			RenewalFallback:        detail.RenewalFallback,
 			ProtocolVersion:        detail.ProtocolVersion,
 		},
 	}

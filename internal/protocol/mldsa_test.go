@@ -205,7 +205,8 @@ func kurRequestWithKeys(t *testing.T, pki testPKI, endpoint string, currentKey c
 	if err != nil {
 		t.Fatal(err)
 	}
-	currentCertificate := issueLeaf(t, pki, currentCSR, currentKey.Public())
+	notBefore, notAfter := currentCertificateValidity()
+	currentCertificate := issueLeafWithValidity(t, pki, currentCSR, currentKey.Public(), notBefore, notAfter)
 	requestDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: currentCSR.Subject, DNSNames: currentCSR.DNSNames}, requestedKey)
 	if err != nil {
 		t.Fatal(err)

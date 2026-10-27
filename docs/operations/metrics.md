@@ -14,7 +14,7 @@ Every series carries the same three labels:
 `operation` separates the first issuance of a certificate from a renewal. cert-manager stamps
 each `CertificateRequest` with the revision it will become, so anything past the first is a renewal. A
 `CertificateRequest` written by hand carries no revision and counts as an enrollment. A renewal can send
-another P10CR or a KUR. This metric label describes certificate lifecycle intent rather than the CMP body.
+another P10CR, a KUR or the initial enrollment operation of a renewal fallback. This metric label describes certificate lifecycle intent rather than the CMP body.
 See [Renewal with P10CR or KUR](../guide/renewal-and-kur.md).
 
 ## What is published

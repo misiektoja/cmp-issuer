@@ -87,7 +87,9 @@ spec:
 ```
 
 Then the shared secret authenticates the response as well as the request, and a signature is rejected
-however well it verifies. Set this where the CMP trust anchor is shared with authorities that must not
+however well it verifies. A MAC-protected response must also use at least 100 iterations, the floor
+that applies to `iterationCount` on requests, so a server that protects its answers with fewer is
+rejected as well. Set this where the CMP trust anchor is shared with authorities that must not
 be able to answer for the recipient, or to conform to a profile that requires one protection type for a
 whole PKI management operation. Confirm the server protects its answers with the shared secret before
 turning it on, since a server that signs them will have issued the certificate before the response is

@@ -87,19 +87,11 @@ func ValidateKURRequest(request EnrollmentRequest) error {
 
 // protectedKUR builds CRMF proof of possession and protects the message with the certificate being updated.
 func protectedKUR(request EnrollmentRequest, csr *x509.CertificateRequest, credentials pkicmp.Credentials) (*pkicmp.PKIMessage, []byte, error) {
-	publicKey, err := x509.MarshalPKIXPublicKey(request.RequestedPrivateKey.Public())
-	if err != nil {
-		return nil, nil, permanent("encode requested public key", "badCertTemplate", err)
-	}
-	extensions, err := asn1.Marshal(csr.Extensions)
-	if err != nil {
-		return nil, nil, permanent("encode requested extensions", "badCertTemplate", err)
-	}
 	// validateKURProofs has checked that the CSR names the same subject. For a certificate named only in
 	// subjectAltName the certificate's own encoding is the NULL-DN that RFC 9483 section 4.1.1 requires.
-	template := pkicmp.CertTemplate{Subject: certificateSubject(request.Protection.Signature.Certificate), PublicKey: publicKey}
-	if len(csr.Extensions) > 0 {
-		template.Extensions = extensions
+	template, err := certificateTemplate(request, csr, certificateSubject(request.Protection.Signature.Certificate))
+	if err != nil {
+		return nil, nil, err
 	}
 	oldCertID, err := pkicmp.NewOldCertIDControl(request.Protection.Signature.Certificate)
 	if err != nil {

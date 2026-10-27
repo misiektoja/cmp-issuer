@@ -30,7 +30,6 @@ import (
 	"math/big"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/misiektoja/go-pki-cmp/pkicmp"
 )
@@ -63,11 +62,11 @@ func certificateWithRawSubject(t *testing.T, pki testPKI, rawSubject []byte, key
 		SerialNumber: big.NewInt(5),
 		RawSubject:   rawSubject,
 		DNSNames:     []string{"subject.example.test"},
-		NotBefore:    time.Now().Add(-time.Minute),
-		NotAfter:     time.Now().Add(time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
+	// KUR tests update this certificate, so it carries the validity of a certificate being updated.
+	template.NotBefore, template.NotAfter = currentCertificateValidity()
 	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, key.Public(), pki.CAKey)
 	if err != nil {
 		t.Fatal(err)

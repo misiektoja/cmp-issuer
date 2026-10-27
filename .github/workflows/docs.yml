@@ -101,6 +101,15 @@ jobs:
             echo "gh-pages does not exist yet, publishing the documentation for the first time"
           fi
 
+      - name: Refuse a site that would overwrite the chart repository
+        run: |
+          # publish-chart.yml owns `charts/` on gh-pages. A file under `docs/` that rendered to that path
+          # would replace the Helm repository index in the copy below, so the run stops here instead.
+          if [ -e site/charts ]; then
+            echo "::error::site/charts exists in the built site and would overwrite the chart repository on gh-pages"
+            exit 1
+          fi
+
       - name: Replace the documentation, keeping the chart repository
         run: |
           # `git rm` clears the previous site so a page deleted from `docs/` disappears from the

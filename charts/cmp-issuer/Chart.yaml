@@ -8,8 +8,8 @@ type: application
 ## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
 ## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
 ## tag the registry does not have.
-version: 0.3.1
-appVersion: "v0.3.1"
+version: 0.4.0
+appVersion: "v0.4.0"
 
 ## Verified on Kubernetes v1.34, v1.35, v1.36 and v1.37. The floor is set lower because nothing in the
 ## chart needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix
@@ -75,13 +75,21 @@ annotations:
       displayName: CMP Transaction
       description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
   artifacthub.io/changes: |
-    - kind: fixed
-      description: PasswordBasedMac iteration counts from 500001 to the 1048575 maximum enroll instead of failing before the request is sent
-    - kind: fixed
-      description: Signature-protected requests and KUR templates carry certificate subjects exactly as the certificate encodes them
-    - kind: fixed
-      description: KUR of a certificate named only in its SANs sends a NULL-DN subject as RFC 9483 requires
+    - kind: added
+      description: IR initial enrollment with initialEnrollment IR, renewed through KUR when renewal is omitted
+    - kind: added
+      description: IR and KUR can ask the CA for a notAfter matching Certificate.spec.duration with requestedValidity Duration
+    - kind: added
+      description: renewalFallback InitialEnrollment renews with the initial enrollment operation when the current certificate is missing or expired
+    - kind: security
+      description: A recorded CMPTransaction chain is validated against the current CMP trust anchors before it is reused
     - kind: changed
-      description: Verified on Kubernetes v1.34 to v1.37 with cert-manager v1.19 to v1.21
+      description: Strict MAC response protection requires at least 100 iterations on MAC-protected responses
+    - kind: fixed
+      description: KUR fails with a recovery message instead of staying Pending when the current certificate Secret is deleted
+    - kind: fixed
+      description: KUR no longer renews in a loop when the CA keeps the validity of the certificate it replaces
     - kind: changed
-      description: The CMP library is go-pki-cmp v0.4.0, formerly published as go-pkicmp-ng
+      description: The leader-election Role no longer grants ConfigMap access
+    - kind: changed
+      description: Built with Go 1.27.3 and the CMP library go-pki-cmp v0.8.0

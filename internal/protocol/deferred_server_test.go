@@ -101,8 +101,8 @@ func newDeferredCMPServer(t *testing.T, pki testPKI, password []byte, waits int,
 func TestDeferredIssuanceAgainstCMPServer(t *testing.T) {
 	pki := newTestPKI(t)
 	password := []byte("test-shared-secret")
-	// The authority enforces its own wait between polls, so the interval is kept short enough to
-	// keep the test fast while still exercising the rate limit a real server applies.
+	// The server advertises at least one second in pollRep and answers an earlier poll itself without
+	// asking the authority, so the client waits as told, as the controller does.
 	pollInterval := 20 * time.Millisecond
 	endpoint, authority := newDeferredCMPServer(t, pki, password, 2, pollInterval)
 	defer endpoint.Close()
@@ -127,7 +127,7 @@ func TestDeferredIssuanceAgainstCMPServer(t *testing.T) {
 		if polls > 5 {
 			t.Fatal("the transaction did not complete within the expected number of polls")
 		}
-		time.Sleep(2 * pollInterval)
+		time.Sleep(max(result.Pending.CheckAfter, 2*pollInterval))
 		poll := PollRequest{Enrollment: request, RecipNonce: result.Pending.RecipNonce, CertReqID: result.Pending.CertReqID, ResponseSigner: result.Pending.ResponseSigner}
 		result, err = client.PollP10CR(context.Background(), poll)
 		if err != nil {

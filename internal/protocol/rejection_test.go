@@ -101,6 +101,35 @@ func TestRefusedKURCertificateIsRejectedInCertConf(t *testing.T) {
 	requireRejection(t, state, pkicmp.BodyTypeKUR)
 }
 
+// TestKURCertificateWithTheOldValidityIsRejected verifies that a KUP certificate carrying the validity
+// of the certificate it replaces is rejected in certConf, also when modifications are accepted.
+func TestKURCertificateWithTheOldValidityIsRejected(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		grantedWithMods bool
+	}{
+		{name: "accepted"},
+		{name: "granted with accepted modifications", grantedWithMods: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			bootstrapRoots := x509.NewCertPool()
+			bootstrapRoots.AddCert(pki.CACertificate)
+			request := kurEnrollmentRequest(t, pki, "", true)
+			request.RejectGrantedMods = false
+			server, state := newMockCMPServer(t, pki, nil, bootstrapRoots, mockOptions{CertReqID: ResponseCertReqIDLegacyZero, GrantedWithMods: test.grantedWithMods, IssuedValidity: request.Protection.Signature.Certificate})
+			defer server.Close()
+			request.EndpointURL = server.URL
+			_, err := NewClient().EnrollKUR(context.Background(), request)
+			var typed *Error
+			if !errors.As(err, &typed) || typed.Kind != ErrorKindPermanent || typed.Failure != "validityNotRenewed" {
+				t.Fatalf("expected Permanent validityNotRenewed, got %v", err)
+			}
+			requireRejection(t, state, pkicmp.BodyTypeKUR)
+		})
+	}
+}
+
 // TestImplicitlyConfirmedRefusalSendsNoCertConf verifies that a certificate the server confirmed
 // implicitly is refused without a certConf, which the server no longer expects.
 func TestImplicitlyConfirmedRefusalSendsNoCertConf(t *testing.T) {

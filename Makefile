@@ -297,7 +297,7 @@ release-checksums: release-source-archives ## Write SHA-256 checksums for every 
 	cd dist && sha256sum "$(notdir $(INSTALLER_MANIFEST))" "$(notdir $(SBOM_FILE))" "$(notdir $(PROVENANCE_BUNDLE))" "$(notdir $(CHART_ARCHIVE))" "$(notdir $(BUNDLE_ARCHIVE))" "$(notdir $(SOURCE_ZIP))" "$(notdir $(SOURCE_TAR_GZ))" | tee "$(notdir $(RELEASE_CHECKSUMS))"
 
 # TRIVY_IMAGE runs the scanner as a container so no scanner binary has to be installed.
-TRIVY_IMAGE ?= aquasec/trivy:0.74.0
+TRIVY_IMAGE ?= aquasec/trivy:0.76.1
 TRIVY_CACHE ?= $(HOME)/.cache/trivy
 TRIVY_SEVERITY ?= HIGH,CRITICAL
 
@@ -502,13 +502,13 @@ HELM ?= $(LOCALBIN)/helm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.3
-CONTROLLER_TOOLS_VERSION ?= v0.22.0
+CONTROLLER_TOOLS_VERSION ?= v0.23.0
 KIND_VERSION ?= v0.33.0
 GOVULNCHECK_VERSION ?= v1.9.0
 GITLEAKS_VERSION ?= v8.30.1
 ACTIONLINT_VERSION ?= v1.7.12
 CYCLONEDX_GOMOD_VERSION ?= v1.12.0
-HELM_VERSION ?= v3.22.0
+HELM_VERSION ?= v3.22.1
 
 #ENVTEST_VERSION is the controller-runtime version to use for setup-envtest, derived from go.mod
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
@@ -520,7 +520,7 @@ ENVTEST_K8S_VERSION ?= $(shell v='$(call gomodver,k8s.io/api)'; \
   [ -n "$$v" ] || { echo "Set ENVTEST_K8S_VERSION manually (k8s.io/api replace has no tag)" >&2; exit 1; }; \
   printf '%s\n' "$$v" | sed -E 's/^v?[0-9]+\.([0-9]+).*/1.\1/')
 
-GOLANGCI_LINT_VERSION ?= v2.14.0
+GOLANGCI_LINT_VERSION ?= v2.15.0
 # The plugin build below replaces the binary go-install-tool installed, which destroys the symlink it
 # uses to recognise an existing install, so its own skip check cannot be relied on here. This sentinel
 # is what decides instead. It is written last, so a later change inside bin cannot make the target look

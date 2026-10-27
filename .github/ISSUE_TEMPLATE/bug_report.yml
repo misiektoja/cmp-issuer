@@ -63,7 +63,7 @@ body:
     id: environment
     attributes:
       label: Kubernetes and cert-manager versions
-      placeholder: Kubernetes v1.37, cert-manager v1.21.2
+      placeholder: Kubernetes v1.37, cert-manager v1.21.3
     validations:
       required: true
 

@@ -8,7 +8,6 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | --- | --- |
 | **Implemented** | Code exists and unit or envtest coverage exercises it |
 | **Interoperability tested** | Verified against at least one independent CMP server or oracle |
-| **Experimental** | Implemented but the API or behavior may still change |
 | **Planned** | Recorded on the roadmap, not implemented |
 | **Unsupported** | Out of scope for the current release |
 
@@ -17,11 +16,12 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Capability | Status | Notes |
 | --- | --- | --- |
 | CMPv2 P10CR initial enrollment | Implemented, Interoperability tested | PKCS #10 in P10CR, CP response |
-| CMPv2 IR (CRMF) | Planned | Requires workload private-key access |
+| CMPv2 IR (CRMF) initial enrollment | Implemented, Interoperability tested | CRMF request built from the CSR. The staged workload key signs proof of possession. Verified against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 |
 | CMPv2 KUR (true key update) | Implemented, Interoperability tested | Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 |
-| cert-manager Certificate renewal | Implemented as selectable P10CR or KUR | P10CR is the compatibility default. KUR is opt-in through `protocol.renewal` |
+| cert-manager Certificate renewal | Implemented as selectable P10CR or KUR | An omitted `protocol.renewal` follows `initialEnrollment`: P10CR after P10CR and KUR after IR |
+| Renewal fallback to `initialEnrollment` | Implemented, Interoperability tested | `protocol.renewalFallback: InitialEnrollment` renews with IR or P10CR when the current certificate is missing or expired. Verified after the `Certificate` Secret was deleted with IR and P10CR against Nokia NCM 26.7 and with IR against EJBCA 9.3.7 in RA mode |
 | Explicit `certConf` confirmation | Implemented, Interoperability tested | Default |
-| Rejecting `certConf` for a refused certificate | Implemented | Sent when the issued certificate does not certify the CSR key, fails chain validation or carries modifications refused by `policy.grantedModifications: Reject` |
+| Rejecting `certConf` for a refused certificate | Implemented | Sent when the issued certificate does not certify the CSR key, fails chain validation, carries modifications refused by `policy.grantedModifications: Reject` or is a KUR certificate that keeps the validity of the certificate it updates |
 | Server-granted implicit confirmation | Implemented | Set `protocol.confirmation: Implicit` |
 | Asynchronous `waiting` / `pollReq` / `pollRep` | Implemented, Interoperability tested | Bounded by `spec.transaction` |
 | Delayed confirmation (`certConf` answered with `waiting`) | Implemented, Interoperability tested | Polled from `CMPTransaction`, resumable across a restart |
@@ -66,18 +66,19 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| `CMPIssuer` (namespaced) | Experimental | API group `certmanager.misiektoja.github.io/v1alpha1` |
-| `CMPClusterIssuer` (cluster) | Experimental | Credentials read from cluster resource namespace |
+| `CMPIssuer` (namespaced) | Implemented, Interoperability tested | API group `certmanager.misiektoja.github.io/v1alpha1`, see [API stability](known-limitations.md#api-stability) |
+| `CMPClusterIssuer` (cluster) | Implemented | Credentials read from cluster resource namespace |
 | `CMPTransaction` persistence | Implemented, Interoperability tested | Survives controller restart, returns the recorded chain and retries under the pinned transaction identifier so a repeat cannot issue a second certificate |
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Interoperable profile accepts `-1` or `0`. RFC 9483 profile requires `-1` |
-| `protocol.renewal` | Implemented | `P10CR` by default or `KUR` for later cert-manager revisions |
-| `protocol.validationProfile` | Implemented | `Interoperable` by default or bundled RFC 9483 receiver checks for implemented P10CR and KUR flows |
+| `protocol.renewal` | Implemented | `P10CR` or `KUR` for later cert-manager revisions. Follows `initialEnrollment` when omitted |
+| `protocol.renewalFallback` | Implemented | `None` by default. `InitialEnrollment` renews with the initial enrollment operation when KUR has no usable current certificate |
+| `protocol.validationProfile` | Implemented | `Interoperable` by default or bundled RFC 9483 receiver checks for implemented P10CR, IR and KUR flows |
 | `protocol.kurResponseCaPubs` | Implemented | Accept untrusted KUP chain candidates by default or require the field absent |
 | `endpoint.renewalUrl` | Implemented | Optional KUR endpoint for servers with separate initial and key-update aliases |
 | `macResponseProtection` | Implemented, Interoperability tested | Interoperable profile uses `AllowSignature`, so a signed answer to a `PasswordBasedMac` request is accepted when it chains to the CMP trust anchor and names the recipient. RFC 9483 uses `Strict` |
 | Endpoint reachability in issuer readiness | Planned | Readiness reflects configuration, not whether the server answers |
-| Requested validity period from `Certificate.spec.duration` | Planned | Needs CRMF, since a PKCS #10 request carries no validity |
+| `protocol.requestedValidity` | Implemented, Interoperability tested | `Duration` asks in each IR and KUR for a validity from `Certificate.spec.duration`. A PKCS #10 request carries no validity. How a CA answers is server dependent, see [Tested PKIs](interoperability/tested-pkis.md#certificate-validity) |
 | Chain placement options for the issued Secret | Planned | Choose whether `tls.crt` carries the chain and what `ca.crt` holds |
 
 ## Observability

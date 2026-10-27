@@ -23,7 +23,8 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | `csrDigest` | SHA-256 of the enrolled CSR, in lowercase hexadecimal |
 | `issuerRef` | Name, kind, UID and generation of the issuer that served the transaction |
 | `configurationDigest` | SHA-256 identity of that issuer generation and every credential or KUR workload Secret version it loaded |
-| `operation` | CMP operation selected before sending, `P10CR` or `KUR` |
+| `operation` | CMP operation selected before sending, `P10CR`, `IR` or `KUR` |
+| `renewalFallback` | Why a renewal uses the initial enrollment operation instead of KUR, `CurrentCertificateMissing` or `CurrentCertificateExpired`. Empty otherwise |
 | `protocolVersion` | Enrollment protocol version, currently CMPv2. Certificate confirmation may use CMPv3 for an ML-DSA-signed certificate |
 
 **Status** (updated during the transaction):
@@ -36,7 +37,7 @@ Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issu
 | `certReqID` | Identifier the server polls against |
 | `responseSigner` | DER signer retained when later messages omit identification |
 | `polls` | Poll count bounded by `maximumPolls` |
-| `issuedChain` | Validated leaf-first chain, recorded before it is returned |
+| `issuedChain` | Validated leaf-first chain, recorded before it is returned and validated again against the current CMP trust anchors whenever it is resumed |
 | `completionTime` | When the transaction reached `Issued` |
 
 Inspect transactions:
@@ -52,9 +53,9 @@ On restart the signer loads the existing `CMPTransaction` and resumes it rather 
 | Recorded phase | Behavior after a restart |
 | --- | --- |
 | `Enrolling` | Send the enrollment again under the transaction identifier already recorded |
-| `Confirming` | Continue confirming the recorded chain, which is already durable |
+| `Confirming` | Validate the recorded chain against the current CMP trust anchors, then continue confirming it |
 | `Polling` | Send the next `pollReq` with the recorded nonces and `certReqId` |
-| `Issued` | Return the recorded chain without CMP traffic or credential Secret reads |
+| `Issued` | Validate the recorded chain against the current CMP trust anchors and return it. No CMP traffic is sent and no credential Secret is read, only the trust Secrets |
 
 A transaction that fails permanently is deleted. A transaction that reached `Issued` is kept and is garbage collected with its `CertificateRequest`, so a completed enrollment stays visible in `kubectl get cmptransactions`.
 
@@ -90,19 +91,27 @@ Neither server issued a second certificate. Both answers are protected and echo 
 
 Reusing the recorded identifier rather than generating a fresh one is what makes this outcome reliable. A new identifier presents the retry to the server as an unrelated enrollment, which is accepted and yields a second certificate.
 
-KUR never falls back to P10CR after an ambiguous send. The operation is recorded with the transaction and a retry repeats only KUR under the same identifier.
+KUR never falls back to another operation after an ambiguous send. The operation is recorded with the transaction and a retry repeats only KUR under the same identifier. A [renewal fallback](renewal-and-kur.md#missing-or-expired-current-certificate) is decided before the first send and is recorded the same way.
 
 ### Crash between issuance and storage
 
-If the controller stops after the server issued the certificate but before cert-manager stored it, the recorded chain is returned on the next reconcile. No second enrollment is sent and no certificate is lost.
+If the controller stops after the server issued the certificate but before cert-manager stored it, the recorded chain is validated against the current CMP trust anchors and returned on the next reconcile. No second enrollment is sent and no certificate is lost.
 
 ### Issuer or credential changes mid-transaction
 
 An unfinished transaction is bound to the issuer UID, issuer generation and credential Secret versions
 that protected its first request. Recreating or editing the issuer or rotating a credential or trust
 Secret ends that transaction before another CMP message is sent. cert-manager can then create a new
-request under the new configuration. A transaction already in `Issued` remains recoverable because its
-validated chain no longer depends on live credentials.
+request under the new configuration. A transaction already in `Issued` remains recoverable after a
+credential rotation, because its recorded chain depends only on the CMP trust anchors. The chain is
+validated against the current `spec.cmpTrust` before it is returned, so a trust Secret that no longer
+covers it fails the request permanently and a missing trust Secret leaves the issuer not ready until it
+is restored.
+
+A `CMPTransaction` is ordinary Kubernetes state. The signer resumes a record only when it carries the
+CSR digest, operation and configuration digest it recorded and it validates a recorded chain and signer
+before either is used, so write access to `cmptransactions` does not decide which certificate a
+request receives. Grant that access to the controller only.
 
 ## Delayed confirmation
 

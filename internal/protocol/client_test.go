@@ -93,6 +93,10 @@ type mockOptions struct {
 	GrantImplicitConfirm bool
 	// FailCertConf answers certConf with an HTTP error and no CMP body.
 	FailCertConf bool
+	// IssuedValidity gives every IR and KUR certificate the notBefore and notAfter of this certificate.
+	IssuedValidity *x509.Certificate
+	// ResponseMACIterationCount protects MAC responses with this count instead of 1024.
+	ResponseMACIterationCount int
 }
 
 // mockState records authenticated request bodies observed by the mock server.
@@ -103,6 +107,8 @@ type mockState struct {
 	confirmationObserved  bool
 	confirmationStatus    pkicmp.CertStatus
 	confirmationPVNO      int
+	// templates records the certificate template of every IR and KUR.
+	templates []pkicmp.CertTemplate
 }
 
 // add records one request body type.
@@ -124,6 +130,20 @@ func (s *mockState) count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.bodyTypes)
+}
+
+// recordTemplate records the certificate template of a CRMF request.
+func (s *mockState) recordTemplate(template pkicmp.CertTemplate) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.templates = append(s.templates, template)
+}
+
+// receivedTemplates returns the recorded certificate templates in arrival order.
+func (s *mockState) receivedTemplates() []pkicmp.CertTemplate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]pkicmp.CertTemplate(nil), s.templates...)
 }
 
 // recordConfirmation records the CertStatus and protocol version of a certConf.
@@ -230,7 +250,13 @@ func createCSRWithKey(t *testing.T, commonName string, key crypto.Signer) []byte
 // issueLeaf creates a leaf certificate containing the CSR identity and selected public key.
 func issueLeaf(t *testing.T, pki testPKI, request *x509.CertificateRequest, publicKey any) *x509.Certificate {
 	t.Helper()
-	template := &x509.Certificate{SerialNumber: big.NewInt(3), Subject: request.Subject, DNSNames: request.DNSNames, NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}
+	return issueLeafWithValidity(t, pki, request, publicKey, time.Now().Add(-time.Minute), time.Now().Add(time.Hour))
+}
+
+// issueLeafWithValidity issues a client certificate for the CSR identity and publicKey with the given validity.
+func issueLeafWithValidity(t *testing.T, pki testPKI, request *x509.CertificateRequest, publicKey any, notBefore time.Time, notAfter time.Time) *x509.Certificate {
+	t.Helper()
+	template := &x509.Certificate{SerialNumber: big.NewInt(3), Subject: request.Subject, DNSNames: request.DNSNames, NotBefore: notBefore, NotAfter: notAfter, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}
 	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
 	if err != nil {
 		t.Fatal(err)
@@ -294,7 +320,12 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		}
 		var credentials pkicmp.Credentials
 		if (verification.MACVerified && !options.ForceSignature) || options.ForceMAC {
-			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(1024))
+			iterations := 1024
+			if options.ResponseMACIterationCount > 0 {
+				iterations = options.ResponseMACIterationCount
+			}
+			// The lower limit lets the mock protect with a count below the RFC 4211 minimum.
+			credentials, err = pkicmp.NewMACCredentials(password, pkicmp.WithPBM(), pkicmp.WithMACIterationCount(iterations), pkicmp.WithMACIterationLimits(1, maxPBMIterationCount))
 		} else {
 			credentials, err = pkicmp.NewSignatureCredentials(signer.PrivateKey, signer.Certificate)
 		}
@@ -378,46 +409,27 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 			status = pkicmp.StatusGrantedWithMods
 		}
 		response.Body = pkicmp.NewCPBody(&pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: status}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: leaf.Raw}}}}}})
+	case pkicmp.BodyTypeIR:
+		certificateRequests, err := message.Body.IR()
+		if err != nil {
+			t.Errorf("parse IR: %v", err)
+			return false
+		}
+		responseMessage, ok := mockCRMFResponse(t, pki, options, certificateRequests, state)
+		if !ok {
+			return false
+		}
+		response.Body = pkicmp.NewIPBody(responseMessage)
 	case pkicmp.BodyTypeKUR:
 		certificateRequests, err := message.Body.KUR()
-		if err != nil || len(*certificateRequests) != 1 {
+		if err != nil {
 			t.Errorf("parse KUR: %v", err)
 			return false
 		}
-		certificateRequest := &(*certificateRequests)[0]
-		if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
-			t.Errorf("verify KUR proof of possession: %v", err)
+		responseMessage, ok := mockCRMFResponse(t, pki, options, certificateRequests, state)
+		if !ok {
 			return false
 		}
-		publicKey, err := certificateRequest.PublicKey()
-		if err != nil {
-			t.Errorf("parse KUR public key: %v", err)
-			return false
-		}
-		if options.WrongPublicKey {
-			_, wrongKey := createCSR(t, "wrong")
-			publicKey = wrongKey.Public()
-		}
-		extensions, err := certificateRequest.Extensions()
-		if err != nil {
-			t.Errorf("parse KUR extensions: %v", err)
-			return false
-		}
-		template := &x509.Certificate{SerialNumber: big.NewInt(4), Subject: certificateRequest.Subject(), NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtraExtensions: extensions}
-		certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
-		if err != nil {
-			t.Errorf("issue KUR certificate: %v", err)
-			return false
-		}
-		if options.IssuedKeyUsage != nil {
-			certificate, err := x509.ParseCertificate(certificateDER)
-			if err != nil {
-				t.Errorf("parse issued KUR certificate: %v", err)
-				return false
-			}
-			certificateDER = certificateWithKeyUsage(t, certificate, pki.CACertificate, pki.CAKey, *options.IssuedKeyUsage, false).Raw
-		}
-		responseMessage := &pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: pkicmp.StatusAccepted}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: certificateDER}}}}}}
 		if options.KUPCAPubs {
 			responseMessage.CAPubs = []pkicmp.CMPCertificate{{Raw: pki.CACertificate.Raw}}
 		}
@@ -435,6 +447,58 @@ func setMockResponseBody(t *testing.T, pki testPKI, options mockOptions, message
 		return false
 	}
 	return true
+}
+
+// mockCRMFResponse verifies the proof of possession of the single request of an IR or KUR and issues
+// a certificate for its template.
+func mockCRMFResponse(t *testing.T, pki testPKI, options mockOptions, certificateRequests *pkicmp.CertReqMessages, state *mockState) (*pkicmp.CertRepMessage, bool) {
+	t.Helper()
+	if len(*certificateRequests) != 1 {
+		t.Errorf("expected one certificate request, got %d", len(*certificateRequests))
+		return nil, false
+	}
+	certificateRequest := &(*certificateRequests)[0]
+	if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
+		t.Errorf("verify proof of possession: %v", err)
+		return nil, false
+	}
+	state.recordTemplate(certificateRequest.CertReq.CertTemplate)
+	publicKey, err := certificateRequest.PublicKey()
+	if err != nil {
+		t.Errorf("parse requested public key: %v", err)
+		return nil, false
+	}
+	if options.WrongPublicKey {
+		_, wrongKey := createCSR(t, "wrong")
+		publicKey = wrongKey.Public()
+	}
+	extensions, err := certificateRequest.Extensions()
+	if err != nil {
+		t.Errorf("parse requested extensions: %v", err)
+		return nil, false
+	}
+	template := &x509.Certificate{SerialNumber: big.NewInt(4), Subject: certificateRequest.Subject(), NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtraExtensions: extensions}
+	if options.IssuedValidity != nil {
+		template.NotBefore, template.NotAfter = options.IssuedValidity.NotBefore, options.IssuedValidity.NotAfter
+	}
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, pki.CACertificate, publicKey, pki.CAKey)
+	if err != nil {
+		t.Errorf("issue certificate: %v", err)
+		return nil, false
+	}
+	if options.IssuedKeyUsage != nil {
+		certificate, err := x509.ParseCertificate(certificateDER)
+		if err != nil {
+			t.Errorf("parse issued certificate: %v", err)
+			return nil, false
+		}
+		certificateDER = certificateWithKeyUsage(t, certificate, pki.CACertificate, pki.CAKey, *options.IssuedKeyUsage, false).Raw
+	}
+	status := pkicmp.StatusAccepted
+	if options.GrantedWithMods {
+		status = pkicmp.StatusGrantedWithMods
+	}
+	return &pkicmp.CertRepMessage{Response: []pkicmp.CertResponse{{CertReqID: options.CertReqID, Status: pkicmp.PKIStatusInfo{Status: status}, CertifiedKeyPair: &pkicmp.CertifiedKeyPair{CertOrEncCert: pkicmp.CertOrEncCert{Certificate: &pkicmp.CMPCertificate{Raw: certificateDER}}}}}}, true
 }
 
 // TestEnrollP10CRRejectsMACSubstitution verifies signature operations cannot switch to shared-secret protection.
@@ -487,6 +551,38 @@ func TestEnrollP10CRRejectsSignedMACResponseFromAnotherAuthorityWhenAllowed(t *t
 	var typed *Error
 	if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testWrongAuthority {
 		t.Fatalf("expected a subordinate authority under the same anchor to be rejected, got %v", err)
+	}
+}
+
+// TestEnrollP10CRMACResponseIterationFloor verifies the request floor applies to MAC-protected responses only when required.
+func TestEnrollP10CRMACResponseIterationFloor(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		requireFloor bool
+	}{
+		{name: "server count", requireFloor: false},
+		{name: "request floor", requireFloor: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			password := []byte("test-shared-secret")
+			server, _ := newMockCMPServer(t, pki, password, nil, mockOptions{CertReqID: -1, ResponseMACIterationCount: minPBMIterationCount - 1})
+			defer server.Close()
+			request := baseEnrollmentRequest(t, pki, server.URL)
+			request.Protection.Password = &PasswordProtection{Reference: []byte("test-reference"), Secret: password, IterationCount: 1024}
+			request.RequireMACIterationFloor = test.requireFloor
+			_, err := NewClient().EnrollP10CR(context.Background(), request)
+			if !test.requireFloor {
+				if err != nil {
+					t.Fatalf("expected a response below the request floor to be accepted by default, got %v", err)
+				}
+				return
+			}
+			var typed *Error
+			if !errors.As(err, &typed) || typed.Kind != ErrorKindSecurity || typed.Failure != testBadMessageCheck {
+				t.Fatalf("expected a response below the request floor to be rejected, got %v", err)
+			}
+		})
 	}
 }
 

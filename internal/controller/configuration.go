@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/sha256"
@@ -49,6 +50,8 @@ type runtimeConfiguration struct {
 	Transaction          cmpv1alpha1.TransactionSpec
 	ConfigurationDigest  string
 	ConfigurationSecrets map[types.NamespacedName]secretFingerprint
+	// RequestedValidity is the issuer's requestedValidity setting for IR and KUR templates.
+	RequestedValidity string
 }
 
 // secretFingerprint identifies the version of one Secret a transaction depends on. A credential
@@ -93,22 +96,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	if err != nil {
 		return runtimeConfiguration{}, permanentConfiguration("validate issuer spec", err)
 	}
-	secrets := map[types.NamespacedName]*corev1.Secret{}
-	getSecret := func(reference cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError) {
-		key := types.NamespacedName{Namespace: namespace, Name: reference.Name}
-		if secret, found := secrets[key]; found {
-			return secret, nil
-		}
-		secret := &corev1.Secret{}
-		if err := s.KubeClient.Get(ctx, key, secret); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil, retryableConfiguration("read credential Secret", fmt.Errorf("referenced Secret %q is not available", reference.Name))
-			}
-			return nil, retryableConfiguration("read credential Secret", err)
-		}
-		secrets[key] = secret
-		return secret, nil
-	}
+	getSecret, secrets := s.secretGetter(ctx, namespace)
 	cmpTrust, cmpTrustCertificates, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
@@ -156,20 +144,23 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		responseCertReqID = &pinned
 	}
 	requireKUPCAPubsAbsent := strictRFC9483 || spec.Protocol.KURResponseCAPubs == cmpv1alpha1.KURResponseCAPubsRequireAbsent
+	// Strict MAC responses must use the shared secret and at least the iteration floor of a request.
+	strictMACResponses := strictRFC9483 || spec.Protocol.MACResponseProtection == cmpv1alpha1.MACResponseProtectionStrict
 	request := protocol.EnrollmentRequest{
-		EndpointURL:            spec.Endpoint.URL,
-		Timeout:                spec.Endpoint.Timeout.Duration,
-		MaxResponseSize:        spec.Endpoint.MaxResponseSize,
-		Recipient:              recipient,
-		ImplicitConfirm:        spec.Protocol.Confirmation == "Implicit",
-		RejectGrantedMods:      spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept,
-		AllowSignedMACResponse: !strictRFC9483 && spec.Protocol.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict,
-		ResponseCertReqID:      responseCertReqID,
-		RequireKUPCAPubsAbsent: requireKUPCAPubsAbsent,
-		Protection:             protection,
-		CMPTrust:               cmpTrust,
-		CMPTrustCertificates:   cmpTrustCertificates,
-		TLSRoots:               tlsRoots,
+		EndpointURL:              spec.Endpoint.URL,
+		Timeout:                  spec.Endpoint.Timeout.Duration,
+		MaxResponseSize:          spec.Endpoint.MaxResponseSize,
+		Recipient:                recipient,
+		ImplicitConfirm:          spec.Protocol.Confirmation == "Implicit",
+		RejectGrantedMods:        spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept,
+		AllowSignedMACResponse:   !strictMACResponses,
+		RequireMACIterationFloor: strictMACResponses,
+		ResponseCertReqID:        responseCertReqID,
+		RequireKUPCAPubsAbsent:   requireKUPCAPubsAbsent,
+		Protection:               protection,
+		CMPTrust:                 cmpTrust,
+		CMPTrustCertificates:     cmpTrustCertificates,
+		TLSRoots:                 tlsRoots,
 	}
 	if sender != nil {
 		request.Sender = sender
@@ -187,11 +178,56 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	return runtimeConfiguration{
 		EndpointScheme:       endpointScheme,
 		RenewalEndpointURL:   spec.Endpoint.RenewalURL,
+		RequestedValidity:    spec.Protocol.RequestedValidity,
 		EnrollmentRequest:    request,
 		Transaction:          transactionLimitsWithDefaults(spec.Transaction),
 		ConfigurationDigest:  configurationDigest,
 		ConfigurationSecrets: fingerprints,
 	}, nil
+}
+
+// secretGetter returns a reader for the Secrets an issuer references in one namespace. Each Secret is
+// read once through the uncached API reader and kept, so a digest taken afterwards covers exactly
+// the versions that were loaded.
+func (s *Signer) secretGetter(ctx context.Context, namespace string) (func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), map[types.NamespacedName]*corev1.Secret) {
+	secrets := map[types.NamespacedName]*corev1.Secret{}
+	getSecret := func(reference cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError) {
+		key := types.NamespacedName{Namespace: namespace, Name: reference.Name}
+		if secret, found := secrets[key]; found {
+			return secret, nil
+		}
+		secret := &corev1.Secret{}
+		if err := s.KubeClient.Get(ctx, key, secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, retryableConfiguration("read credential Secret", fmt.Errorf("referenced Secret %q is not available", reference.Name))
+			}
+			return nil, retryableConfiguration("read credential Secret", err)
+		}
+		secrets[key] = secret
+		return secret, nil
+	}
+	return getSecret, secrets
+}
+
+// loadCMPTrust reads the CMP trust anchors and the configured response signer certificates of an
+// issuer without touching its credentials. It serves the recovery of a recorded chain, which has to
+// chain to the anchors but no longer needs the credentials that protected its enrollment. The anchors
+// and signer certificates are returned as untrusted chain candidates next to the trust pool.
+func (s *Signer) loadCMPTrust(ctx context.Context, issuer issuerapi.Issuer) (*x509.CertPool, []*x509.Certificate, *configurationError) {
+	spec, namespace, err := s.issuerSpecAndNamespace(issuer)
+	if err != nil {
+		return nil, nil, permanentConfiguration("resolve issuer", err)
+	}
+	getSecret, _ := s.secretGetter(ctx, namespace)
+	roots, anchors, configurationErr := loadTrustPool(getSecret, spec.CMPTrust.CASecretRef)
+	if configurationErr != nil {
+		return nil, nil, configurationErr
+	}
+	responseCertificates, configurationErr := loadResponseCertificates(getSecret, spec.CMPTrust.SignerCertificatesSecretRef)
+	if configurationErr != nil {
+		return nil, nil, configurationErr
+	}
+	return roots, append(anchors, responseCertificates...), nil
 }
 
 // runtimeConfigurationDigest identifies the issuer generation and the Secret versions used by a transaction.
@@ -316,14 +352,20 @@ func validateEndpointURL(value string) (*url.URL, error) {
 
 // validateProtocol checks enrollment, renewal, confirmation and response validation settings.
 func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
-	if spec.Version != 2 || spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentP10CR {
-		return fmt.Errorf("only CMPv2 P10CR initial enrollment is implemented")
+	if spec.Version != 2 {
+		return fmt.Errorf("only CMPv2 is implemented")
+	}
+	if spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentP10CR && spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentIR {
+		return fmt.Errorf("initialEnrollment must be P10CR or IR")
 	}
 	if spec.CertProfile != "" {
 		return fmt.Errorf("certProfile is reserved until its CMP encoding is implemented")
 	}
 	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
 		return fmt.Errorf("renewal must be P10CR or KUR")
+	}
+	if err := cmp.Or(validateRequestedValidity(spec), validateRenewalFallback(spec)); err != nil {
+		return err
 	}
 	if spec.ValidationProfile != "" && spec.ValidationProfile != cmpv1alpha1.ValidationProfileInteroperable && spec.ValidationProfile != cmpv1alpha1.ValidationProfileRFC9483 {
 		return fmt.Errorf("validationProfile must be Interoperable or RFC9483")
@@ -354,6 +396,39 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 		}
 	}
 	return nil
+}
+
+// validateRequestedValidity accepts Duration only when an IR or KUR can carry the requested validity.
+func validateRequestedValidity(spec cmpv1alpha1.ProtocolSpec) error {
+	// An empty value is an issuer written before the field existed and reads as Omit.
+	switch spec.RequestedValidity {
+	case "", cmpv1alpha1.RequestedValidityOmit:
+		return nil
+	case cmpv1alpha1.RequestedValidityDuration:
+		if spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentIR && renewalOperation(spec) != cmpv1alpha1.TransactionOperationKUR {
+			return fmt.Errorf("requestedValidity Duration needs IR initial enrollment or KUR renewal, because P10CR cannot carry it")
+		}
+		return nil
+	default:
+		return fmt.Errorf("requestedValidity must be Omit or Duration")
+	}
+}
+
+// validateRenewalFallback accepts InitialEnrollment only for a KUR renewal, the only renewal that
+// depends on the current certificate.
+func validateRenewalFallback(spec cmpv1alpha1.ProtocolSpec) error {
+	// An empty value is an issuer written before the field existed and reads as None.
+	switch spec.RenewalFallback {
+	case "", cmpv1alpha1.RenewalFallbackNone:
+		return nil
+	case cmpv1alpha1.RenewalFallbackInitialEnrollment:
+		if renewalOperation(spec) != cmpv1alpha1.TransactionOperationKUR {
+			return fmt.Errorf("renewalFallback InitialEnrollment needs KUR renewal, because only KUR depends on the current certificate")
+		}
+		return nil
+	default:
+		return fmt.Errorf("renewalFallback must be None or InitialEnrollment")
+	}
 }
 
 // validateProtection enforces the selected discriminated protection configuration.

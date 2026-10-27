@@ -10,6 +10,9 @@ site
 .cache
 .envtest
 vendor
+# A local Go workspace points at module directories outside the build context.
+go.work
+go.work.sum
 **/*_test.go
 *.out
 coverage.*

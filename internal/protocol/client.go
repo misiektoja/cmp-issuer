@@ -43,13 +43,14 @@ import (
 )
 
 const (
-	operationEnrollment   = "p10cr"
-	operationKeyUpdate    = "kur"
-	operationPoll         = "pollReq"
-	operationConfirmation = "certConf"
+	operationEnrollment     = "p10cr"
+	operationInitialization = "ir"
+	operationKeyUpdate      = "kur"
+	operationPoll           = "pollReq"
+	operationConfirmation   = "certConf"
 )
 
-// CMPClient handles CMP enrollment, key update, polling and certificate confirmation.
+// CMPClient handles CMP enrollment, initialization, key update, polling and certificate confirmation.
 type CMPClient struct{}
 
 // NewClient constructs the default project-owned CMP client.
@@ -254,6 +255,11 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 	if err != nil {
 		return EnrollmentResult{}, refuse("certificate validation failed"), security("validate issued chain", "signerNotTrusted", err)
 	}
+	// A CA can keep the validity of the certificate being updated. cert-manager would then find the
+	// renewal time of the new certificate already passed and renew it again at once, without end.
+	if request.Operation == OperationKUR && sameValidity(issued.Certificate, request.Protection.Signature.Certificate) {
+		return EnrollmentResult{}, refuse("certificate keeps the validity of the certificate being updated"), permanent("validate issued certificate", "validityNotRenewed", fmt.Errorf("server issued the updated certificate with the notBefore and notAfter of the certificate it replaces, which would make cert-manager renew it again at once"))
+	}
 	if implicitlyConfirmed {
 		return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ExplicitConfirmation: false, ResponseCertReqID: issued.CertReqID}, nil, nil
 	}
@@ -262,6 +268,11 @@ func finishTransaction(request EnrollmentRequest, response *pkicmp.PKIMessage, c
 	// confirmation instead of failing a request whose certificate the server already issued.
 	pending := &PendingTransaction{CertReqID: issued.CertReqID, RecipNonce: append([]byte(nil), response.Header.SenderNonce...), ResponseSigner: responseSigner}
 	return EnrollmentResult{Chain: chain, ExtraCertificateCount: len(issued.Candidates), ResponseCertReqID: issued.CertReqID, PendingConfirmation: pending}, nil, nil
+}
+
+// sameValidity reports whether two certificates have the same notBefore and notAfter.
+func sameValidity(first *x509.Certificate, second *x509.Certificate) bool {
+	return first.NotBefore.Equal(second.NotBefore) && first.NotAfter.Equal(second.NotAfter)
 }
 
 // extractPollRep validates a pollRep body and returns the state required for the next poll.
@@ -294,7 +305,7 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	if request.Operation == "" {
 		request.Operation = OperationP10CR
 	}
-	if request.Operation != OperationP10CR && request.Operation != OperationKUR {
+	if request.Operation != OperationP10CR && request.Operation != OperationIR && request.Operation != OperationKUR {
 		return permanent("validate operation", "badRequest", fmt.Errorf("unsupported enrollment operation %q", request.Operation))
 	}
 	parsedURL, err := url.Parse(request.EndpointURL)
@@ -475,14 +486,19 @@ func verifyResponse(requestMessage *pkicmp.PKIMessage, response *pkicmp.PKIMessa
 	}
 	var responseSigner *x509.Certificate
 	// A server may protect its response with the iteration count of the request, so the maximum the
-	// issuer sends is also accepted. The minimum stays at the library default for servers that choose
-	// their own count.
+	// issuer sends is also accepted. Without the request floor a response may use any count the server
+	// chose, including one below the RFC 4211 minimum that the library refuses by default.
+	minIterationCount := 1
+	if request.RequireMACIterationFloor {
+		minIterationCount = minPBMIterationCount
+	}
 	_, verificationErr := response.Verify(pkicmp.VerifyOptions{
 		RequiredProtection:   requiredProtection,
 		SharedSecret:         sharedSecret,
 		TrustPool:            request.CMPTrust,
 		ExtraCerts:           candidates,
 		SenderKID:            response.Header.SenderKID,
+		MinMACIterationCount: minIterationCount,
 		MaxMACIterationCount: maxPBMIterationCount,
 	})
 	if verificationErr == nil && requiredProtection == pkicmp.ProtectionSignature {
@@ -611,7 +627,7 @@ type issuedCertificate struct {
 	Waiting bool
 }
 
-// extractEnrollmentResponse validates a CP or KUP and returns the issued certificate with its candidates.
+// extractEnrollmentResponse validates a CP, IP or KUP and returns the issued certificate with its candidates.
 func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRequest) (issuedCertificate, error) {
 	if response.Body.Type == pkicmp.BodyTypeError {
 		content, err := response.Body.Error()
@@ -620,20 +636,28 @@ func extractEnrollmentResponse(response *pkicmp.PKIMessage, request EnrollmentRe
 		}
 		return issuedCertificate{}, classifyStatus(content.PKIStatusInfo)
 	}
+	operation := request.Operation
+	if operation == "" {
+		operation = OperationP10CR
+	}
 	expectedBody := pkicmp.BodyTypeCP
-	operation := "P10CR"
-	if request.Operation == OperationKUR {
+	switch operation {
+	case OperationIR:
+		expectedBody = pkicmp.BodyTypeIP
+	case OperationKUR:
 		expectedBody = pkicmp.BodyTypeKUP
-		operation = "KUR"
 	}
 	if response.Body.Type != expectedBody {
 		return issuedCertificate{}, permanent("validate response body", "unsupportedBody", fmt.Errorf("expected %s response", expectedBody.String()))
 	}
 	var reply *pkicmp.CertRepMessage
 	var err error
-	if request.Operation == OperationKUR {
+	switch operation {
+	case OperationIR:
+		reply, err = response.Body.IP()
+	case OperationKUR:
 		reply, err = response.Body.KUP()
-	} else {
+	default:
 		reply, err = response.Body.CP()
 	}
 	if err != nil {
@@ -698,7 +722,14 @@ func parseResponseCertificates(groups ...[]pkicmp.CMPCertificate) ([]*x509.Certi
 
 // acceptResponseCertReqID enforces the operation-specific certificate response identifier.
 func acceptResponseCertReqID(operation string, observed int64, pinned *int64) error {
-	if operation == "KUR" {
+	// RFC 9483 sections 4.1.1 and 4.1.3 fix the certReqId of a CRMF request and its response to 0.
+	switch operation {
+	case OperationIR:
+		if observed != 0 {
+			return security("validate IP certReqId", "certReqIdMismatch", fmt.Errorf("IR IP certReqId must be 0 but response contained %d", observed))
+		}
+		return nil
+	case OperationKUR:
 		if observed != 0 {
 			return security("validate KUP certReqId", "certReqIdMismatch", fmt.Errorf("KUR KUP certReqId must be 0 but response contained %d", observed))
 		}

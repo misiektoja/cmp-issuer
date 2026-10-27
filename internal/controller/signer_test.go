@@ -64,6 +64,8 @@ const (
 	testUnrelatedPrivateKeySecret = "unrelated-private-key"
 	testWorkloadCommonName        = "workload"
 	testHTTPExchangeOperation     = "HTTP exchange"
+	testNextPrivateKeySecret      = "workload-next-key"
+	testCSRBlockType              = "CERTIFICATE REQUEST"
 	testFailureSystemUnavailable  = "systemUnavail"
 )
 
@@ -93,6 +95,7 @@ func (c *recordingClient) readNames() []types.NamespacedName {
 type fakeProtocolClient struct {
 	mu             sync.Mutex
 	calls          int
+	irCalls        int
 	kurCalls       int
 	polls          int
 	confirms       int
@@ -109,6 +112,15 @@ func (c *fakeProtocolClient) EnrollP10CR(_ context.Context, request protocol.Enr
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
+	c.request = request
+	return c.next()
+}
+
+// EnrollIR records the initialization request and returns the configured result.
+func (c *fakeProtocolClient) EnrollIR(_ context.Context, request protocol.EnrollmentRequest) (protocol.EnrollmentResult, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.irCalls++
 	c.request = request
 	return c.next()
 }
@@ -205,7 +217,7 @@ func testCSR(t *testing.T) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: requestDER})
+	return pem.EncodeToMemory(&pem.Block{Type: testCSRBlockType, Bytes: requestDER})
 }
 
 // validSpec returns a fully explicit P10CR PasswordBasedMac issuer spec.
@@ -276,21 +288,29 @@ func testKURRequestObjectsWithKeys(t *testing.T, issuer *cmpv1alpha1.CMPIssuer, 
 	}
 	currentCertificatePEM := testKURCertificate(t, currentKey)
 	revision := 1
-	nextPrivateKeySecretName := "workload-next-key"
+	nextPrivateKeySecretName := testNextPrivateKeySecret
 	certificate := &certmanagerv1.Certificate{ObjectMeta: metav1.ObjectMeta{Name: testWorkloadCommonName, Namespace: testIssuerNamespace, UID: types.UID("22222222-2222-2222-2222-222222222222")}, Spec: certmanagerv1.CertificateSpec{SecretName: "workload-tls", IssuerRef: cmmeta.IssuerReference{Name: issuer.Name, Kind: cmpv1alpha1.TransactionIssuerKindNamespaced, Group: cmpv1alpha1.GroupVersion.Group}}, Status: certmanagerv1.CertificateStatus{Revision: &revision, NextPrivateKeySecretName: &nextPrivateKeySecretName}}
 	controllerReference := *metav1.NewControllerRef(certificate, certmanagerv1.SchemeGroupVersion.WithKind("Certificate"))
 	currentSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: certificate.Spec.SecretName, Namespace: testIssuerNamespace, Annotations: map[string]string{certmanagerv1.CertificateNameKey: certificate.Name}}, Data: map[string][]byte{corev1.TLSCertKey: currentCertificatePEM, corev1.TLSPrivateKeyKey: testKURKeyPEM(t, currentKey)}}
 	stagedSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: nextPrivateKeySecretName, Namespace: testIssuerNamespace, Labels: map[string]string{certmanagerv1.IsNextPrivateKeySecretLabelKey: "true"}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, Data: map[string][]byte{corev1.TLSPrivateKeyKey: testKURKeyPEM(t, requestedKey)}}
-	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID, Annotations: map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: "2", certmanagerv1.CertificateRequestPrivateKeyAnnotationKey: nextPrivateKeySecretName}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, details: issuersigner.CertificateDetails{CSR: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: requestDER})}}
+	request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace, UID: testRequestUID, Annotations: map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: "2", certmanagerv1.CertificateRequestPrivateKeyAnnotationKey: nextPrivateKeySecretName}, OwnerReferences: []metav1.OwnerReference{controllerReference}}, details: issuersigner.CertificateDetails{CSR: pem.EncodeToMemory(&pem.Block{Type: testCSRBlockType, Bytes: requestDER})}}
 	return request, certificate, currentSecret, stagedSecret
+}
+
+// credentialSecretsWithSigner returns valid PasswordBasedMac and CMP trust Secrets together with the
+// key of the trust anchor, so a test can issue certificates that chain to it.
+func credentialSecretsWithSigner(t *testing.T, namespace string) (*corev1.Secret, *corev1.Secret, *x509.Certificate, *ecdsa.PrivateKey) {
+	t.Helper()
+	certificate, key, certificatePEM := testCertificateMaterial(t, "CMP Root")
+	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
+	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testTrustSecretName, Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
+	return auth, trust, certificate, key
 }
 
 // credentialSecrets returns valid PasswordBasedMac and CMP trust Secrets.
 func credentialSecrets(t *testing.T, namespace string) (*corev1.Secret, *corev1.Secret, *x509.Certificate) {
 	t.Helper()
-	certificate, _, certificatePEM := testCertificateMaterial(t, "CMP Root")
-	auth := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testAuthSecretName, Namespace: namespace}, Data: map[string][]byte{testPasswordReferenceKey: []byte("test-reference"), "secret": []byte("test-shared-secret")}}
-	trust := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testTrustSecretName, Namespace: namespace}, Data: map[string][]byte{testCMPTrustKey: certificatePEM}}
+	auth, trust, certificate, _ := credentialSecretsWithSigner(t, namespace)
 	return auth, trust, certificate
 }
 
@@ -303,7 +323,24 @@ func TestValidateSpec(t *testing.T) {
 		{name: "relative endpoint", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.URL = "/cmp" }},
 		{name: "endpoint credentials", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.URL = "https://user@example.test/cmp" }},
 		{name: "relative renewal endpoint", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Endpoint.RenewalURL = "/keyupdate" }},
-		{name: "unsupported operation", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.InitialEnrollment = "IR" }},
+		{name: "unsupported operation", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.InitialEnrollment = "CR" }},
+		{name: "unsupported requested validity", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.RequestedValidity = "Always" }},
+		{name: "requested validity without IR or KUR", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
+		}},
+		{name: "requested validity with P10CR renewal", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
+			spec.Protocol.Renewal = cmpv1alpha1.RenewalP10CR
+		}},
+		{name: "unsupported renewal fallback", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.RenewalFallback = "OnFailure" }},
+		{name: "renewal fallback with P10CR renewal", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.Protocol.Renewal = cmpv1alpha1.RenewalP10CR
+			spec.Protocol.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback with only P10CR", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
 		{name: "unsupported P10CR response certReqId", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			unsupported := int64(1)
 			spec.Protocol.P10CRResponseCertReqID = &unsupported
@@ -368,6 +405,47 @@ func TestValidateSpecAllowsOmittedOptionalObjects(t *testing.T) {
 	spec.Policy = cmpv1alpha1.PolicySpec{}
 	if _, err := validateSpec(&spec); err != nil {
 		t.Fatalf("validate omitted optional objects: %v", err)
+	}
+}
+
+// TestValidateSpecAllowsCRMFOperations verifies IR, KUR, a requested validity for either and a
+// renewal fallback for KUR are accepted.
+func TestValidateSpecAllowsCRMFOperations(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*cmpv1alpha1.ProtocolSpec)
+	}{
+		{name: "IR with the renewal it implies", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR }},
+		{name: "IR with P10CR renewal", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.Renewal = cmpv1alpha1.RenewalP10CR
+		}},
+		{name: "requested validity for IR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
+		}},
+		{name: "requested validity for KUR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.Renewal = cmpv1alpha1.RenewalKUR
+			spec.RequestedValidity = cmpv1alpha1.RequestedValidityDuration
+		}},
+		{name: "omitted requested validity", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RequestedValidity = cmpv1alpha1.RequestedValidityOmit }},
+		{name: "renewal fallback for the KUR an IR issuer implies", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback for KUR after P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.Renewal = cmpv1alpha1.RenewalKUR
+			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
+		}},
+		{name: "renewal fallback None with P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RenewalFallback = cmpv1alpha1.RenewalFallbackNone }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			spec := validSpec("https://example.test/cmp")
+			test.mutate(&spec.Protocol)
+			if _, err := validateSpec(&spec); err != nil {
+				t.Fatalf("validate protocol: %v", err)
+			}
+		})
 	}
 }
 
@@ -460,10 +538,11 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 		kurCAPubs          string
 		expectPinned       bool
 		expectSignedMAC    bool
+		expectMACFloor     bool
 		expectAbsentCAPubs bool
 	}{
-		{name: "RFC9483", profile: cmpv1alpha1.ValidationProfileRFC9483, expectPinned: true, expectSignedMAC: false, expectAbsentCAPubs: true},
-		{name: "interoperable override", profile: cmpv1alpha1.ValidationProfileInteroperable, kurCAPubs: cmpv1alpha1.KURResponseCAPubsRequireAbsent, expectSignedMAC: true, expectAbsentCAPubs: true},
+		{name: "RFC9483", profile: cmpv1alpha1.ValidationProfileRFC9483, expectPinned: true, expectSignedMAC: false, expectMACFloor: true, expectAbsentCAPubs: true},
+		{name: "interoperable override", profile: cmpv1alpha1.ValidationProfileInteroperable, kurCAPubs: cmpv1alpha1.KURResponseCAPubsRequireAbsent, expectSignedMAC: true, expectMACFloor: false, expectAbsentCAPubs: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -487,6 +566,9 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 			if protocolClient.request.AllowSignedMACResponse != test.expectSignedMAC {
 				t.Fatalf("expected signed MAC response acceptance %t", test.expectSignedMAC)
 			}
+			if protocolClient.request.RequireMACIterationFloor != test.expectMACFloor {
+				t.Fatalf("expected MAC response iteration floor %t", test.expectMACFloor)
+			}
 			if protocolClient.request.RequireKUPCAPubsAbsent != test.expectAbsentCAPubs {
 				t.Fatalf("expected KUP caPubs absence %t", test.expectAbsentCAPubs)
 			}
@@ -506,7 +588,8 @@ func TestSignAppliesValidationProfile(t *testing.T) {
 	}
 }
 
-// TestSignForwardsMACResponseProtection verifies only an explicit Strict tightens MAC response protection.
+// TestSignForwardsMACResponseProtection verifies only an explicit Strict tightens MAC response protection and
+// requires the request iteration floor of a MAC-protected response.
 func TestSignForwardsMACResponseProtection(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -531,6 +614,9 @@ func TestSignForwardsMACResponseProtection(t *testing.T) {
 			}
 			if protocolClient.request.AllowSignedMACResponse != test.allowed {
 				t.Fatalf("expected AllowSignedMACResponse %t, got %t", test.allowed, protocolClient.request.AllowSignedMACResponse)
+			}
+			if protocolClient.request.RequireMACIterationFloor == test.allowed {
+				t.Fatalf("expected RequireMACIterationFloor %t, got %t", !test.allowed, protocolClient.request.RequireMACIterationFloor)
 			}
 		})
 	}

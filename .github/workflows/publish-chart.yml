@@ -27,7 +27,7 @@ jobs:
     name: Update the Helm repository index
     runs-on: ubuntu-latest
     permissions:
-      # Reading the release assets and pushing the refreshed index to gh-pages.
+      # Reading the release assets and their attestations, then pushing the refreshed index to gh-pages.
       contents: write
     concurrency:
       group: gh-pages
@@ -64,6 +64,15 @@ jobs:
           # indexed. A chart version is bare SemVer, so it is the release tag without the leading v.
           gh release download "$VERSION" --pattern "cmp-issuer-${VERSION#v}.tgz" --dir staging
           ls -l staging
+
+      - name: Verify the chart provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          # release.yml attests every asset it attaches. Only a chart that workflow built from this
+          # repository is indexed, so an archive replaced on the release page is refused here.
+          gh attestation verify "staging/cmp-issuer-${VERSION#v}.tgz" --repo "$GITHUB_REPOSITORY" --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml"
 
       - name: Fetch the current chart repository index
         env:

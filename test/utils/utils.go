@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -30,7 +31,7 @@ import (
 )
 
 const (
-	defaultCertManagerVersion = "v1.21.2"
+	defaultCertManagerVersion = "v1.21.3"
 	certmanagerURLTmpl        = "https://github.com/cert-manager/cert-manager/releases/download/%s/cert-manager.yaml"
 
 	defaultKindBinary  = "kind"
@@ -149,14 +150,52 @@ func LoadImageToKindClusterWithName(name string) error {
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
-	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
 	kindBinary := defaultKindBinary
 	if v, ok := os.LookupEnv("KIND"); ok {
 		kindBinary = v
 	}
-	cmd := exec.Command(kindBinary, kindOptions...)
-	_, err := Run(cmd)
-	return err
+	// kind load imports every platform an image index names. The containerd image store of Docker keeps
+	// a pulled multi-platform image as its whole index with the content of one platform only, so that
+	// import fails with "content digest not found". Importing for the node platform alone needs only the
+	// content the store holds and works the same for single-platform images and the classic store.
+	output, err := exec.Command(kindBinary, "get", "nodes", "--name", cluster).Output()
+	if err != nil {
+		return fmt.Errorf("list the nodes of kind cluster %s: %w", cluster, err)
+	}
+	nodes := GetNonEmptyLines(string(output))
+	if len(nodes) == 0 {
+		return fmt.Errorf("kind cluster %s has no nodes", cluster)
+	}
+	file, err := os.CreateTemp("", "kind-image-*.tar")
+	if err != nil {
+		return err
+	}
+	path := file.Name()
+	defer func() { _ = os.Remove(path) }()
+	if err := file.Close(); err != nil {
+		return err
+	}
+	if _, err := Run(exec.Command("docker", "save", "--output", path, name)); err != nil {
+		return err
+	}
+	// docker save replaces the file at path, so the archive is opened only after it is written.
+	archive, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = archive.Close() }()
+	for _, node := range nodes {
+		if _, err := archive.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		load := exec.Command("docker", "exec", "--privileged", "-i", node,
+			"ctr", "--namespace=k8s.io", "images", "import", "--digests", "--snapshotter=overlayfs", "-")
+		load.Stdin = archive
+		if _, err := Run(load); err != nil {
+			return fmt.Errorf("import %s into kind node %s: %w", name, node, err)
+		}
+	}
+	return nil
 }
 
 // GetNonEmptyLines converts given command output string into individual objects

@@ -58,6 +58,12 @@ if [ -z "$latest" ]; then
   echo "error: $releases_url lists no stable release in the $series series, which usually means the series is out of support and needs a minor bump by hand" >&2
   exit 1
 fi
+# The value is interpolated into a sed replacement below, so anything but a Go version is refused
+# before either file is touched.
+if ! printf '%s\n' "$latest" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+  echo "error: $releases_url reported '$latest', which is not a Go version" >&2
+  exit 1
+fi
 
 echo "current: $current"
 echo "latest:  $latest"

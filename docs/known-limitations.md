@@ -22,10 +22,11 @@ A transaction that obtained a certificate keeps its record, including the issued
 
 | Limitation | Status |
 | --- | --- |
-| IR and CRMF | Planned |
+| IR for a hand-written `CertificateRequest` | Unsupported. IR proves possession with the key cert-manager staged for a `Certificate`. Use P10CR for a direct request |
 | `spec.protocol.certProfile` | Reserved until its CMP encoding is implemented. A non-empty value makes the issuer NotReady |
 | KUR with a changed subject or SAN | Unsupported by design. Use P10CR where the server permits re-enrollment or wait for planned CR support |
-| KUR after the old certificate expires | Unsupported by RFC profile requirements. Renew while it is still valid |
+| KUR after the old certificate expires or its Secret is deleted | Unsupported, because KUR authenticates with the current certificate. Renew while it is still valid or set `renewalFallback: InitialEnrollment`, see [Missing or expired current certificate](guide/renewal-and-kur.md#missing-or-expired-current-certificate) |
+| KUR from a CA that keeps the old validity | Refused, because cert-manager would renew again at once. Configure the CA to compute a new validity on key update or use `renewal: P10CR` |
 | PBMAC1 | Planned |
 | mTLS to the CMP endpoint | Planned. Setting the reserved `spec.transport.tls.clientCertificateSecretRef` makes the issuer NotReady |
 | CMPv3 beyond ML-DSA certificate confirmation | Planned |

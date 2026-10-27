@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.23.0
   name: cmpissuers.certmanager.misiektoja.github.io
 spec:
   group: certmanager.misiektoja.github.io
@@ -269,11 +269,13 @@ spec:
                   initialEnrollment:
                     default: P10CR
                     description: |-
-                      InitialEnrollment selects the enrollment request body.
-                      Only P10CR is implemented. IR requires CRMF proof of possession over the workload private key,
-                      which needs the key access design recorded in the threat model, so it is not accepted yet.
+                      InitialEnrollment selects the request of the first cert-manager certificate revision.
+                      P10CR forwards the CSR and reads no workload private key. IR sends a CRMF request whose proof
+                      of possession the staged private key signs, so it requires narrowly authorized access to the
+                      Certificate's staged private-key Secret and a CertificateRequest created for a Certificate.
                     enum:
                     - P10CR
+                    - IR
                     type: string
                   kurResponseCaPubs:
                     description: |-
@@ -314,15 +316,39 @@ spec:
                     maxLength: 1024
                     type: string
                   renewal:
-                    default: P10CR
                     description: |-
                       Renewal selects the operation used after the first cert-manager certificate revision.
-                      P10CR repeats PKCS #10 enrollment and remains the compatibility default. KUR proves ownership
-                      of the current valid certificate and requested private key, so it requires narrowly authorized
-                      access to the Certificate's current and staged private-key Secrets.
+                      P10CR repeats PKCS #10 enrollment. KUR proves ownership of the current valid certificate and
+                      requested private key, so it requires narrowly authorized access to the Certificate's current
+                      and staged private-key Secrets. Omission follows initialEnrollment: P10CR after P10CR and KUR
+                      after IR.
                     enum:
                     - P10CR
                     - KUR
+                    type: string
+                  renewalFallback:
+                    default: None
+                    description: |-
+                      RenewalFallback selects what a KUR renewal does when the current certificate is missing from
+                      the Certificate's Secret or has expired, so KUR cannot authenticate. None fails the request.
+                      InitialEnrollment renews through initialEnrollment instead, protected by the issuer
+                      credentials. The choice is made once before the first CMP message is sent and is recorded in
+                      the CMPTransaction. A Secret written for another Certificate never falls back. Neither does a
+                      current certificate that is not yet valid or does not match its key.
+                    enum:
+                    - None
+                    - InitialEnrollment
+                    type: string
+                  requestedValidity:
+                    default: Omit
+                    description: |-
+                      RequestedValidity selects whether an IR or KUR asks the CA for a validity period. Omit leaves
+                      the validity to the CA. Duration asks for a notAfter of the transaction start plus the
+                      CertificateRequest spec.duration when that is set. The CA decides the validity it grants and
+                      may shorten or ignore the request. P10CR cannot carry it and ignores the field.
+                    enum:
+                    - Omit
+                    - Duration
                     type: string
                   sender:
                     description: Sender is an optional RFC 4514 distinguished name
@@ -366,6 +392,16 @@ spec:
                   rule: '!has(self.validationProfile) || self.validationProfile !=
                     ''RFC9483'' || !has(self.kurResponseCaPubs) || self.kurResponseCaPubs
                     == ''RequireAbsent'''
+                - message: requestedValidity Duration needs IR initial enrollment
+                    or KUR renewal, because P10CR cannot carry it
+                  rule: '!has(self.requestedValidity) || self.requestedValidity !=
+                    ''Duration'' || self.initialEnrollment == ''IR'' || (has(self.renewal)
+                    && self.renewal == ''KUR'')'
+                - message: renewalFallback InitialEnrollment needs KUR renewal, because
+                    only KUR depends on the current certificate
+                  rule: '!has(self.renewalFallback) || self.renewalFallback == ''None''
+                    || (has(self.renewal) ? self.renewal == ''KUR'' : self.initialEnrollment
+                    == ''IR'')'
               transaction:
                 default:
                   maximumDuration: 10m

@@ -620,3 +620,59 @@ func TestMLDSAKeyUsageRejectionAgainstOpenSSL(t *testing.T) {
 		t.Fatalf("expected rejecting certConf, got %+v and %v", statuses, err)
 	}
 }
+
+// TestIRAgainstOpenSSLMockServer verifies an IR under MAC and signature protection, with and
+// without a requested validity, against an independent implementation.
+func TestIRAgainstOpenSSLMockServer(t *testing.T) {
+	for _, protection := range irProtectionCases {
+		for _, requested := range []bool{false, true} {
+			name := protection.name
+			if requested {
+				name += " with requested validity"
+			}
+			t.Run(name, func(t *testing.T) {
+				pki := newTestPKI(t)
+				request := irEnrollmentRequest(t, pki, "", protection.signature)
+				if requested {
+					request.RequestedNotAfter = time.Now().Add(720 * time.Hour).UTC().Truncate(time.Second)
+				}
+				certificateRequest, err := x509.ParseCertificateRequest(request.CSRDER)
+				if err != nil {
+					t.Fatalf("parse IR CSR: %v", err)
+				}
+				issued := issueLeaf(t, pki, certificateRequest, request.RequestedPrivateKey.Public())
+				var upstream string
+				if protection.signature {
+					upstream = startOpenSSLKURMockServer(t, pki, pki.BootstrapCertificate, issued, true)
+				} else {
+					request.Protection.Password = &PasswordProtection{Reference: []byte(opensslMockReference), Secret: []byte(opensslMockPassword), IterationCount: 1024}
+					upstream = startOpenSSLMockServer(t, pki, issued, 0)
+				}
+				proxy, forwarded := newSingleConnectionProxy(t, upstream)
+				request.EndpointURL = proxy.URL
+				client := NewClient()
+				result, err := client.EnrollIR(context.Background(), request)
+				if err == nil {
+					result, err = confirmToCompletion(t, client, request, result)
+				}
+				if err != nil {
+					t.Fatalf("OpenSSL IR returned error: %v", err)
+				}
+				if len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+					t.Fatal("expected the IR certificate configured on the OpenSSL mock server")
+				}
+				sent, err := pkicmp.ParsePKIMessage(forwarded.at(0))
+				if err != nil || sent.Body.Type != pkicmp.BodyTypeIR {
+					t.Fatalf("expected OpenSSL to accept an IR body, got %v and %v", sent, err)
+				}
+				messages, err := sent.Body.IR()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if validity := (*messages)[0].CertReq.CertTemplate.Validity; requested != (validity != nil) {
+					t.Fatalf("expected requested validity %t, got %+v", requested, validity)
+				}
+			})
+		}
+	}
+}

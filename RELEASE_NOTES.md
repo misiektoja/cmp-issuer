@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.4.0] - 27 Oct 2026
+
+This release adds **IR** initial enrollment, a requested validity for IR and KUR and a KUR fallback for a missing or expired certificate. It stops a KUR renewal loop on CAs that keep the old validity and checks recorded transaction chains against CMP trust before reuse.
+
+### Certificate management
+
+* **Enroll with IR** - Set `spec.protocol.initialEnrollment` to `IR` to send a CRMF Initialization Request. The key cert-manager staged for the `Certificate` signs proof of possession. IR needs a `CertificateRequest` created for a `Certificate`. A `CMPClusterIssuer` using IR needs the same Secret RoleBinding in each workload namespace as KUR. When `spec.protocol.renewal` is omitted, an IR issuer renews with KUR and a P10CR issuer with P10CR. Issuers created by earlier releases keep `renewal: P10CR`. Tested with Nokia NCM 26.7, EJBCA Community Edition 9.3.7 and OpenSSL 3.6.5.
+* **Ask for a validity period** - `spec.protocol.requestedValidity: Duration` asks in each IR and KUR for a `notAfter` of the transaction start plus `Certificate.spec.duration`. The default `Omit` leaves the validity to the CA. NCM may answer `grantedWithMods`, which the default `grantedModifications: Reject` refuses. See [requested validity](https://misiektoja.github.io/cmp-issuer/guide/enrollment/#requested-validity).
+* **Fall back when the current certificate is missing or expired** - With `spec.protocol.renewalFallback: InitialEnrollment` a KUR renewal whose `Certificate` Secret is deleted or holds no certificate or an expired one is sent as the `initialEnrollment` operation to `endpoint.url`. The controller records a `RenewalFallback` Warning Event. The default `None` keeps KUR. Tested after a deleted Secret with Nokia NCM 26.7 and EJBCA Community Edition 9.3.7. See [missing or expired current certificate](https://misiektoja.github.io/cmp-issuer/guide/renewal-and-kur/#missing-or-expired-current-certificate).
+
+### Security and reliability
+
+* **Recorded transaction chains are checked against CMP trust** - A `CMPTransaction` resumed in phase `Issued` or `Confirming` has its chain validated against the current `spec.cmpTrust` anchors before cert-manager receives it or `certConf` is sent. Earlier releases trusted the record, so anyone allowed to write `cmptransactions` status in a namespace could choose the certificate issued there. No role shipped with cmp-issuer grants that access. An issuer whose trust Secret is missing cannot recover an issued chain until the Secret is restored.
+* **Strict MAC profiles require 100 iterations on responses** - Under `validationProfile: RFC9483` or `macResponseProtection: Strict` a MAC-protected response with fewer iterations fails with `badMessageCheck`. The interoperable default accepts the count the server chose.
+
+### Bug fixes
+
+* **KUR fails when the current certificate Secret is deleted** - Such a renewal stayed Pending and read the Secret every second. It fails with a message that names the Secret and the ways to recover.
+* **KUR no longer renews in a loop when the CA keeps the old validity** - cert-manager renewed again at once when a KUR certificate kept the `notBefore` and `notAfter` of the one it replaced. cmp-issuer rejects such a certificate in `certConf` and fails the `CertificateRequest`. On NCM tick "Overwrite old?" in the `set-validity-period` policy module, see [certificate validity on NCM](https://misiektoja.github.io/cmp-issuer/interoperability/tested-pkis/#certificate-validity).
+
+### Project maintenance
+
+* **Built with Go 1.27.3** - Includes the `crypto/x509` fix GO-2026-6809. Building from source needs Go 1.27.3.
+* **CMP library go-pki-cmp v0.8.0** - Encodes the validity that `requestedValidity` sends.
+* **Leader election without ConfigMap access** - The leader-election Role grants Leases and Events only.
+* **Supply chain checks** - Base images are pinned by digest and the chart repository verifies the chart's build provenance attestation before indexing it.
+
 ## [0.3.1] - 11 Oct 2026
 
 This release fixes PasswordBasedMac enrollment with more than 500000 iterations and KUR of certificates without a subject DN. Signature-protected requests carry certificate subjects exactly as the certificates encode them. Kubernetes 1.37 joins the verified versions and the CMP library moves to go-pki-cmp, its new name.

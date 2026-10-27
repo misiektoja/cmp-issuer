@@ -99,7 +99,7 @@ spec:
     maxResponseSize: 1048576
   protocol:
     version: 2
-    initialEnrollment: P10CR
+    initialEnrollment: %[9]s
 %[7]s    recipient: %[3]s
     confirmation: Explicit
   protection:
@@ -169,10 +169,13 @@ type ejbcaIssuer struct {
 	protection        string
 	trustSecret       string
 	transport         string
+	initialEnrollment string
 	renewal           string
 	renewalURL        string
 	validationProfile string
 	kurResponseCAPubs string
+	requestedValidity string
+	renewalFallback   string
 }
 
 // ejbcaWorkloadManifest renders the CMP server Deployment and the Service that publishes it.
@@ -192,12 +195,22 @@ func (issuer ejbcaIssuer) manifest() string {
 	if issuer.kurResponseCAPubs != "" {
 		renewal += "    kurResponseCaPubs: " + issuer.kurResponseCAPubs + "\n"
 	}
+	if issuer.requestedValidity != "" {
+		renewal += "    requestedValidity: " + issuer.requestedValidity + "\n"
+	}
+	if issuer.renewalFallback != "" {
+		renewal += "    renewalFallback: " + issuer.renewalFallback + "\n"
+	}
+	initialEnrollment := issuer.initialEnrollment
+	if initialEnrollment == "" {
+		initialEnrollment = "P10CR"
+	}
 	renewalURL := ""
 	if issuer.renewalURL != "" {
 		renewalURL = "    renewalUrl: " + issuer.renewalURL + "\n"
 	}
 	return fmt.Sprintf(ejbcaIssuerTemplate, issuer.name, issuer.url, yamlQuote(issuer.recipient),
-		issuer.protection, issuer.trustSecret, issuer.transport, renewal, renewalURL)
+		issuer.protection, issuer.trustSecret, issuer.transport, renewal, renewalURL, initialEnrollment)
 }
 
 // ejbcaKURCertificateManifest renders one certificate used for a two-revision client-mode update.

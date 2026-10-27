@@ -310,6 +310,19 @@ func TestLineEndingAndBinaryPoliciesAreDeclared(t *testing.T) {
 	}
 }
 
+// TestDockerBuildContextExcludesGoWorkspace keeps a local go.work from redirecting module resolution in the image build
+func TestDockerBuildContextExcludesGoWorkspace(t *testing.T) {
+	patterns := map[string]bool{}
+	for line := range strings.SplitSeq(string(readRepositoryFile(t, ".dockerignore")), "\n") {
+		patterns[strings.TrimSpace(line)] = true
+	}
+	for _, name := range []string{"go.work", "go.work.sum"} {
+		if !patterns[name] {
+			t.Errorf(".dockerignore does not exclude %s", name)
+		}
+	}
+}
+
 // TestLocalHooksStayToolchainFreeAndCIRunsLint keeps fast hooks separate from authoritative Go checks
 func TestLocalHooksStayToolchainFreeAndCIRunsLint(t *testing.T) {
 	var configuration preCommitConfiguration
