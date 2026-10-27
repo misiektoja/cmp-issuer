@@ -1596,6 +1596,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1763,7 +1819,7 @@
 <p>Guide for building and running cmp-issuer from source.</p>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Go 1.27.2 or later, the minimum <code>go.mod</code> declares. This patch includes standard-library security fixes. ML-DSA support comes from Go 1.27</li>
+<li>Go 1.27.3 or later, the minimum <code>go.mod</code> declares. This patch includes standard-library security fixes. ML-DSA support comes from Go 1.27</li>
 <li>Docker or Podman for image builds</li>
 <li>Kubebuilder v4.15 for API scaffolding (optional for day-to-day work)</li>
 <li>Python with MkDocs dependencies for documentation (<code>make docs-deps</code>)</li>
@@ -1825,7 +1881,7 @@
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span><span class="nb">test</span><span class="w">            </span><span class="c1"># Unit and envtest suites</span>
 make<span class="w"> </span>test-e2e<span class="w">        </span><span class="c1"># Kind-based controller tests</span>
 make<span class="w"> </span>test-e2e-ejbca<span class="w">  </span><span class="c1"># Enrollment from a CMP server started in the test cluster</span>
-make<span class="w"> </span>lint<span class="w">            </span><span class="c1"># golangci-lint v2.14.0 and actionlint v1.7.12</span>
+make<span class="w"> </span>lint<span class="w">            </span><span class="c1"># golangci-lint v2.15.0 and actionlint v1.7.12</span>
 make<span class="w"> </span>dco-check<span class="w">       </span><span class="c1"># DCO sign-off on every commit since origin/dev</span>
 make<span class="w"> </span>run<span class="w">             </span><span class="c1"># Run controller locally against current kubeconfig</span>
 make<span class="w"> </span>manifests<span class="w">       </span><span class="c1"># Regenerate CRDs and RBAC from markers</span>

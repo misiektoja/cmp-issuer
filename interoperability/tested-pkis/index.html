@@ -979,6 +979,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#ir-enrollment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR enrollment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renewal-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Renewal fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#certificate-validity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Certificate validity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#kur-renewal" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1055,6 +1088,17 @@
     <span class="md-ellipsis">
       
         Client mode constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ir-in-ra-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR in RA mode
       
     </span>
   </a>
@@ -1729,6 +1773,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1863,6 +1963,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#ir-enrollment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR enrollment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renewal-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Renewal fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#certificate-validity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Certificate validity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#kur-renewal" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1939,6 +2072,17 @@
     <span class="md-ellipsis">
       
         Client mode constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ir-in-ra-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR in RA mode
       
     </span>
   </a>
@@ -2026,7 +2170,7 @@
 
 
 <h1 id="tested-pkis">Tested PKIs<a class="headerlink" href="#tested-pkis" title="Permanent link">&para;</a></h1>
-<p>cmp-issuer has completed protected P10CR enrollment and renewal tests against the servers below. KUR coverage is stated separately because support depends on the server profile and alias mode. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.</p>
+<p>cmp-issuer has completed protected P10CR enrollment and renewal tests against the servers below. IR and KUR coverage is stated separately because support depends on the server profile and alias mode. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.</p>
 <h2 id="contents">Contents<a class="headerlink" href="#contents" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="#nokia-ncm-267-insta-certifier-720">Nokia NCM 26.7 / Insta Certifier 7.20</a></li>
@@ -2084,6 +2228,34 @@ Both signatures and issued chains validated against the separate configured root
 <p>NCM re-enrolls an identity it has already certified. A cert-manager renewal was exercised for both values of <code>privateKey.rotationPolicy</code>: with <code>Always</code>, where the CSR carries a new public key, and with <code>Never</code>, where it carries the key the first certificate already used. Both produced a new certificate with a new serial number, and the server recorded each as its own transaction answered with a certificate response.</p>
 <p>This is P10CR re-enrollment rather than KUR. It differs from a retransmission, which reuses the identifier of a transaction NCM has already answered and draws <code>transactionIdInUse</code>.</p>
 <p>CI repeats the <code>Always</code> case on every run, over every configured transport. The <code>Never</code> case remains a lab result.</p>
+<h3 id="ir-enrollment">IR enrollment<a class="headerlink" href="#ir-enrollment" title="Permanent link">&para;</a></h3>
+<p>The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying <code>certReqId</code> <code>0</code> and explicit confirmation completed. An issuer with <code>initialEnrollment: IR</code> and no <code>renewal</code> then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI.</p>
+<h3 id="renewal-fallback">Renewal fallback<a class="headerlink" href="#renewal-fallback" title="Permanent link">&para;</a></h3>
+<p>With <code>renewalFallback: InitialEnrollment</code>, deleting the <code>Certificate</code> Secret made cert-manager issue revision two, which cmp-issuer sent as an initial enrollment for an identity that already holds a certificate. NCM accepted IR with PasswordBasedMac and with signature protection. It also accepted P10CR from an issuer with <code>initialEnrollment: P10CR</code> and <code>renewal: KUR</code>. Each answer carried a new certificate under a new serial number. NCM did not revoke the old certificate. The next renewal of each new certificate went through KUR. The fallback after an expired certificate was not tested on NCM. These are lab results and are not repeated in CI.</p>
+<h3 id="certificate-validity">Certificate validity<a class="headerlink" href="#certificate-validity" title="Permanent link">&para;</a></h3>
+<p>The validity NCM grants is set by the <code>set-validity-period</code> policy module of the certificate profile. Its "Overwrite old?" setting decides both how key update and how a requested validity are treated:</p>
+<table>
+<thead>
+<tr>
+<th>"Overwrite old?"</th>
+<th>KUR</th>
+<th>IR or KUR with <code>requestedValidity: Duration</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unticked</td>
+<td>The updated certificate keeps the <code>notBefore</code> and <code>notAfter</code> of the old one</td>
+<td>IR keeps the requested <code>notAfter</code>. KUR answers <code>grantedWithMods</code> and keeps the old validity</td>
+</tr>
+<tr>
+<td>Ticked</td>
+<td>The updated certificate gets a new validity from the policy period</td>
+<td>NCM answers <code>grantedWithMods</code></td>
+</tr>
+</tbody>
+</table>
+<p>cmp-issuer rejects a KUR certificate that keeps the old validity, because cert-manager would renew it again at once. Tick "Overwrite old?" in profiles used for KUR and leave <code>requestedValidity</code> at <code>Omit</code>. NCM caps every validity at the expiry of the issuing CA certificate.</p>
 <h3 id="kur-renewal">KUR renewal<a class="headerlink" href="#kur-renewal" title="Permanent link">&para;</a></h3>
 <p>The same lab profile accepted a P10CR-issued certificate as the authentication credential for later KUR on the same endpoint. Both cert-manager rotation policies completed with explicit confirmation. <code>Always</code> produced a new serial and public key while <code>Never</code> produced a new serial with the exact existing public key. A repeated same-key KUR without CRMF <code>oldCertID</code> was rejected after the key had more than one certificate. Sending the current certificate issuer and serial in <code>oldCertID</code> resolved the ambiguity and the next repeated same-key KUR completed. NCM recorded signature-protected <code>keyUpReq</code>, <code>keyUpResp</code>, <code>certConfirm</code> and final confirmation messages.</p>
 <p>This verifies both new-key and same-key KUR against the tested profile. Another NCM profile can still disable key update or apply different certificate policy.</p>
@@ -2138,6 +2310,9 @@ SHA-512 OWF/HMAC pairs. The tested alias returned signature-protected responses.
 <p><strong>End entity must exist and returns to a used state.</strong> Client mode treats the enrollment code as one-time. After issuance the end entity moves to <code>GENERATED</code> and refuses another request until an administrator sets it back to <code>NEW</code> or the profile allows multiple requests.</p>
 <p><strong>Certificate authentication enrolls only the authenticating identity.</strong> With <code>EndEntityCertificate</code> in client mode EJBCA requires the requested subject DN to match the registered end entity. Signature protection therefore issues for the bootstrap identity.</p>
 <p><strong>Signature credential shape.</strong> EJBCA resolves the certificate from its database. The Secret needs only <code>tls.crt</code> and <code>tls.key</code>; <code>chainKey</code> may be omitted.</p>
+<h3 id="ir-in-ra-mode">IR in RA mode<a class="headerlink" href="#ir-in-ra-mode" title="Permanent link">&para;</a></h3>
+<p>An RA mode alias accepts IR with PasswordBasedMac and with certificate signature protection. The CI suite enrolls an identity through IR on the shared-secret RA alias with <code>requestedValidity: Duration</code> and renews it through KUR on the key-update alias. The issued certificates carry the validity of the certificate profile, so EJBCA ignores the requested validity when the profile does not allow a validity override and still answers <code>accepted</code>.</p>
+<p>The suite also enrolls a second identity through IR under <code>renewalFallback: InitialEnrollment</code>, deletes its Secret and renews revision two through IR on the same RA alias. EJBCA answers the repeated IR with a new certificate. A client mode alias refuses the repeated request unless the end entity profile allows multiple requests, see <a href="#client-mode-constraints">client mode constraints</a>.</p>
 <h3 id="kur-in-client-mode">KUR in client mode<a class="headerlink" href="#kur-in-client-mode" title="Permanent link">&para;</a></h3>
 <p>Initial P10CR uses a client-mode HMAC alias. KUR uses a separate <code>EndEntityCertificate</code> alias with Automatic Key Update enabled. Configure the first URL as <code>endpoint.url</code>, the key-update alias as <code>endpoint.renewalUrl</code> and select <code>protocol.renewal: KUR</code>.</p>
 <p>The initial P10CR-issued certificate successfully authenticates later KUR. EJBCA issues a new serial for both a new requested key and the existing key when <code>allowupdatewithsamekey</code> is enabled. No administrative reset is used between revisions.</p>
@@ -2148,7 +2323,7 @@ SHA-512 OWF/HMAC pairs. The tested alias returned signature-protected responses.
 <h3 id="retransmitted-enrollment_1">Retransmitted enrollment<a class="headerlink" href="#retransmitted-enrollment_1" title="Permanent link">&para;</a></h3>
 <p>EJBCA answers a repeat of an enrollment it already accepted with a protected error carrying failInfo <code>badRequest</code> and the status text <code>Got request with status GENERATED (40)</code>, and issues no second certificate. It refuses on the end entity state above rather than on the transaction identifier, so like NCM it does not return the certificate from the original transaction.</p>
 <h2 id="openssl-cmp-mock">OpenSSL CMP mock<a class="headerlink" href="#openssl-cmp-mock" title="Permanent link">&para;</a></h2>
-<p>CI runs delayed enrollment, delayed confirmation, pinned transaction and KUR flows against the CMP mock built into OpenSSL 3.6. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.</p>
+<p>CI runs delayed enrollment, delayed confirmation, pinned transaction, IR and KUR flows against the CMP mock built into OpenSSL 3.6. IR is exercised with both protection modes, with and without a requested validity. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.</p>
 <p>Signature-protected P10CR and both KUR rotation variants are also tested without <code>-rsp_extracerts</code>.
 The configured CMP trust anchor signs the responses and explicit confirmation completes without the
 server sending its signer certificate.</p>
@@ -2162,7 +2337,7 @@ confirm the selected algorithm identifiers on every message.</p>
 <h2 id="what-is-not-claimed">What is not claimed<a class="headerlink" href="#what-is-not-claimed" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Compatibility with arbitrary CMP servers or profiles</li>
-<li>IR, revocation or CMPv3</li>
+<li>Revocation or CMPv3</li>
 </ul>
 <p>See <a href="../../support-matrix/">Support matrix</a>.</p>
 

@@ -1519,6 +1519,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1634,7 +1690,7 @@ runtime and client-go families, cmp-issuer publishes what its own enrollments di
 <p><code>operation</code> separates the first issuance of a certificate from a renewal. cert-manager stamps
 each <code>CertificateRequest</code> with the revision it will become, so anything past the first is a renewal. A
 <code>CertificateRequest</code> written by hand carries no revision and counts as an enrollment. A renewal can send
-another P10CR or a KUR. This metric label describes certificate lifecycle intent rather than the CMP body.
+another P10CR, a KUR or the initial enrollment operation of a renewal fallback. This metric label describes certificate lifecycle intent rather than the CMP body.
 See <a href="../../guide/renewal-and-kur/">Renewal with P10CR or KUR</a>.</p>
 <h2 id="what-is-published">What is published<a class="headerlink" href="#what-is-published" title="Permanent link">&para;</a></h2>
 <table>

@@ -1635,6 +1635,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2077,6 +2133,16 @@ the log.</p>
 <td>Controller not running</td>
 <td><code>kubectl -n cmp-issuer-system get pods</code></td>
 </tr>
+<tr>
+<td>Apply refused: <code>requestedValidity Duration needs IR initial enrollment or KUR renewal</code></td>
+<td>Only P10CR can be selected. A PKCS #10 request cannot carry a validity</td>
+<td>Set <code>initialEnrollment: IR</code> or <code>renewal: KUR</code> or remove <code>requestedValidity</code></td>
+</tr>
+<tr>
+<td>Apply refused: <code>renewalFallback InitialEnrollment needs KUR renewal</code></td>
+<td><code>renewal</code> resolves to P10CR, which does not use the current certificate</td>
+<td>Set <code>renewal: KUR</code> or remove <code>renewalFallback</code></td>
+</tr>
 </tbody>
 </table>
 <h2 id="certificaterequest-stuck-or-failed">CertificateRequest stuck or failed<a class="headerlink" href="#certificaterequest-stuck-or-failed" title="Permanent link">&para;</a></h2>
@@ -2097,12 +2163,28 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>Server returned an unexpected identifier; adjust <code>p10crResponseCertReqId</code> or use default</td>
 </tr>
 <tr>
-<td>KUR requires a certificate revision greater than one</td>
+<td>IR needs a CertificateRequest that cert-manager created for a Certificate</td>
+<td>The request has no cert-manager revision state, for example a hand-written <code>CertificateRequest</code>. Request the certificate through a <code>Certificate</code> or use an issuer with <code>initialEnrollment: P10CR</code></td>
+</tr>
+<tr>
+<td>KUR renewal requires a certificate revision greater than one</td>
 <td>A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager <code>Certificate</code></td>
 </tr>
 <tr>
-<td>KUR current or staged Secret is not available</td>
+<td>IR or KUR staged Secret is not available</td>
 <td>The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect <code>Certificate.status.nextPrivateKeySecretName</code></td>
+</tr>
+<tr>
+<td>current certificate Secret <code>does not exist</code> or <code>holds no certificate</code>, so KUR cannot authenticate</td>
+<td>The <code>Certificate</code> Secret was deleted or emptied. Set <code>renewalFallback: InitialEnrollment</code>, set <code>renewal: P10CR</code> or recreate the <code>Certificate</code>, see <a href="../../guide/renewal-and-kur/#missing-or-expired-current-certificate">Missing or expired current certificate</a></td>
+</tr>
+<tr>
+<td>KUR protection certificate <code>badTime</code>, certificate being updated is not currently valid</td>
+<td>The current certificate has expired or is not yet valid. For an expired certificate set <code>renewalFallback: InitialEnrollment</code>, set <code>renewal: P10CR</code> or recreate the <code>Certificate</code></td>
+</tr>
+<tr>
+<td>recorded CMP transaction falls back from KUR to an operation the issuer does not allow</td>
+<td><code>renewalFallback</code> or <code>initialEnrollment</code> changed while a fallback transaction was unfinished. cert-manager retries with a new <code>CertificateRequest</code></td>
 </tr>
 <tr>
 <td>authorize KUR current certificate</td>
@@ -2117,8 +2199,12 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td><code>validationProfile</code> is <code>RFC9483</code> or <code>kurResponseCaPubs</code> is <code>RequireAbsent</code>, but the server delivered CA certificates in that field. Configure the server to omit them or use the default <code>Interoperable</code> profile, which treats them only as untrusted chain candidates</td>
 </tr>
 <tr>
-<td>KUR certReqId mismatch</td>
-<td>The KUP did not use the fixed KUR identifier <code>0</code>. Correct the CMP server profile</td>
+<td>KUR <code>server issued the updated certificate with the notBefore and notAfter of the certificate it replaces</code></td>
+<td>The CA kept the validity of the old certificate on key update. cert-manager would renew again at once, so the certificate was rejected in <code>certConf</code>. Let the CA compute a new validity on key update or set <code>renewal: P10CR</code>. For NCM see below</td>
+</tr>
+<tr>
+<td>KUR certReqId mismatch or <code>IR IP certReqId must be 0</code></td>
+<td>The KUP or IP did not use the fixed identifier <code>0</code>. Correct the CMP server profile</td>
 </tr>
 <tr>
 <td>Response protection / trust</td>
@@ -2211,6 +2297,16 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>Pinning certReqId -1</td>
 <td>NCM returns 0</td>
 <td>Omit pin or set <code>p10crResponseCertReqId: 0</code></td>
+</tr>
+<tr>
+<td>KUR fails because the updated certificate keeps the old validity</td>
+<td>The <code>set-validity-period</code> policy module leaves "Overwrite old?" unticked</td>
+<td>Tick "Overwrite old?" so key update gets a new validity, see <a href="../../interoperability/tested-pkis/#certificate-validity">certificate validity</a></td>
+</tr>
+<tr>
+<td>IR or KUR with <code>requestedValidity: Duration</code> fails with <code>grantedWithMods</code></td>
+<td>The <code>set-validity-period</code> policy module does not grant the requested validity as asked</td>
+<td>Remove <code>requestedValidity</code> or set <code>policy.grantedModifications: Accept</code></td>
 </tr>
 </tbody>
 </table>

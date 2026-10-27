@@ -1630,6 +1630,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1864,7 +1920,7 @@ toolchain-free pre-commit hooks plus the DCO sign-off check behind <code>make dc
 checksums and signed build provenance. These checks keep metadata changes reviewable through the same
 <code>make test</code> command as the Go behavior.</p>
 <h2 id="openssl-cmp-interoperability">OpenSSL CMP interoperability<a class="headerlink" href="#openssl-cmp-interoperability" title="Permanent link">&para;</a></h2>
-<p>CI runs delayed transaction, delayed confirmation, pinned transaction and KUR flows against the OpenSSL CMP mock. The KUR flows have the mock check the oldCertID the request carries, which needs the <code>-ref_cert</code> option that OpenSSL added in 3.2, so the workflow installs a current OpenSSL rather than using the runner's 3.0 package. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.</p>
+<p>CI runs delayed transaction, delayed confirmation, pinned transaction, IR and KUR flows against the OpenSSL CMP mock. The KUR flows have the mock check the oldCertID the request carries, which needs the <code>-ref_cert</code> option that OpenSSL added in 3.2, so the workflow installs a current OpenSSL rather than using the runner's 3.0 package. IR covers both protection modes with and without a requested validity. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.</p>
 <p>Locally set <code>OPENSSL_BIN</code> to select a non-default OpenSSL binary. The test skips when OpenSSL is missing, and the KUR flows skip on their own when the build predates <code>-ref_cert</code> while the other flows still run.</p>
 <p>The mock uses one transaction per TCP connection. A pooling proxy forwards tests without changing CMP bytes.</p>
 <h2 id="kind-e2e-suite">Kind e2e suite<a class="headerlink" href="#kind-e2e-suite" title="Permanent link">&para;</a></h2>
@@ -1917,11 +1973,11 @@ reported on the development branch before release:</p>
 <tbody>
 <tr>
 <td>v1.37, the default of the pinned Kind release</td>
-<td>v1.21.2</td>
+<td>v1.21.3</td>
 </tr>
 <tr>
 <td>v1.36</td>
-<td>v1.21.2</td>
+<td>v1.21.3</td>
 </tr>
 <tr>
 <td>v1.35</td>
@@ -1965,6 +2021,14 @@ reported on the development branch before release:</p>
 <tr>
 <td>KUR with key reuse</td>
 <td>P10CR revision one then certificate-authenticated KUR with the existing key</td>
+</tr>
+<tr>
+<td>IR then KUR</td>
+<td><code>PasswordBasedMac</code> protected IR with a requested validity, then the KUR an omitted <code>renewal</code> selects</td>
+</tr>
+<tr>
+<td>Renewal fallback</td>
+<td>IR revision one, then IR revision two under <code>renewalFallback: InitialEnrollment</code> after the Secret is deleted, with the recorded reason and the Warning Event checked</td>
 </tr>
 <tr>
 <td>Transaction records</td>
@@ -2026,7 +2090,7 @@ build input changes.</p>
 <p>It is the only workflow that reaches a PKI outside the repository. It runs automatically for trusted
 pushes to <code>dev</code> and <code>main</code> and once a week, but never for pull requests. Start it from the Actions tab to
 choose different Kubernetes or cert-manager versions. Automatic runs use the default Kind node and
-cert-manager v1.21.2 and cover every enrollment and renewal without further input.</p>
+cert-manager v1.21.3 and cover every enrollment and renewal without further input.</p>
 <h3 id="what-each-run-covers">What each run covers<a class="headerlink" href="#what-each-run-covers" title="Permanent link">&para;</a></h3>
 <p>One job runs per protection mechanism and transport, so a fully configured endpoint exercises four independent enrollments:</p>
 <table>

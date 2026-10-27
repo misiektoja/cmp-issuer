@@ -16,6 +16,8 @@
         <link rel="prev" href="../0002-issuer-lib/">
       
       
+        <link rel="next" href="../0004-ir-initial-enrollment/">
+      
       
         
       
@@ -1517,6 +1519,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1605,7 +1663,7 @@
 
 <h1 id="adr-0003-select-renewal-operation-explicitly">ADR 0003: Select renewal operation explicitly<a class="headerlink" href="#adr-0003-select-renewal-operation-explicitly" title="Permanent link">&para;</a></h1>
 <ul>
-<li>Status: Accepted</li>
+<li>Status: Accepted, amended by <a href="../0004-ir-initial-enrollment/">ADR 0004</a> and <a href="../0005-renewal-fallback/">ADR 0005</a></li>
 <li>Date: 2026-08-24</li>
 </ul>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
@@ -1638,7 +1696,7 @@ controls for deployments that need only one rule.</p>
 <p>KUR needs <code>get</code> access to the owning <code>Certificate</code> and <code>get</code> access to both workload Secrets. Certificate access is cluster-wide but read-only. Secret access remains namespace bounded through the existing credential-reader RoleBindings. A <code>CMPClusterIssuer</code> using KUR therefore needs each workload namespace added to <code>credentialNamespaces</code> or bound manually.</p>
 <p>P10CR keeps its previous private-key boundary and never reads workload Secrets. Existing issuers keep renewing through P10CR re-enrollment unless an operator selects KUR.</p>
 <p>Same-key KUR remains server-profile dependent. The server is also responsible for checking revocation of the old certificate.</p>
-<p>IR is not part of this decision. It may reuse this authorization boundary in a later release.</p>
+<p><a href="../0004-ir-initial-enrollment/">ADR 0004</a> adds IR initial enrollment on this authorization boundary and makes an omitted <code>renewal</code> follow <code>initialEnrollment</code>.</p>
 
 
 

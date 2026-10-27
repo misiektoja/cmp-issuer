@@ -1691,6 +1691,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2055,7 +2111,9 @@ same authority check a <code>Signature</code> issuer already relies on for every
 <span class="w">    </span><span class="nt">macResponseProtection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Strict</span>
 </code></pre></div>
 <p>Then the shared secret authenticates the response as well as the request, and a signature is rejected
-however well it verifies. Set this where the CMP trust anchor is shared with authorities that must not
+however well it verifies. A MAC-protected response must also use at least 100 iterations, the floor
+that applies to <code>iterationCount</code> on requests, so a server that protects its answers with fewer is
+rejected as well. Set this where the CMP trust anchor is shared with authorities that must not
 be able to answer for the recipient, or to conform to a profile that requires one protection type for a
 whole PKI management operation. Confirm the server protects its answers with the shared secret before
 turning it on, since a server that signs them will have issued the certificate before the response is

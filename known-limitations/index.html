@@ -1606,6 +1606,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1801,8 +1857,8 @@
 </thead>
 <tbody>
 <tr>
-<td>IR and CRMF</td>
-<td>Planned</td>
+<td>IR for a hand-written <code>CertificateRequest</code></td>
+<td>Unsupported. IR proves possession with the key cert-manager staged for a <code>Certificate</code>. Use P10CR for a direct request</td>
 </tr>
 <tr>
 <td><code>spec.protocol.certProfile</code></td>
@@ -1813,8 +1869,12 @@
 <td>Unsupported by design. Use P10CR where the server permits re-enrollment or wait for planned CR support</td>
 </tr>
 <tr>
-<td>KUR after the old certificate expires</td>
-<td>Unsupported by RFC profile requirements. Renew while it is still valid</td>
+<td>KUR after the old certificate expires or its Secret is deleted</td>
+<td>Unsupported, because KUR authenticates with the current certificate. Renew while it is still valid or set <code>renewalFallback: InitialEnrollment</code>, see <a href="../guide/renewal-and-kur/#missing-or-expired-current-certificate">Missing or expired current certificate</a></td>
+</tr>
+<tr>
+<td>KUR from a CA that keeps the old validity</td>
+<td>Refused, because cert-manager would renew again at once. Configure the CA to compute a new validity on key update or use <code>renewal: P10CR</code></td>
 </tr>
 <tr>
 <td>PBMAC1</td>

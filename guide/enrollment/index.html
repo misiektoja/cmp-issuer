@@ -564,6 +564,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#requested-validity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requested validity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#p10cr-certreqid" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1596,6 +1607,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1685,6 +1752,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#requested-validity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requested validity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#p10cr-certreqid" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1760,15 +1838,15 @@
 
 
 <h1 id="enrollment">Enrollment<a class="headerlink" href="#enrollment" title="Permanent link">&para;</a></h1>
-<p>Initial enrollment sends a protected P10CR with cert-manager's signed PKCS #10 CSR and completes when the server returns a validated CP.</p>
+<p>Initial enrollment sends a protected P10CR with cert-manager's signed PKCS #10 CSR or a protected IR with a CRMF request built from that CSR. It completes when the server returns a validated CP or IP.</p>
 <h2 id="flow">Flow<a class="headerlink" href="#flow" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>sequenceDiagram
   participant CM as cert-manager
   participant CI as cmp-issuer
   participant CA as CMP server
   CM-&gt;&gt;CI: CertificateRequest with CSR
-  CI-&gt;&gt;CA: protected P10CR
-  CA-&gt;&gt;CI: protected CP
+  CI-&gt;&gt;CA: protected P10CR or IR
+  CA-&gt;&gt;CI: protected CP or IP
   CI-&gt;&gt;CA: protected certConf
   CA-&gt;&gt;CI: protected pkiConf
   CI-&gt;&gt;CM: issued certificate chain
@@ -1780,10 +1858,33 @@
 <li>cmp-issuer controller Ready</li>
 <li>Issuer credential and CMP trust Secrets readable</li>
 <li>For <code>CMPIssuer</code>: the issuer namespace authorized for credential reads, see <a href="../../operations/secret-access/">Credential Secret access</a></li>
-<li>CMP server profile allowing P10CR with the chosen protection mode</li>
+<li>CMP server profile allowing P10CR or IR with the chosen protection mode</li>
 </ol>
 <h2 id="configure-the-issuer">Configure the issuer<a class="headerlink" href="#configure-the-issuer" title="Permanent link">&para;</a></h2>
-<p>See <a href="../../reference/cmpissuer/">CMPIssuer</a> or <a href="../../reference/cmpclusterissuer/">CMPClusterIssuer</a>. Set <code>protocol.initialEnrollment</code> to <code>P10CR</code>, which is the only implemented value.</p>
+<p>See <a href="../../reference/cmpissuer/">CMPIssuer</a> or <a href="../../reference/cmpclusterissuer/">CMPClusterIssuer</a>. Set <code>protocol.initialEnrollment</code> to <code>P10CR</code> or <code>IR</code>.</p>
+<table>
+<thead>
+<tr>
+<th><code>initialEnrollment</code></th>
+<th>Request</th>
+<th>Workload key access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>P10CR</code></td>
+<td>cert-manager's signed CSR</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>IR</code></td>
+<td>CRMF template with the CSR subject, public key and extensions. The staged private key signs proof of possession</td>
+<td>The staged key of the <code>Certificate</code></td>
+</tr>
+</tbody>
+</table>
+<p>IR builds its proof of possession with the private key cert-manager staged for revision one of a <code>Certificate</code>, so it needs a <code>CertificateRequest</code> that cert-manager created for that <code>Certificate</code>. A hand-written <code>CertificateRequest</code> fails before any CMP traffic. The issuer's own credentials protect the IR message, as they protect a P10CR. See <a href="../private-key-handling/#ir-one-narrowly-authorized-key-proof">Private-key handling</a>.</p>
+<p>An issuer that enrolls with IR renews with KUR unless <code>protocol.renewal</code> says otherwise. See <a href="../renewal-and-kur/">Renewal with P10CR or KUR</a>.</p>
 <h2 id="request-a-certificate">Request a certificate<a class="headerlink" href="#request-a-certificate" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cert-manager.io/v1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Certificate</span>
@@ -1807,6 +1908,14 @@ kubectl<span class="w"> </span>describe<span class="w"> </span>cmptransaction<sp
 </code></pre></div>
 <p>A <code>CMPTransaction</code> appears as soon as an enrollment starts and reports <code>Enrolling</code>, <code>Polling</code>, <code>Confirming</code> or <code>Issued</code>. It records the enrolled CSR digest, the issuer that served it and, once the server answers, the validated chain. It is removed with the <code>CertificateRequest</code> that owns it.</p>
 <p>The controller log carries the same lifecycle as text. Each enrollment ends in one line naming the issuer, the endpoint, the CMP transaction and the issued certificate, and each wait, resumption and failure is logged as it happens. See <a href="../../operations/troubleshooting/#reading-the-controller-log">reading the controller log</a>.</p>
+<h2 id="requested-validity">Requested validity<a class="headerlink" href="#requested-validity" title="Permanent link">&para;</a></h2>
+<p>By default the CA chooses the validity of the certificate. With <code>protocol.requestedValidity: Duration</code> an IR or KUR asks for a <code>notAfter</code> of the transaction start plus the <code>CertificateRequest</code> <code>spec.duration</code>, which cert-manager copies from <code>Certificate.spec.duration</code>. A request without a duration asks for no validity.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">initialEnrollment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IR</span>
+<span class="w">    </span><span class="nt">requestedValidity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Duration</span>
+</code></pre></div>
+<p>The CA decides the validity it grants and may shorten or ignore the request. A CA that replaces the requested validity may answer <code>grantedWithMods</code>, which fails the request under the default <code>policy.grantedModifications: Reject</code>. A PKCS #10 request cannot carry a validity, so P10CR never asks for one and <code>Duration</code> needs <code>initialEnrollment: IR</code> or <code>renewal: KUR</code>. See <a href="../../interoperability/tested-pkis/#certificate-validity">how the tested servers answer</a>.</p>
 <h2 id="p10cr-certreqid">P10CR certReqId<a class="headerlink" href="#p10cr-certreqid" title="Permanent link">&para;</a></h2>
 <p>RFC 9810 and RFC 9483 require <code>certReqId</code> <code>-1</code> in P10CR CP responses. Tested servers may return <code>0</code>. By default cmp-issuer accepts either value and echoes it in <code>certConf</code>. Pin a value with <code>spec.protocol.p10crResponseCertReqId</code> when needed.</p>
 <h2 id="confirmation-hash">Confirmation hash<a class="headerlink" href="#confirmation-hash" title="Permanent link">&para;</a></h2>

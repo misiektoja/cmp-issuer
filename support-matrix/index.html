@@ -1572,6 +1572,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1733,10 +1789,6 @@
 <td>Verified against at least one independent CMP server or oracle</td>
 </tr>
 <tr>
-<td><strong>Experimental</strong></td>
-<td>Implemented but the API or behavior may still change</td>
-</tr>
-<tr>
 <td><strong>Planned</strong></td>
 <td>Recorded on the roadmap, not implemented</td>
 </tr>
@@ -1762,9 +1814,9 @@
 <td>PKCS #10 in P10CR, CP response</td>
 </tr>
 <tr>
-<td>CMPv2 IR (CRMF)</td>
-<td>Planned</td>
-<td>Requires workload private-key access</td>
+<td>CMPv2 IR (CRMF) initial enrollment</td>
+<td>Implemented, Interoperability tested</td>
+<td>CRMF request built from the CSR. The staged workload key signs proof of possession. Verified against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5</td>
 </tr>
 <tr>
 <td>CMPv2 KUR (true key update)</td>
@@ -1774,7 +1826,12 @@
 <tr>
 <td>cert-manager Certificate renewal</td>
 <td>Implemented as selectable P10CR or KUR</td>
-<td>P10CR is the compatibility default. KUR is opt-in through <code>protocol.renewal</code></td>
+<td>An omitted <code>protocol.renewal</code> follows <code>initialEnrollment</code>: P10CR after P10CR and KUR after IR</td>
+</tr>
+<tr>
+<td>Renewal fallback to <code>initialEnrollment</code></td>
+<td>Implemented, Interoperability tested</td>
+<td><code>protocol.renewalFallback: InitialEnrollment</code> renews with IR or P10CR when the current certificate is missing or expired. Verified after the <code>Certificate</code> Secret was deleted with IR and P10CR against Nokia NCM 26.7 and with IR against EJBCA 9.3.7 in RA mode</td>
 </tr>
 <tr>
 <td>Explicit <code>certConf</code> confirmation</td>
@@ -1784,7 +1841,7 @@
 <tr>
 <td>Rejecting <code>certConf</code> for a refused certificate</td>
 <td>Implemented</td>
-<td>Sent when the issued certificate does not certify the CSR key, fails chain validation or carries modifications refused by <code>policy.grantedModifications: Reject</code></td>
+<td>Sent when the issued certificate does not certify the CSR key, fails chain validation, carries modifications refused by <code>policy.grantedModifications: Reject</code> or is a KUR certificate that keeps the validity of the certificate it updates</td>
 </tr>
 <tr>
 <td>Server-granted implicit confirmation</td>
@@ -1956,12 +2013,12 @@
 <tbody>
 <tr>
 <td><code>CMPIssuer</code> (namespaced)</td>
-<td>Experimental</td>
-<td>API group <code>certmanager.misiektoja.github.io/v1alpha1</code></td>
+<td>Implemented, Interoperability tested</td>
+<td>API group <code>certmanager.misiektoja.github.io/v1alpha1</code>, see <a href="../known-limitations/#api-stability">API stability</a></td>
 </tr>
 <tr>
 <td><code>CMPClusterIssuer</code> (cluster)</td>
-<td>Experimental</td>
+<td>Implemented</td>
 <td>Credentials read from cluster resource namespace</td>
 </tr>
 <tr>
@@ -1982,12 +2039,17 @@
 <tr>
 <td><code>protocol.renewal</code></td>
 <td>Implemented</td>
-<td><code>P10CR</code> by default or <code>KUR</code> for later cert-manager revisions</td>
+<td><code>P10CR</code> or <code>KUR</code> for later cert-manager revisions. Follows <code>initialEnrollment</code> when omitted</td>
+</tr>
+<tr>
+<td><code>protocol.renewalFallback</code></td>
+<td>Implemented</td>
+<td><code>None</code> by default. <code>InitialEnrollment</code> renews with the initial enrollment operation when KUR has no usable current certificate</td>
 </tr>
 <tr>
 <td><code>protocol.validationProfile</code></td>
 <td>Implemented</td>
-<td><code>Interoperable</code> by default or bundled RFC 9483 receiver checks for implemented P10CR and KUR flows</td>
+<td><code>Interoperable</code> by default or bundled RFC 9483 receiver checks for implemented P10CR, IR and KUR flows</td>
 </tr>
 <tr>
 <td><code>protocol.kurResponseCaPubs</code></td>
@@ -2010,9 +2072,9 @@
 <td>Readiness reflects configuration, not whether the server answers</td>
 </tr>
 <tr>
-<td>Requested validity period from <code>Certificate.spec.duration</code></td>
-<td>Planned</td>
-<td>Needs CRMF, since a PKCS #10 request carries no validity</td>
+<td><code>protocol.requestedValidity</code></td>
+<td>Implemented, Interoperability tested</td>
+<td><code>Duration</code> asks in each IR and KUR for a validity from <code>Certificate.spec.duration</code>. A PKCS #10 request carries no validity. How a CA answers is server dependent, see <a href="../interoperability/tested-pkis/#certificate-validity">Tested PKIs</a></td>
 </tr>
 <tr>
 <td>Chain placement options for the issued Secret</td>

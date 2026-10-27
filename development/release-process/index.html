@@ -1613,6 +1613,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1971,7 +2027,7 @@ the stamp, because the linker ignores an <code>-X</code> flag it cannot resolve.
 </tr>
 <tr>
 <td><code>publish-chart.yml</code></td>
-<td>Add the released chart to the Helm repository index when the release is published</td>
+<td>Verify the released chart's build provenance and add it to the Helm repository index when the release is published</td>
 </tr>
 </tbody>
 </table>
@@ -1984,11 +2040,14 @@ an external enrollment should not be abandoned halfway through.</p>
 <h2 id="chart-repository">Chart repository<a class="headerlink" href="#chart-repository" title="Permanent link">&para;</a></h2>
 <p><code>release.yml</code> packages the chart and attaches it to a draft GitHub Release. Publishing that release
 triggers <code>publish-chart.yml</code>, which adds the new version to <code>charts/index.yaml</code> on the <code>gh-pages</code>
-branch, so <code>helm repo add</code> picks it up.</p>
+branch, so <code>helm repo add</code> picks it up. Before indexing, it verifies the chart's build provenance
+attestation with <code>gh attestation verify</code> and requires <code>release.yml</code> of this repository as the signing
+workflow, so an archive replaced on the release page is not indexed.</p>
 <p>The chart archives stay attached to their GitHub Release and the index points at those asset URLs.
 GitHub Pages serves the index plus Artifact Hub repository metadata. Existing entries are merged rather
 than replaced, which keeps older versions installable, and both files live under <code>charts/</code> so the
-documentation site occupies the root of the same Pages site.</p>
+documentation site occupies the root of the same Pages site. <code>docs.yml</code> refuses to publish a site
+build that contains a <code>charts/</code> path, so a documentation file cannot replace the index.</p>
 <p>The first run creates the <code>gh-pages</code> branch. GitHub Pages has to be enabled for the repository and
 pointed at that branch before the repository URL resolves.</p>
 <h3 id="artifact-hub-listing">Artifact Hub listing<a class="headerlink" href="#artifact-hub-listing" title="Permanent link">&para;</a></h3>

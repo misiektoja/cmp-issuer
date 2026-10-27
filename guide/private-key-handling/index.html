@@ -688,6 +688,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir-one-narrowly-authorized-key-proof" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR: one narrowly authorized key proof
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#kur-two-narrowly-authorized-key-proofs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -703,17 +714,6 @@
     <span class="md-ellipsis">
       
         Annotation is not authorization
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#future-ir" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Future IR
       
     </span>
   </a>
@@ -1541,6 +1541,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1586,6 +1642,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir-one-narrowly-authorized-key-proof" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR: one narrowly authorized key proof
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#kur-two-narrowly-authorized-key-proofs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1601,17 +1668,6 @@
     <span class="md-ellipsis">
       
         Annotation is not authorization
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#future-ir" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Future IR
       
     </span>
   </a>
@@ -1662,6 +1718,10 @@
 </ul>
 <p>The end-to-end suite covers this boundary: a crafted annotation pointing at a sentinel Secret leaves that Secret unchanged while enrollment still succeeds.</p>
 <p>RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.</p>
+<h2 id="ir-one-narrowly-authorized-key-proof">IR: one narrowly authorized key proof<a class="headerlink" href="#ir-one-narrowly-authorized-key-proof" title="Permanent link">&para;</a></h2>
+<p>IR reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling <code>Certificate</code> name and UID, revision one with no earlier revision in <code>Certificate.status</code>, issuer reference, <code>status.nextPrivateKeySecretName</code>, staged Secret owner and next-key label, CSR signature and public-key equality.</p>
+<p>A later revision uses IR only as a renewal fallback under <code>renewalFallback: InitialEnrollment</code>. It then requires the immediately previous revision in <code>Certificate.status</code>, as KUR does. Before it falls back, the controller reads the current output Secret once and parses only its <code>tls.crt</code> to find the certificate missing or expired. See <a href="../renewal-and-kur/#missing-or-expired-current-certificate">Missing or expired current certificate</a>.</p>
+<p>The staged key signs CRMF proof of possession. The issuer's own credentials protect the CMP message, so IR reads no other workload key. Only <code>tls.key</code> is parsed from the staged Secret. Its UID and a digest of <code>tls.key</code> are bound into the durable transaction configuration digest.</p>
 <h2 id="kur-two-narrowly-authorized-key-proofs">KUR: two narrowly authorized key proofs<a class="headerlink" href="#kur-two-narrowly-authorized-key-proofs" title="Permanent link">&para;</a></h2>
 <p>KUR reads the current workload key and the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling <code>Certificate</code> name and UID, immediately previous revision, issuer reference, current output Secret, <code>status.nextPrivateKeySecretName</code>, staged Secret owner and next-key label, CSR signature and public-key equality.</p>
 <p>The current output Secret is accepted only when cert-manager's <code>cert-manager.io/certificate-name</code> annotation names the owning <code>Certificate</code>, and a controller owner reference on it must name that same <code>Certificate</code>. cert-manager sets the annotation on every issuance and adds the owner reference only with <code>--enable-certificate-owner-ref</code>.</p>
@@ -1669,8 +1729,6 @@
 <p>Only <code>tls.key</code> is parsed from the staged Secret. The current Secret contributes <code>tls.crt</code> and <code>tls.key</code>. Each Secret's UID and a digest of exactly those data keys are bound into the durable transaction configuration digest, so a change to the key material stops an unfinished transaction while a metadata-only write does not.</p>
 <h2 id="annotation-is-not-authorization">Annotation is not authorization<a class="headerlink" href="#annotation-is-not-authorization" title="Permanent link">&para;</a></h2>
 <p><code>cert-manager.io/private-key-secret-name</code> names where cert-manager stores the workload key. It is not permission for the external issuer to read that Secret. cmp-issuer uses it only after the value matches the authenticated <code>Certificate.status.nextPrivateKeySecretName</code> and the Secret's owner and label.</p>
-<h2 id="future-ir">Future IR<a class="headerlink" href="#future-ir" title="Permanent link">&para;</a></h2>
-<p>Initial Registration with CRMF requires proof of possession over the workload private key. IR remains planned and can reuse the KUR authorization boundary only after its separate API and protocol design is accepted.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../security/threat-model/">Threat model</a></li>

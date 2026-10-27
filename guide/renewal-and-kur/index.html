@@ -682,6 +682,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#missing-or-expired-current-certificate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missing or expired current certificate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#response-validation-profiles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1563,6 +1574,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1623,6 +1690,17 @@
     <span class="md-ellipsis">
       
         True KUR renewal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#missing-or-expired-current-certificate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missing or expired current certificate
       
     </span>
   </a>
@@ -1705,7 +1783,7 @@
 </code></pre></div>
 <p><code>renewalUrl</code> is optional. Omit it when one CMP endpoint accepts both P10CR and KUR.</p>
 <h2 id="cert-manager-renewal">cert-manager renewal<a class="headerlink" href="#cert-manager-renewal" title="Permanent link">&para;</a></h2>
-<p>When a <code>Certificate</code> nears expiry cert-manager creates a new <code>CertificateRequest</code>. Revision one always uses P10CR. Later revisions use the configured renewal operation.</p>
+<p>When a <code>Certificate</code> nears expiry cert-manager creates a new <code>CertificateRequest</code>. Revision one uses <code>initialEnrollment</code>. Later revisions use <code>renewal</code>, which follows <code>initialEnrollment</code> when omitted: P10CR after P10CR and KUR after IR.</p>
 <table>
 <thead>
 <tr>
@@ -1717,13 +1795,13 @@
 </thead>
 <tbody>
 <tr>
-<td><code>P10CR</code> or omitted</td>
+<td><code>P10CR</code> or omitted after P10CR</td>
 <td>Fresh P10CR</td>
 <td>None</td>
 <td>Repeat enrollment for the same identity</td>
 </tr>
 <tr>
-<td><code>KUR</code></td>
+<td><code>KUR</code> or omitted after IR</td>
 <td>Certificate-authenticated KUR</td>
 <td>Current and staged keys</td>
 <td>KUR enabled for the existing certificate</td>
@@ -1765,8 +1843,42 @@
 <p>With <code>rotationPolicy: Always</code> these are different keys. With <code>rotationPolicy: Never</code> the same key makes both proofs and the server profile must allow same-key update.</p>
 <p>The keys may be RSA, ECDSA, Ed25519 or ML-DSA. An ML-DSA <code>tls.key</code> must be in the seed-only PKCS #8 form, see <a href="../../known-limitations/#ml-dsa">Known limitations</a>.</p>
 <p>cmp-issuer rejects KUR before network traffic when the current certificate is expired, its key does not match, its Key Usage extension forbids digital signatures, the staged key does not match the CSR or the subject or SAN values changed. The CA must reject a revoked current certificate.</p>
-<p>A certificate originally issued through P10CR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or <code>oldCertID</code>. Server policy still decides whether that certificate is eligible for key update.</p>
-<p>No automatic KUR-to-P10CR fallback exists. The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier.</p>
+<p>A certificate originally issued through P10CR or IR can later be renewed through KUR. The enrollment request used for the old certificate does not change the KUR proof or <code>oldCertID</code>. Server policy still decides whether that certificate is eligible for key update.</p>
+<p>With <code>requestedValidity: Duration</code> the KUR template also asks for a validity. See <a href="../enrollment/#requested-validity">Requested validity</a>.</p>
+<p>The updated certificate must get a new validity. When the CA returns the <code>notBefore</code> and <code>notAfter</code> of the certificate being updated, cert-manager finds the renewal time already passed and renews again at once. cmp-issuer rejects such a certificate in <code>certConf</code> and fails the request. Configure the CA to compute a new validity on key update or use <code>renewal: P10CR</code>. NCM needs a policy setting for this, see <a href="../../interoperability/tested-pkis/#certificate-validity">Tested PKIs</a>.</p>
+<p>The selected operation is recorded before the first send and every retry uses the same operation and transaction identifier. A KUR that was sent never changes to another operation.</p>
+<h2 id="missing-or-expired-current-certificate">Missing or expired current certificate<a class="headerlink" href="#missing-or-expired-current-certificate" title="Permanent link">&para;</a></h2>
+<p>KUR authenticates with the current certificate. It cannot do so after the <code>Certificate</code> Secret was deleted or emptied or after renewals kept failing until the certificate expired. By default the request then fails:</p>
+<table>
+<thead>
+<tr>
+<th>Current certificate</th>
+<th>Result with <code>renewalFallback: None</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Secret deleted or without <code>tls.crt</code></td>
+<td>Permanent failure that names the Secret and the ways to recover</td>
+</tr>
+<tr>
+<td>Expired</td>
+<td>Permanent <code>badTime</code> failure before any CMP traffic</td>
+</tr>
+</tbody>
+</table>
+<p>Set <code>renewalFallback: InitialEnrollment</code> to renew with the <code>initialEnrollment</code> operation instead:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">initialEnrollment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IR</span>
+<span class="w">    </span><span class="nt">renewalFallback</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">InitialEnrollment</span>
+</code></pre></div>
+<p>An IR issuer then renews with IR. An issuer with <code>initialEnrollment: P10CR</code> and <code>renewal: KUR</code> renews with P10CR. The fallback goes to <code>endpoint.url</code> rather than <code>renewalUrl</code> and the issuer credentials protect it. The CMP server must accept an initial enrollment for an identity that already holds a certificate. The old certificate is not revoked.</p>
+<p>A Secret that exists falls back only when cert-manager wrote it for the <code>Certificate</code>, so its <code>cert-manager.io/certificate-name</code> annotation must name the <code>Certificate</code>. A Secret written by another tool fails as it does for KUR. A certificate that is not yet valid, does not match its key or no longer matches the CSR identity still renews with KUR and fails with the KUR error.</p>
+<p>The choice is made once before the first CMP message. The <code>CMPTransaction</code> records the operation in <code>spec.operation</code> and the reason in <code>spec.renewalFallback</code>, which is <code>CurrentCertificateMissing</code> or <code>CurrentCertificateExpired</code>. A retry uses the recorded operation even when the certificate returns. A transaction that started as KUR never falls back, so a certificate that expires during an unfinished KUR does not change the operation. The controller logs the fallback and records a <code>RenewalFallback</code> Warning Event on the <code>CertificateRequest</code>:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>describe<span class="w"> </span>certificaterequest<span class="w"> </span>&lt;name&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+</code></pre></div>
+<p>Without the fallback, set <code>renewal: P10CR</code> or delete and recreate the <code>Certificate</code>, whose first revision uses <code>initialEnrollment</code>.</p>
 <h2 id="response-validation-profiles">Response validation profiles<a class="headerlink" href="#response-validation-profiles" title="Permanent link">&para;</a></h2>
 <p><code>spec.protocol.validationProfile</code> defaults to <code>Interoperable</code>. This accepts KUP <code>caPubs</code> because CMP
 servers including EJBCA and Nokia NCM can legitimately be configured to deliver CA certificates there.
@@ -1811,7 +1923,7 @@ presence rule. See <a href="../message-protection/#what-gets-validated">message 
 <td>Implemented</td>
 </tr>
 <tr>
-<td>P10CR repeat enrollment</td>
+<td>P10CR re-enrollment</td>
 <td>Server dependent. Verified against NCM 26.7 for both rotation policies</td>
 </tr>
 <tr>
@@ -1819,8 +1931,12 @@ presence rule. See <a href="../message-protection/#what-gets-validated">message 
 <td>Implemented for unchanged subject and SANs. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 with both rotation policies</td>
 </tr>
 <tr>
-<td>IR (CRMF)</td>
-<td>Planned</td>
+<td>IR initial enrollment</td>
+<td>Implemented. Verified against NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 with both protection modes. NCM and EJBCA renewed the IR certificate through KUR</td>
+</tr>
+<tr>
+<td>Renewal fallback to <code>initialEnrollment</code></td>
+<td>Implemented. Verified after the <code>Certificate</code> Secret was deleted with IR and P10CR against NCM 26.7 and with IR against EJBCA 9.3.7 in RA mode</td>
 </tr>
 <tr>
 <td>Nokia NCM REST renewal</td>

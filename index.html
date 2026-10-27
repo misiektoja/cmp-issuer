@@ -1537,6 +1537,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1656,7 +1712,7 @@
 servers.</p>
 <p>Point a cert-manager <code>Certificate</code> at a <code>CMPIssuer</code> and the certificate is enrolled over CMPv2 with the resulting certificate written to the usual TLS Secret.</p>
 <p>CMP message protection is mandatory. HTTP and HTTPS are both supported.</p>
-<p>Initial enrollment uses P10CR. A renewal re-enrolls with P10CR by default or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update.</p>
+<p>Initial enrollment uses P10CR or a CRMF IR. A renewal re-enrolls with P10CR or uses certificate-authenticated KUR with CRMF proof of possession when the CMP profile requires a true key update. An omitted renewal operation follows the initial one: P10CR after P10CR and KUR after IR. A KUR renewal can fall back to the initial enrollment operation when the current certificate is missing or expired.</p>
 <h2 id="start-here">Start here<a class="headerlink" href="#start-here" title="Permanent link">&para;</a></h2>
 <p><strong><a href="getting-started/">Getting started</a></strong> walks from an empty cluster to an issued certificate in five
 steps. If you are new to cmp-issuer, read that page first and come back here for detail.</p>
@@ -1730,7 +1786,7 @@ steps. If you are new to cmp-issuer, read that page first and come back here for
 <li><a href="guide/transaction-recovery/">Transaction recovery</a> - what survives a controller restart</li>
 <li><a href="security/security-model/">Security model</a> and <a href="security/threat-model/">Threat model</a></li>
 <li><a href="provenance/">Provenance and supply chain</a></li>
-<li><a href="adr/0001-cmp-library/">CMP library selection</a>, <a href="adr/0002-issuer-lib/">issuer reconciliation library</a> and <a href="adr/0003-kur-renewal/">KUR renewal design</a></li>
+<li><a href="adr/0001-cmp-library/">CMP library selection</a>, <a href="adr/0002-issuer-lib/">issuer reconciliation library</a>, <a href="adr/0003-kur-renewal/">KUR renewal design</a>, <a href="adr/0004-ir-initial-enrollment/">IR initial enrollment</a> and <a href="adr/0005-renewal-fallback/">renewal fallback</a></li>
 </ul>
 <h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
 <ul>

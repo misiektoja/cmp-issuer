@@ -1635,6 +1635,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0004-ir-initial-enrollment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IR initial enrollment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-renewal-fallback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Renewal fallback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1956,19 +2012,31 @@
 <td><code>initialEnrollment</code></td>
 <td>yes</td>
 <td><code>P10CR</code></td>
-<td>Only <code>P10CR</code> is implemented</td>
+<td><code>P10CR</code> sends cert-manager's CSR. <code>IR</code> sends a CRMF request whose proof of possession the staged workload key signs, so it needs a <code>CertificateRequest</code> that cert-manager created for a <code>Certificate</code>. See <a href="../../guide/enrollment/">Enrollment</a></td>
 </tr>
 <tr>
 <td><code>renewal</code></td>
 <td>no</td>
-<td><code>P10CR</code></td>
-<td><code>P10CR</code> repeats enrollment. <code>KUR</code> uses the current certificate and CRMF proof of possession for later cert-manager revisions</td>
+<td>follows <code>initialEnrollment</code></td>
+<td><code>P10CR</code> re-enrolls. <code>KUR</code> uses the current certificate and CRMF proof of possession for later cert-manager revisions. Omitted, it is <code>P10CR</code> after P10CR and <code>KUR</code> after IR</td>
+</tr>
+<tr>
+<td><code>renewalFallback</code></td>
+<td>no</td>
+<td><code>None</code></td>
+<td>What a KUR renewal does when the current certificate is missing or expired. <code>None</code> fails the request. <code>InitialEnrollment</code> renews with the <code>initialEnrollment</code> operation instead and needs <code>renewal</code> to resolve to KUR. See <a href="../../guide/renewal-and-kur/#missing-or-expired-current-certificate">Missing or expired current certificate</a></td>
+</tr>
+<tr>
+<td><code>requestedValidity</code></td>
+<td>no</td>
+<td><code>Omit</code></td>
+<td><code>Omit</code> leaves the validity to the CA. <code>Duration</code> asks in each IR and KUR for the <code>CertificateRequest</code> duration and needs <code>initialEnrollment: IR</code> or <code>renewal: KUR</code>. See <a href="../../guide/enrollment/#requested-validity">Requested validity</a></td>
 </tr>
 <tr>
 <td><code>validationProfile</code></td>
 <td>no</td>
 <td><code>Interoperable</code></td>
-<td><code>Interoperable</code> uses safe receiver compatibility defaults. <code>RFC9483</code> pins P10CR response <code>certReqId</code> to <code>-1</code>, requires MAC-based responses to MAC-protected operations and requires KUP <code>caPubs</code> absent</td>
+<td><code>Interoperable</code> uses safe receiver compatibility defaults. <code>RFC9483</code> pins P10CR response <code>certReqId</code> to <code>-1</code>, requires MAC-based responses with at least 100 iterations to MAC-protected operations and requires KUP <code>caPubs</code> absent</td>
 </tr>
 <tr>
 <td><code>kurResponseCaPubs</code></td>
@@ -1998,7 +2066,7 @@
 <td><code>macResponseProtection</code></td>
 <td>no</td>
 <td>inherit profile</td>
-<td><code>Interoperable</code> uses <code>AllowSignature</code>, which accepts either MAC-based protection or a signed response whose signer chains to <code>cmpTrust</code> and whose sender is <code>recipient</code>. <code>RFC9483</code> uses <code>Strict</code>, which requires MAC-based protection throughout</td>
+<td><code>Interoperable</code> uses <code>AllowSignature</code>, which accepts either MAC-based protection or a signed response whose signer chains to <code>cmpTrust</code> and whose sender is <code>recipient</code>. <code>RFC9483</code> uses <code>Strict</code>, which requires MAC-based protection with at least 100 iterations throughout</td>
 </tr>
 <tr>
 <td><code>certProfile</code></td>
@@ -2108,7 +2176,7 @@
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
 <p>Ready condition follows issuer-lib conventions. When credential or trust Secrets are unreadable the message names the Secret.</p>
 <h2 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h2>
-<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact current and staged workload Secret reads needed when <code>renewal: KUR</code> is selected. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
+<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact workload Secret reads that IR and KUR need: the staged key for IR and the current and staged keys for KUR. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../cmpclusterissuer/">CMPClusterIssuer</a> for cluster-scoped issuers</li>
