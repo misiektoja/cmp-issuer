@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.4.0] - TBD
+## [0.4.0] - 27 Oct 2026
 
 This release adds **IR** initial enrollment, a requested validity for IR and KUR and a KUR fallback for a missing or expired certificate. It stops a KUR renewal loop on CAs that keep the old validity and checks recorded transaction chains against CMP trust before reuse.
 
