@@ -4,6 +4,86 @@ entries:
   - annotations:
       artifacthub.io/category: security
       artifacthub.io/changes: |
+        - kind: added
+          description: IR initial enrollment with initialEnrollment IR, renewed through KUR when renewal is omitted
+        - kind: added
+          description: IR and KUR can ask the CA for a notAfter matching Certificate.spec.duration with requestedValidity Duration
+        - kind: added
+          description: renewalFallback InitialEnrollment renews with the initial enrollment operation when the current certificate is missing or expired
+        - kind: security
+          description: A recorded CMPTransaction chain is validated against the current CMP trust anchors before it is reused
+        - kind: changed
+          description: Strict MAC response protection requires at least 100 iterations on MAC-protected responses
+        - kind: fixed
+          description: KUR fails with a recovery message instead of staying Pending when the current certificate Secret is deleted
+        - kind: fixed
+          description: KUR no longer renews in a loop when the CA keeps the validity of the certificate it replaces
+        - kind: changed
+          description: The leader-election Role no longer grants ConfigMap access
+        - kind: changed
+          description: Built with Go 1.27.3 and the CMP library go-pki-cmp v0.8.0
+      artifacthub.io/crds: |
+        - kind: CMPIssuer
+          version: v1alpha1
+          name: cmpissuers.certmanager.misiektoja.github.io
+          displayName: CMP Issuer
+          description: Namespaced issuer that enrolls cert-manager certificates from one CMP server
+        - kind: CMPClusterIssuer
+          version: v1alpha1
+          name: cmpclusterissuers.certmanager.misiektoja.github.io
+          displayName: CMP Cluster Issuer
+          description: Cluster-wide issuer that reads its credentials from the controller namespace
+        - kind: CMPTransaction
+          version: v1alpha1
+          name: cmptransactions.certmanager.misiektoja.github.io
+          displayName: CMP Transaction
+          description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://misiektoja.github.io/cmp-issuer/
+        - name: Source
+          url: https://github.com/misiektoja/cmp-issuer
+        - name: Release notes
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/RELEASE_NOTES.md
+        - name: Security policy
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
+        - name: Issues
+          url: https://github.com/misiektoja/cmp-issuer/issues
+        - name: support
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md
+    apiVersion: v2
+    appVersion: v0.4.0
+    created: "2026-10-27T01:09:54.789184484Z"
+    description: Cert-manager issuer for Certificate Management Protocol (CMP) servers
+    digest: da6b9da0cd86d1cb490e681a9d0a0f82182587d03f9cbf2aeaa7fdfb4b571a9e
+    home: https://misiektoja.github.io/cmp-issuer/
+    icon: https://raw.githubusercontent.com/misiektoja/cmp-issuer/main/docs/assets/logo.svg
+    keywords:
+    - kubernetes
+    - operator
+    - cert-manager
+    - cmp
+    - cmpv2
+    - rfc4210
+    - pki
+    - certificates
+    - x509
+    - issuer
+    kubeVersion: '>= 1.31.0-0'
+    maintainers:
+    - name: misiektoja
+      url: https://github.com/misiektoja
+    name: cmp-issuer
+    sources:
+    - https://github.com/misiektoja/cmp-issuer
+    type: application
+    urls:
+    - https://github.com/misiektoja/cmp-issuer/releases/download/v0.4.0/cmp-issuer-0.4.0.tgz
+    version: 0.4.0
+  - annotations:
+      artifacthub.io/category: security
+      artifacthub.io/changes: |
         - kind: fixed
           description: PasswordBasedMac iteration counts from 500001 to the 1048575 maximum enroll instead of failing before the request is sent
         - kind: fixed
@@ -368,4 +448,4 @@ entries:
     urls:
     - https://github.com/misiektoja/cmp-issuer/releases/download/v0.1.0/cmp-issuer-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-11T17:52:16.418030829Z"
+generated: "2026-10-27T01:09:54.787818288Z"
