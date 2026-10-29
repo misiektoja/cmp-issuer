@@ -91,7 +91,7 @@ reported on the development branch before release:
 | --- | --- |
 | v1.37, the default of the pinned Kind release | v1.21.3 |
 | v1.36 | v1.21.3 |
-| v1.35 | v1.20.4 |
+| v1.35 | v1.20.5 |
 | v1.34 | v1.19.6 |
 
 The three older rows pin a digest, taken from the node images published for the Kind release pinned as `KIND_VERSION` in the `Makefile`, so they have to be updated with it. The newest row pins no image and follows the Kind default.
