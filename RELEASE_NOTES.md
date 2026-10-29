@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.4.1] - 29 Oct 2026
+
+This release labels each enrollment log line as an enrollment or a renewal and adds the cert-manager certificate revision and the CMP operation.
+
+### Improvements
+
+* **Enrollment log lines say whether they are an enrollment or a renewal** - Every enrollment line carries `lifecycle`, which is `enrollment` for the first certificate and `renewal` for a renewal, the same values as the `operation` metric label. It also carries `certificateRevision`, the cert-manager revision the request issues. The `Issued certificate` line names the CMP request that obtained the certificate as `operation`: `P10CR`, `IR` or `KUR`. A `CertificateRequest` created by hand counts as an enrollment and has no `certificateRevision`. See [what the log contains](https://misiektoja.github.io/cmp-issuer/operations/troubleshooting/#what-the-log-contains).
+
 ## [0.4.0] - 27 Oct 2026
 
 This release adds **IR** initial enrollment, a requested validity for IR and KUR and a KUR fallback for a missing or expired certificate. It stops a KUR renewal loop on CAs that keep the old validity and checks recorded transaction chains against CMP trust before reuse.

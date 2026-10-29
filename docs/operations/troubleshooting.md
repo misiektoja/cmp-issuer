@@ -70,8 +70,9 @@ identifies the request, the issuer, the endpoint, the CMP transaction and the ce
 ```text
 {"level":"info","logger":"Reconcile","msg":"Issued certificate",
  "CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
- "issuer":"CMPIssuer/demo/demo-issuer","endpoint":"http://ca.example.com/pkix/",
- "transactionID":"5f3c1d0e9a4b7c26d81f0a3b5e7c9d11",
+ "issuer":"CMPIssuer/demo/demo-issuer","lifecycle":"enrollment","certificateRevision":1,
+ "endpoint":"http://ca.example.com/pkix/",
+ "transactionID":"5f3c1d0e9a4b7c26d81f0a3b5e7c9d11","operation":"P10CR",
  "subject":"CN=workload.example.com","serialNumber":"3b8f2a41",
  "notBefore":"2026-05-04T09:12:31Z","notAfter":"2026-08-02T09:12:31Z",
  "issuingCA":"CN=Example CA,O=Example","keyType":"RSA","keySize":2048,
@@ -83,6 +84,13 @@ identifies the request, the issuer, the endpoint, the CMP transaction and the ce
 That answers what was issued, by which authority and how long it took, without decoding the Secret.
 controller-runtime adds its own fields to every line, such as `controller` and `reconcileID`, which are
 left out of the examples on this page.
+
+`lifecycle` is `enrollment` when the request issues the first certificate and `renewal` when it renews
+one, the same values as the [`operation` metric label](metrics.md). `certificateRevision` is the
+cert-manager revision the request issues: `1` for the first certificate and higher for each renewal.
+Every line of the enrollment carries both. A `CertificateRequest` created by hand has no revision, so
+its lines report `enrollment` and omit `certificateRevision`. `operation` is the CMP request that
+obtained the certificate: `P10CR`, `IR` or `KUR`.
 
 `transactionID` is the CMP transaction identifier the server sees, so it is the field to search for in
 the CMP server's own log when you need both sides of one exchange.
@@ -105,7 +113,8 @@ carries the same message that appears on the `CertificateRequest` condition:
 ```text
 {"level":"error","logger":"Reconcile","msg":"CMP enrollment failed",
  "CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
- "issuer":"CMPIssuer/demo/demo-issuer","endpoint":"http://ca.example.com/pkix/",
+ "issuer":"CMPIssuer/demo/demo-issuer","lifecycle":"enrollment","certificateRevision":1,
+ "endpoint":"http://ca.example.com/pkix/",
  "transactionID":"5f3c1d0e9a4b7c26d81f0a3b5e7c9d11",
  "operation":"process PKIStatus","failure":"badRequest","classification":"Permanent",
  "error":"CMP process PKIStatus failed: pkicmp: status rejection, failInfo: badRequest, ..."}

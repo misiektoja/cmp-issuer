@@ -176,8 +176,9 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 
 ```text
 {"level":"info","msg":"Issued certificate","CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
- "issuer":"CMPIssuer/demo/demo-issuer","subject":"CN=workload.example.com","serialNumber":"3b8f2a41",
- "notAfter":"2026-08-02T09:12:31Z","keyType":"RSA","keySize":2048,"duration":"412ms", ...}
+ "issuer":"CMPIssuer/demo/demo-issuer","lifecycle":"enrollment","certificateRevision":1,"operation":"P10CR",
+ "subject":"CN=workload.example.com","serialNumber":"3b8f2a41","notAfter":"2026-08-02T09:12:31Z",
+ "keyType":"RSA","keySize":2048,"duration":"412ms", ...}
 ```
 
 ## Step 5: look at what you got
