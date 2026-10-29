@@ -57,6 +57,19 @@ func issuerLogValue(issuer issuerapi.Issuer) string {
 	return issuerKindNamespaced + "/" + issuer.GetNamespace() + "/" + issuer.GetName()
 }
 
+// requestLogValues identifies the issuer serving a request, whether the request issues the first
+// certificate or renews it, and the cert-manager Certificate revision it issues. The lifecycle uses
+// the same rule and words as the enrollment metrics.
+func requestLogValues(issuer issuerapi.Issuer, request issuersigner.CertificateRequestObject) []any {
+	values := []any{"issuer", issuerLogValue(issuer), "lifecycle", enrollmentOperation(request)}
+	// A CertificateRequest written by hand carries no revision, so the field is omitted rather than
+	// logged with a value cert-manager never assigned.
+	if revision, err := certificateRequestRevision(request); err == nil && revision > 0 {
+		values = append(values, "certificateRevision", revision)
+	}
+	return values
+}
+
 // transactionIDLogValue renders a CMP transaction identifier the way CMP servers report it.
 func transactionIDLogValue(transactionID []byte) string { return hex.EncodeToString(transactionID) }
 
@@ -154,9 +167,12 @@ func logResumedTransaction(ctx context.Context, transaction *cmpv1alpha1.CMPTran
 	logger.Info("Resumed CMP transaction", values...)
 }
 
-// logIssuedCertificate reports the outcome of a completed enrollment and how long it took.
+// logIssuedCertificate reports the outcome of a completed enrollment, the CMP operation that obtained
+// it and how long it took.
 func logIssuedCertificate(ctx context.Context, transaction *cmpv1alpha1.CMPTransaction, chain []*x509.Certificate, confirmation string, started time.Time) {
-	values := append(certificateLogValues(chain), "confirmation", confirmation, "polls", transaction.Status.Polls, "duration", durationLogValue(time.Since(started)))
+	// The recorded operation is the one sent, including the initial enrollment operation of a renewal fallback.
+	values := append([]any{"operation", transaction.Spec.Operation}, certificateLogValues(chain)...)
+	values = append(values, "confirmation", confirmation, "polls", transaction.Status.Polls, "duration", durationLogValue(time.Since(started)))
 	log.FromContext(ctx).Info("Issued certificate", values...)
 }
 

@@ -134,7 +134,7 @@ func (s *Signer) Check(ctx context.Context, issuer issuerapi.Issuer) error {
 // Sign forwards the approved CertificateRequest CSR and returns a leaf-first PEM chain.
 func (s *Signer) Sign(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer) (bundle issuersigner.PEMBundle, err error) {
 	enrollmentStarted := time.Now()
-	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues("issuer", issuerLogValue(issuer)))
+	ctx = log.IntoContext(ctx, log.FromContext(ctx).WithValues(requestLogValues(issuer, request)...))
 	ctx = withEnrollmentLabels(ctx, enrollmentMetricLabels(issuer, request))
 	// Every way out of an enrollment is reported once, from whatever the transaction is known by then.
 	defer func() {
