@@ -34,6 +34,11 @@ import (
 	"testing"
 	"time"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -43,6 +48,12 @@ import (
 
 // testWorkloadDNSName is the subject alternative name of the certificate the log detail is checked against.
 const testWorkloadDNSName = "workload.example.test"
+
+// loggedEnrollmentLifecycle is the log fragment of a request that issues the first certificate.
+const loggedEnrollmentLifecycle = `"lifecycle":"enrollment"`
+
+// loggedRenewalLifecycle is the log fragment of a request that renews a certificate.
+const loggedRenewalLifecycle = `"lifecycle":"renewal"`
 
 // logRecorder captures what an operator would read in the controller log.
 type logRecorder struct {
@@ -118,9 +129,71 @@ func TestSignLogsIssuedCertificate(t *testing.T) {
 		`"keySize":256`,
 		`"signatureAlgorithm":"ECDSA-SHA256"`,
 		`"chainLength":1`,
+		`"operation":"P10CR"`,
 		`"confirmation":"Implicit"`,
 		`"duration":"`,
 	)
+}
+
+// TestSignLogsLifecycleAndRevision verifies enrollment lines say whether they issue the first
+// certificate or a renewal, so the two are distinguishable even when both use the same CMP operation.
+func TestSignLogsLifecycleAndRevision(t *testing.T) {
+	for name, test := range map[string]struct {
+		revision  string
+		lifecycle string
+		logged    string
+	}{
+		"first issuance":   {revision: "1", lifecycle: loggedEnrollmentLifecycle, logged: `"certificateRevision":1`},
+		"renewal":          {revision: "2", lifecycle: loggedRenewalLifecycle, logged: `"certificateRevision":2`},
+		"hand-written":     {lifecycle: loggedEnrollmentLifecycle},
+		"unreadable value": {revision: "later", lifecycle: loggedEnrollmentLifecycle},
+	} {
+		t.Run(name, func(t *testing.T) {
+			recorder := newLogRecorder()
+			fixture := issuedFixture(t)
+			if test.revision != "" {
+				fixture.request.Annotations = map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: test.revision}
+			}
+			if _, err := fixture.signer.Sign(recorder.ctx, fixture.request, fixture.issuer); err != nil {
+				t.Fatalf("Sign failed: %v", err)
+			}
+			recorder.requireLogged(t, `"msg":"Issued certificate"`, test.lifecycle)
+			if test.logged == "" {
+				recorder.requireNotLogged(t, `"certificateRevision"`)
+				return
+			}
+			recorder.requireLogged(t, test.logged)
+		})
+	}
+}
+
+// TestSignLogsLifecycleOnFailure verifies a failed enrollment names the lifecycle and revision it was for.
+func TestSignLogsLifecycleOnFailure(t *testing.T) {
+	recorder := newLogRecorder()
+	rejection := &protocol.Error{Kind: protocol.ErrorKindPermanent, Operation: testCMPOperation, Failure: testCMPFailure, Err: errors.New("the server rejected the request")}
+	fixture := newAsyncFixture(t, []fakeExchange{{err: rejection}})
+	fixture.request.Annotations = map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: "3"}
+	if _, err := fixture.signer.Sign(recorder.ctx, fixture.request, fixture.issuer); err == nil {
+		t.Fatal("expected the enrollment to fail")
+	}
+	recorder.requireLogged(t, `"msg":"CMP enrollment failed"`, loggedRenewalLifecycle, `"certificateRevision":3`)
+}
+
+// TestSignLogsKUROperation verifies the outcome line names the CMP operation that renewed the certificate.
+func TestSignLogsKUROperation(t *testing.T) {
+	recorder := newLogRecorder()
+	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+	issuer := &cmpv1alpha1.CMPIssuer{ObjectMeta: metav1.ObjectMeta{Name: testIssuerName, Namespace: testIssuerNamespace, UID: types.UID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Generation: 1}, Spec: validSpec("https://example.test/cmp")}
+	issuer.Spec.Protocol.Renewal = cmpv1alpha1.RenewalKUR
+	request, certificate, currentSecret, stagedSecret := testKURRequestObjects(t, issuer, true)
+	issued := issuedCertificateFor(t, request.details.CSR)
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, currentSecret, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+	protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}
+	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+	if _, err := signer.Sign(recorder.ctx, request, issuer); err != nil {
+		t.Fatalf("KUR Sign failed: %v", err)
+	}
+	recorder.requireLogged(t, `"msg":"Issued certificate"`, `"operation":"KUR"`, loggedRenewalLifecycle, `"certificateRevision":2`)
 }
 
 // TestLogsExcludeCredentialMaterial verifies no credential value reaches the log, even at debug.
