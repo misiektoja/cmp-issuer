@@ -1901,8 +1901,9 @@ stored.</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>cmp-issuer-system<span class="w"> </span>deploy/cmp-issuer-controller-manager<span class="w"> </span>-c<span class="w"> </span>manager<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">"Issued certificate"</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>{"level":"info","msg":"Issued certificate","CertificateRequest":{"name":"demo-tls-1","namespace":"demo"},
- "issuer":"CMPIssuer/demo/demo-issuer","subject":"CN=workload.example.com","serialNumber":"3b8f2a41",
- "notAfter":"2026-08-02T09:12:31Z","keyType":"RSA","keySize":2048,"duration":"412ms", ...}
+ "issuer":"CMPIssuer/demo/demo-issuer","lifecycle":"enrollment","certificateRevision":1,"operation":"P10CR",
+ "subject":"CN=workload.example.com","serialNumber":"3b8f2a41","notAfter":"2026-08-02T09:12:31Z",
+ "keyType":"RSA","keySize":2048,"duration":"412ms", ...}
 </code></pre></div>
 <h2 id="step-5-look-at-what-you-got">Step 5: look at what you got<a class="headerlink" href="#step-5-look-at-what-you-got" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>demo-tls<span class="w"> </span>-n<span class="w"> </span>demo<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.data.tls\.crt}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="w"> </span><span class="p">|</span><span class="w"> </span>openssl<span class="w"> </span>x509<span class="w"> </span>-noout<span class="w"> </span>-subject<span class="w"> </span>-issuer<span class="w"> </span>-dates

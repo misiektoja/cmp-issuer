@@ -1691,6 +1691,7 @@ runtime and client-go families, cmp-issuer publishes what its own enrollments di
 each <code>CertificateRequest</code> with the revision it will become, so anything past the first is a renewal. A
 <code>CertificateRequest</code> written by hand carries no revision and counts as an enrollment. A renewal can send
 another P10CR, a KUR or the initial enrollment operation of a renewal fallback. This metric label describes certificate lifecycle intent rather than the CMP body.
+Enrollment log lines carry the same value as <code>lifecycle</code>, see <a href="../troubleshooting/#what-the-log-contains">What the log contains</a>.
 See <a href="../../guide/renewal-and-kur/">Renewal with P10CR or KUR</a>.</p>
 <h2 id="what-is-published">What is published<a class="headerlink" href="#what-is-published" title="Permanent link">&para;</a></h2>
 <table>
