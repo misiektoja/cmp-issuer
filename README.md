@@ -38,6 +38,9 @@ Initial enrollment uses P10CR or IR. Renewal uses P10CR re-enrollment or KUR.
 * Kubernetes container runtime like Docker, containerd or CRI-O
 * A CMP server (so far tested with [Nokia NCM 26.7](https://www.nokia.com/networks/products/pki-authority-with-netguard-certificate-manager/) and [EJBCA Community Edition 9.3.7](https://www.ejbca.org))
 
+To check from the command line that the CMP server enrolls with your shared secret or certificate
+before you configure cert-manager, use [certrally](https://github.com/misiektoja/certrally).
+
 ## Install
 
 `demo` is the namespace your certificates are issued into. Substitute your own.
