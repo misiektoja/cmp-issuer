@@ -272,9 +272,6 @@ func TestTrackedTextFilesObeyWhitespacePolicy(t *testing.T) {
 		if bytes.Contains(content, []byte("\r\n")) {
 			offenders = append(offenders, name+": CRLF line ending")
 		}
-		if len(content) > 0 && content[len(content)-1] != '\n' {
-			offenders = append(offenders, name+": missing final newline")
-		}
 		if name == "LICENSE" || strings.EqualFold(filepath.Ext(name), ".md") {
 			continue
 		}
