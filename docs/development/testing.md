@@ -21,7 +21,9 @@ The run writes `cover.out` and reports one figure for `api/` and `internal/` tog
 a package holding no test file of its own read as 0% even when every run executes it. Inspect the result
 per function with `go tool cover -func=cover.out` or in a browser with `go tool cover -html=cover.out`.
 `cmd/` and `test/utils/` are reported as having no test files, which is accurate: the first is manager
-wiring and the second is scaffolding for the e2e suite.
+wiring and the second is scaffolding for the e2e suite. CI uploads `cover.out` to
+[Codecov](https://app.codecov.io/gh/misiektoja/cmp-issuer), which leaves out the generated deepcopy
+functions.
 
 `make test` regenerates the CRDs, the RBAC rules and the DeepCopy code before it runs anything, so a
 stale generated file is repaired on the spot rather than reported. CI therefore runs `go mod tidy` and
