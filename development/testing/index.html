@@ -1901,7 +1901,9 @@
 a package holding no test file of its own read as 0% even when every run executes it. Inspect the result
 per function with <code>go tool cover -func=cover.out</code> or in a browser with <code>go tool cover -html=cover.out</code>.
 <code>cmd/</code> and <code>test/utils/</code> are reported as having no test files, which is accurate: the first is manager
-wiring and the second is scaffolding for the e2e suite.</p>
+wiring and the second is scaffolding for the e2e suite. CI uploads <code>cover.out</code> to
+<a href="https://app.codecov.io/gh/misiektoja/cmp-issuer">Codecov</a>, which leaves out the generated deepcopy
+functions.</p>
 <p><code>make test</code> regenerates the CRDs, the RBAC rules and the DeepCopy code before it runs anything, so a
 stale generated file is repaired on the spot rather than reported. CI therefore runs <code>go mod tidy</code> and
 the generation targets in a step of their own and fails when the working tree changed, which is what
