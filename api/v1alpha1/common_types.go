@@ -74,6 +74,12 @@ const (
 	PasswordBasedMacMACHMACSHA384 = "HMACSHA384"
 	// PasswordBasedMacMACHMACSHA512 selects HMAC-SHA-512.
 	PasswordBasedMacMACHMACSHA512 = "HMACSHA512"
+	// SignatureDigestSHA256 signs with SHA-256.
+	SignatureDigestSHA256 = "SHA256"
+	// SignatureDigestSHA384 signs with SHA-384.
+	SignatureDigestSHA384 = "SHA384"
+	// SignatureDigestSHA512 signs with SHA-512.
+	SignatureDigestSHA512 = "SHA512"
 	// PasswordBasedMacIterationCountDefault is the iteration count applied when the algorithm block is omitted.
 	PasswordBasedMacIterationCountDefault int32 = 1024
 	// PasswordBasedMacIterationCountMinimum is the lowest iteration count the suite accepts.
@@ -208,6 +214,16 @@ type ProtocolSpec struct {
 	// +kubebuilder:validation:Enum=Strict;AllowSignature
 	// +optional
 	MACResponseProtection string `json:"macResponseProtection,omitempty"`
+	// SignatureDigest selects the digest of the RSA and ECDSA signatures the issuer creates: the CRMF
+	// proof of possession of an IR or KUR, and the signature-based protection of a KUR or of a
+	// Signature issuer. Omit it to follow the key, which signs RSA keys of 4096 bits or more with
+	// SHA-512, RSA keys of 3072 bits or more with SHA-384, other RSA keys with SHA-256 and ECDSA keys
+	// with the digest that matches their curve. Set it for a server that accepts only some digests,
+	// for example SHA256 for a server that rejects SHA-384 and SHA-512 signatures. Ed25519 and ML-DSA
+	// signatures take no digest and ignore it.
+	// +kubebuilder:validation:Enum=SHA256;SHA384;SHA512
+	// +optional
+	SignatureDigest string `json:"signatureDigest,omitempty"`
 	// CertProfile is reserved until its CMP encoding is implemented. The controller rejects a
 	// non-empty value.
 	// +kubebuilder:validation:MaxLength=256

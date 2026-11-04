@@ -1,6 +1,9 @@
 # Release notes
 
 All notable changes to this project are documented in this file.
+## [Unreleased]
+### Improvements
+* **The digest of the issuer's signatures can be pinned** - `spec.protocol.signatureDigest` selects `SHA256`, `SHA384` or `SHA512` for the RSA and ECDSA signatures the issuer creates, the IR and KUR proof of possession and signature-based message protection. Omitted, the digest follows the key as before, so a 4096-bit RSA key still signs with SHA-512. Set `SHA256` for a server that accepts only SHA-256 signatures. See [signature digest](https://misiektoja.github.io/cmp-issuer/guide/message-protection/#signature-digest).
 
 ## [0.4.1] - 29 Oct 2026
 

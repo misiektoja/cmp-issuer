@@ -179,6 +179,24 @@ Client mode enrolls only the identity that owns the authenticating certificate, 
 subject DN must match the registered end entity. A signature-protected issuer therefore issues for its
 bootstrap identity rather than arbitrary workload names, unless the server profile allows otherwise.
 
+## Signature digest
+The issuer creates RSA and ECDSA signatures for the CRMF proof of possession of an IR or KUR and,
+with signature-based protection, for every message a `Signature` issuer or a KUR sends. By default
+the digest follows the key: RSA keys of 4096 bits or more sign with SHA-512, RSA keys of 3072 bits or
+more with SHA-384, other RSA keys with SHA-256 and ECDSA keys with the digest that matches their
+curve.
+Some servers accept only SHA-256 signatures and answer anything else with an internal error rather
+than a `badAlg` rejection. A `Certificate` with a 4096-bit RSA key then fails its first IR, although
+the same request from a client that signs with SHA-256 succeeds. Pin the digest for such a server:
+```yaml
+spec:
+  protocol:
+    signatureDigest: SHA256
+```
+The setting applies to the proof of possession and to signature-based message protection alike.
+PasswordBasedMac protection keeps its own `algorithm` fields. Ed25519 and ML-DSA signatures take no
+digest and ignore the setting. The `signatureAlgorithm` of a cert-manager `Certificate` only selects
+how the CSR is signed and does not change the CMP signatures.
 ## What gets protected
 
 The signer protects every message it sends:

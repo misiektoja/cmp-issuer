@@ -119,7 +119,7 @@ func TestProtectedKURIncludesOldCertID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	credentials, err := credentialsFor(request.Protection)
+	credentials, err := credentialsFor(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestProtectedKURKeepsCertificateSubject(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			credentials, err := credentialsFor(request.Protection)
+			credentials, err := credentialsFor(request)
 			if err != nil {
 				t.Fatal(err)
 			}

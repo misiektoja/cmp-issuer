@@ -34,7 +34,7 @@ func (c *CMPClient) EnrollIR(ctx context.Context, request EnrollmentRequest) (En
 		return EnrollmentResult{}, err
 	}
 	csr, _ := x509.ParseCertificateRequest(request.CSRDER)
-	credentials, err := credentialsFor(request.Protection)
+	credentials, err := credentialsFor(request)
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
@@ -88,7 +88,7 @@ func protectedIR(request EnrollmentRequest, csr *x509.CertificateRequest, creden
 		return nil, nil, err
 	}
 	messageRequest := pkicmp.CertReqMsg{CertReq: pkicmp.CertRequest{CertReqID: 0, CertTemplate: template}}
-	if err := messageRequest.GeneratePOP(request.RequestedPrivateKey); err != nil {
+	if err := messageRequest.GeneratePOPWithHash(request.RequestedPrivateKey, signatureDigestFor(request.RequestedPrivateKey, request.SignatureDigest)); err != nil {
 		return nil, nil, permanent("generate IR proof of possession", "badPOP", err)
 	}
 	messages := pkicmp.CertReqMessages{messageRequest}

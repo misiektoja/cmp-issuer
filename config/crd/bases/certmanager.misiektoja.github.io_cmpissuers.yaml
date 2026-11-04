@@ -355,6 +355,20 @@ spec:
                       for the CMP sender.
                     maxLength: 1024
                     type: string
+                  signatureDigest:
+                    description: |-
+                      SignatureDigest selects the digest of the RSA and ECDSA signatures the issuer creates: the CRMF
+                      proof of possession of an IR or KUR, and the signature-based protection of a KUR or of a
+                      Signature issuer. Omit it to follow the key, which signs RSA keys of 4096 bits or more with
+                      SHA-512, RSA keys of 3072 bits or more with SHA-384, other RSA keys with SHA-256 and ECDSA keys
+                      with the digest that matches their curve. Set it for a server that accepts only some digests,
+                      for example SHA256 for a server that rejects SHA-384 and SHA-512 signatures. Ed25519 and ML-DSA
+                      signatures take no digest and ignore it.
+                    enum:
+                    - SHA256
+                    - SHA384
+                    - SHA512
+                    type: string
                   validationProfile:
                     default: Interoperable
                     description: |-

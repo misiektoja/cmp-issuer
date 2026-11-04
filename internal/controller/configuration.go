@@ -146,7 +146,12 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 	requireKUPCAPubsAbsent := strictRFC9483 || spec.Protocol.KURResponseCAPubs == cmpv1alpha1.KURResponseCAPubsRequireAbsent
 	// Strict MAC responses must use the shared secret and at least the iteration floor of a request.
 	strictMACResponses := strictRFC9483 || spec.Protocol.MACResponseProtection == cmpv1alpha1.MACResponseProtectionStrict
+	digest, err := signatureDigest(spec.Protocol.SignatureDigest)
+	if err != nil {
+		return runtimeConfiguration{}, permanentConfiguration("validate protocol signatureDigest", err)
+	}
 	request := protocol.EnrollmentRequest{
+		SignatureDigest:          digest,
 		EndpointURL:              spec.Endpoint.URL,
 		Timeout:                  spec.Endpoint.Timeout.Duration,
 		MaxResponseSize:          spec.Endpoint.MaxResponseSize,
@@ -384,6 +389,9 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	if spec.MACResponseProtection != "" && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionAllowSignature {
 		return fmt.Errorf("macResponseProtection must be Strict or AllowSignature")
 	}
+	if _, err := signatureDigest(spec.SignatureDigest); err != nil {
+		return err
+	}
 	if spec.ValidationProfile == cmpv1alpha1.ValidationProfileRFC9483 {
 		if spec.P10CRResponseCertReqID != nil && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDStandard {
 			return fmt.Errorf("RFC9483 validation requires p10cr response certReqId -1")
@@ -478,6 +486,23 @@ func passwordBasedMacAlgorithms(spec cmpv1alpha1.PasswordBasedMacAlgorithmSpec) 
 		return 0, 0, fmt.Errorf("unsupported passwordBasedMac algorithm combination")
 	}
 	return owf, mac, nil
+}
+
+// signatureDigest maps the signatureDigest API value to a hash. The empty value, an issuer that does
+// not pin a digest or was written before the field existed, follows the signing key.
+func signatureDigest(value string) (crypto.Hash, error) {
+	switch value {
+	case "":
+		return 0, nil
+	case cmpv1alpha1.SignatureDigestSHA256:
+		return crypto.SHA256, nil
+	case cmpv1alpha1.SignatureDigestSHA384:
+		return crypto.SHA384, nil
+	case cmpv1alpha1.SignatureDigestSHA512:
+		return crypto.SHA512, nil
+	default:
+		return 0, fmt.Errorf("signatureDigest must be SHA256, SHA384 or SHA512")
+	}
 }
 
 // validateTransport keeps TLS credentials separate and rejects unimplemented mTLS.
