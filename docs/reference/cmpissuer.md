@@ -69,6 +69,7 @@ spec:
 | `confirmation` | yes | `Explicit` | `Explicit` sends `certConf`; `Implicit` requests server-granted implicit confirmation |
 | `p10crResponseCertReqId` | no | inherit profile | `Interoperable` accepts `-1` or `0`. `RFC9483` requires `-1`. Pin either value for a known server under the interoperable profile |
 | `macResponseProtection` | no | inherit profile | `Interoperable` uses `AllowSignature`, which accepts either MAC-based protection or a signed response whose signer chains to `cmpTrust` and whose sender is `recipient`. `RFC9483` uses `Strict`, which requires MAC-based protection with at least 100 iterations throughout |
+| `signatureDigest` | no | follow the key | `SHA256`, `SHA384` or `SHA512` for the RSA and ECDSA signatures the issuer creates: the IR and KUR proof of possession and signature-based message protection. Omitted, RSA keys of 4096 bits or more sign with SHA-512, of 3072 bits or more with SHA-384, other RSA keys with SHA-256 and ECDSA keys with the digest of their curve. Ed25519 and ML-DSA ignore it. See [signature digest](../guide/message-protection.md#signature-digest) |
 | `certProfile` | no | | Reserved until its CMP encoding is implemented. A non-empty value is rejected |
 | `sender` | no | | Optional sender DN. Without it, `Signature` protection sends the subject of the protection certificate |
 

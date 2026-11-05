@@ -132,7 +132,7 @@ func TestProtectedEnrollmentSendsCertificateSubject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	credentials, err := credentialsFor(request.Protection)
+	credentials, err := credentialsFor(request)
 	if err != nil {
 		t.Fatal(err)
 	}

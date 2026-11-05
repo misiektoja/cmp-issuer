@@ -99,6 +99,10 @@ type EnrollmentRequest struct {
 	CSRDER                   []byte
 	// RequestedPrivateKey signs the CRMF proof of possession of an IR or KUR.
 	RequestedPrivateKey crypto.Signer
+	// SignatureDigest is the digest of the RSA and ECDSA signatures the issuer creates: the proof of
+	// possession of an IR or KUR and signature-based message protection. Zero follows the key.
+	// Signatures that take no digest, Ed25519 and ML-DSA, ignore it.
+	SignatureDigest crypto.Hash
 	// RequestedNotAfter asks the CA for this notAfter in the certificate template of an IR or KUR.
 	// The zero time asks for no validity. P10CR cannot carry it.
 	RequestedNotAfter       time.Time

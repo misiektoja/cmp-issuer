@@ -22,6 +22,8 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -72,7 +74,7 @@ func (c *CMPClient) EnrollP10CR(ctx context.Context, request EnrollmentRequest) 
 	if err := csr.CheckSignature(); err != nil {
 		return EnrollmentResult{}, permanent("verify CSR signature", "badPOP", err)
 	}
-	credentials, err := credentialsFor(request.Protection)
+	credentials, err := credentialsFor(request)
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
@@ -154,7 +156,7 @@ func (c *CMPClient) PollP10CR(ctx context.Context, poll PollRequest) (Enrollment
 	if err != nil {
 		return EnrollmentResult{}, permanent("parse CSR", "badRequest", err)
 	}
-	credentials, err := credentialsFor(request.Protection)
+	credentials, err := credentialsFor(request)
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
@@ -312,6 +314,9 @@ func validateEnrollmentRequest(request EnrollmentRequest) error {
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
 		return permanent("validate endpoint", "badRequest", fmt.Errorf("endpoint must be a complete HTTP or HTTPS URL"))
 	}
+	if err := validateSignatureDigest(request.SignatureDigest); err != nil {
+		return permanent("validate signature digest", "badAlg", err)
+	}
 	if request.Timeout <= 0 || request.MaxResponseSize <= 0 {
 		return permanent("validate transport limits", "badRequest", fmt.Errorf("positive timeout and response size are required"))
 	}
@@ -367,8 +372,32 @@ func pbmAlgorithms(password PasswordProtection) (crypto.Hash, crypto.Hash, error
 	return owf, mac, nil
 }
 
-// credentialsFor builds CMP credentials from the configured protection method.
-func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
+// validateSignatureDigest accepts the digests an issuer may pin for its RSA and ECDSA signatures.
+// Zero follows the key.
+func validateSignatureDigest(digest crypto.Hash) error {
+	switch digest {
+	case 0, crypto.SHA256, crypto.SHA384, crypto.SHA512:
+		return nil
+	default:
+		return fmt.Errorf("signature digest must be SHA-256, SHA-384 or SHA-512")
+	}
+}
+
+// signatureDigestFor returns the digest a signature by key uses. Only RSA and ECDSA signatures take a
+// digest, so every other key gets zero, which leaves the signature to the key type.
+func signatureDigestFor(key crypto.Signer, digest crypto.Hash) crypto.Hash {
+	switch key.Public().(type) {
+	case *rsa.PublicKey, *ecdsa.PublicKey:
+		return digest
+	default:
+		return 0
+	}
+}
+
+// credentialsFor builds CMP credentials from the configured protection method. Signature credentials
+// sign with the request's signature digest.
+func credentialsFor(request EnrollmentRequest) (pkicmp.Credentials, error) {
+	protection := request.Protection
 	if protection.Password != nil {
 		owf, mac, err := pbmAlgorithms(*protection.Password)
 		if err != nil {
@@ -381,7 +410,15 @@ func credentialsFor(protection Protection) (pkicmp.Credentials, error) {
 			pkicmp.WithMACIterationLimits(minPBMIterationCount, maxPBMIterationCount),
 		)
 	}
-	return pkicmp.NewSignatureCredentials(protection.Signature.PrivateKey, protection.Signature.Certificate, protection.Signature.Chain...)
+	credentials, err := pkicmp.NewSignatureCredentials(protection.Signature.PrivateKey, protection.Signature.Certificate, protection.Signature.Chain...)
+	if err != nil {
+		return nil, err
+	}
+	digest := signatureDigestFor(protection.Signature.PrivateKey, request.SignatureDigest)
+	if digest == 0 {
+		return credentials, nil
+	}
+	return credentials.WithHash(digest)
 }
 
 // newHTTPClient constructs a bounded transport that disables redirects.
@@ -860,7 +897,7 @@ func (c *CMPClient) ConfirmP10CR(ctx context.Context, confirm ConfirmRequest) (E
 	if err := ValidateMLDSAKeyUsage(confirm.Certificate); err != nil {
 		return EnrollmentResult{}, permanent("validate confirmation certificate", "badCertTemplate", err)
 	}
-	credentials, err := credentialsFor(request.Protection)
+	credentials, err := credentialsFor(request)
 	if err != nil {
 		return EnrollmentResult{}, permanent("configure protection", "badAlg", err)
 	}
