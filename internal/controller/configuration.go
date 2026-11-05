@@ -369,7 +369,7 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
 		return fmt.Errorf("renewal must be P10CR or KUR")
 	}
-	if err := cmp.Or(validateRequestedValidity(spec), validateRenewalFallback(spec)); err != nil {
+	if err := cmp.Or(validateRequestedValidity(spec), validateRenewalFallback(spec), validateSignatureDigest(spec)); err != nil {
 		return err
 	}
 	if spec.ValidationProfile != "" && spec.ValidationProfile != cmpv1alpha1.ValidationProfileInteroperable && spec.ValidationProfile != cmpv1alpha1.ValidationProfileRFC9483 {
@@ -388,9 +388,6 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	// schema applies to every new object.
 	if spec.MACResponseProtection != "" && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionStrict && spec.MACResponseProtection != cmpv1alpha1.MACResponseProtectionAllowSignature {
 		return fmt.Errorf("macResponseProtection must be Strict or AllowSignature")
-	}
-	if _, err := signatureDigest(spec.SignatureDigest); err != nil {
-		return err
 	}
 	if spec.ValidationProfile == cmpv1alpha1.ValidationProfileRFC9483 {
 		if spec.P10CRResponseCertReqID != nil && *spec.P10CRResponseCertReqID != cmpv1alpha1.P10CRResponseCertReqIDStandard {
@@ -503,6 +500,12 @@ func signatureDigest(value string) (crypto.Hash, error) {
 	default:
 		return 0, fmt.Errorf("signatureDigest must be SHA256, SHA384 or SHA512")
 	}
+}
+
+// validateSignatureDigest accepts an omitted signatureDigest or one of the supported digests.
+func validateSignatureDigest(spec cmpv1alpha1.ProtocolSpec) error {
+	_, err := signatureDigest(spec.SignatureDigest)
+	return err
 }
 
 // validateTransport keeps TLS credentials separate and rejects unimplemented mTLS.
