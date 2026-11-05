@@ -26,6 +26,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/misiektoja/go-pki-cmp/pkicmp"
@@ -40,28 +41,30 @@ var (
 	oidECDSAWithSHA384 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
 )
 
-// rsa4096Key is generated once, because a 4096-bit key is the case that selects SHA-512 by default.
-var rsa4096Key = func() *rsa.PrivateKey {
+// rsa4096Key returns one shared RSA 4096 key, generated on first use because generation is slow. A
+// 4096-bit key is the case that selects SHA-512 by default.
+var rsa4096Key = sync.OnceValue(func() *rsa.PrivateKey {
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		panic(err)
 	}
 	return key
-}()
+})
 
 // rsaIRRequest returns a MAC-protected IR whose workload key is the shared RSA 4096 key.
 func rsaIRRequest(t *testing.T, pki testPKI, endpoint string) EnrollmentRequest {
 	t.Helper()
 	request := irEnrollmentRequest(t, pki, endpoint, false)
+	name := "rsa.worker.example"
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
-		Subject:  pkix.Name{CommonName: "worker.example"},
-		DNSNames: []string{"worker.example"},
-	}, rsa4096Key)
+		Subject:  pkix.Name{CommonName: name},
+		DNSNames: []string{name},
+	}, rsa4096Key())
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.CSRDER = csrDER
-	request.RequestedPrivateKey = rsa4096Key
+	request.RequestedPrivateKey = rsa4096Key()
 	return request
 }
 
@@ -178,7 +181,7 @@ func TestSignatureDigestEnrollIR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnrollIR returned error: %v", err)
 	}
-	if len(result.Chain) != 1 || !PublicKeysEqual(result.Chain[0].PublicKey, rsa4096Key.Public()) {
+	if len(result.Chain) != 1 || !PublicKeysEqual(result.Chain[0].PublicKey, rsa4096Key().Public()) {
 		t.Fatal("issued certificate does not contain the requested RSA key")
 	}
 }
@@ -201,7 +204,7 @@ func TestSignatureDigestValidation(t *testing.T) {
 	if digest := signatureDigestFor(edKey, crypto.SHA256); digest != 0 {
 		t.Fatalf("expected Ed25519 to ignore the digest, got %v", digest)
 	}
-	if digest := signatureDigestFor(rsa4096Key, crypto.SHA256); digest != crypto.SHA256 {
+	if digest := signatureDigestFor(rsa4096Key(), crypto.SHA256); digest != crypto.SHA256 {
 		t.Fatalf("expected RSA to use the digest, got %v", digest)
 	}
 }
