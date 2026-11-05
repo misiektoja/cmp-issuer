@@ -23,6 +23,9 @@ import (
 	cmpv1alpha1 "github.com/misiektoja/cmp-issuer/api/v1alpha1"
 )
 
+// rejectedSignatureDigest is a digest the API does not offer.
+const rejectedSignatureDigest = "SHA1"
+
 // TestSignatureDigest verifies the API values map to their hashes, the empty value follows the key
 // and an unknown value is refused by the protocol validation.
 func TestSignatureDigest(t *testing.T) {
@@ -46,7 +49,7 @@ func TestSignatureDigest(t *testing.T) {
 		}
 	}
 	spec := validSpec("https://cmp.example.test").Protocol
-	spec.SignatureDigest = "SHA1"
+	spec.SignatureDigest = rejectedSignatureDigest
 	if err := validateProtocol(spec); err == nil {
 		t.Fatal("expected validateProtocol to reject signatureDigest SHA1")
 	}
