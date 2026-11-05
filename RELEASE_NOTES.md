@@ -1,9 +1,14 @@
 # Release notes
 
 All notable changes to this project are documented in this file.
-## [Unreleased]
+
+## [0.5.0] - TBD
+
+This release lets an issuer pin the digest of its RSA and ECDSA signatures for CMP servers that accept only some digests.
+
 ### Improvements
-* **The digest of the issuer's signatures can be pinned** - `spec.protocol.signatureDigest` selects `SHA256`, `SHA384` or `SHA512` for the RSA and ECDSA signatures the issuer creates, the IR and KUR proof of possession and signature-based message protection. Omitted, the digest follows the key as before, so a 4096-bit RSA key still signs with SHA-512. Set `SHA256` for a server that accepts only SHA-256 signatures. See [signature digest](https://misiektoja.github.io/cmp-issuer/guide/message-protection/#signature-digest).
+
+* **Pin the signature digest** - `spec.protocol.signatureDigest` selects `SHA256`, `SHA384` or `SHA512` for the RSA and ECDSA signatures the issuer creates: the IR and KUR proof of possession and signature-based message protection. When it is omitted the digest follows the key, so a 4096-bit RSA key signs with SHA-512. Set `SHA256` for a server that accepts only SHA-256 signatures. A P10CR request keeps the CSR digest that `Certificate.spec.signatureAlgorithm` selects. See [signature digest](https://misiektoja.github.io/cmp-issuer/guide/message-protection/#signature-digest). (thanks [@nahumet](https://github.com/nahumet) for [#43](https://github.com/misiektoja/cmp-issuer/pull/43))
 
 ## [0.4.1] - 29 Oct 2026
 
