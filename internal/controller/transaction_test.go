@@ -666,15 +666,23 @@ func TestSignClampsServerCheckAfterToConfiguredBounds(t *testing.T) {
 func TestSignFailsWhenTransactionDeadlinePasses(t *testing.T) {
 	fixture := newAsyncFixture(t, []fakeExchange{{result: waitingResult(0, "nonce", 0)}})
 	fixture.issuer.Spec.Transaction = cmpv1alpha1.TransactionSpec{
-		MaximumDuration:     metav1.Duration{Duration: time.Millisecond},
+		MaximumDuration:     metav1.Duration{Duration: time.Hour},
 		MinimumPollInterval: metav1.Duration{Duration: time.Millisecond},
 		MaximumPollInterval: metav1.Duration{Duration: time.Second},
 		MaximumPolls:        60,
 	}
-	if _, err := fixture.sign(t); err == nil {
-		t.Fatal("expected the first exchange to report waiting")
+	var pending issuersigner.PendingError
+	if _, err := fixture.sign(t); !errors.As(err, &pending) {
+		t.Fatalf("expected the first exchange to report waiting, got %v", err)
 	}
-	time.Sleep(5 * time.Millisecond)
+	// The recorded deadline is moved into the past instead of waited out. A deadline short enough to
+	// wait for can expire inside the first reconcile on a loaded machine, which then fails and removes
+	// the transaction itself.
+	stored := fixture.transaction(t)
+	stored.Spec.Deadline = metav1.NewTime(time.Now().Add(-time.Second))
+	if err := fixture.kube.Update(context.Background(), stored); err != nil {
+		t.Fatalf("move the recorded deadline into the past: %v", err)
+	}
 	_, err := fixture.sign(t)
 	var permanent issuersigner.PermanentError
 	if !errors.As(err, &permanent) {
