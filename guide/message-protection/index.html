@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -677,6 +677,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signature-digest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signature digest
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1925,6 +1936,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#signature-digest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signature digest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-gets-protected" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2202,6 +2224,26 @@ end-entity certificate to appear there for P10CR.</p>
 <p>Client mode enrolls only the identity that owns the authenticating certificate, and the requested
 subject DN must match the registered end entity. A signature-protected issuer therefore issues for its
 bootstrap identity rather than arbitrary workload names, unless the server profile allows otherwise.</p>
+<h2 id="signature-digest">Signature digest<a class="headerlink" href="#signature-digest" title="Permanent link">&para;</a></h2>
+<p>The issuer creates RSA and ECDSA signatures for the CRMF proof of possession of an IR or KUR and,
+with signature-based protection, for every message a <code>Signature</code> issuer or a KUR sends. By default
+the digest follows the key: RSA keys of 4096 bits or more sign with SHA-512, RSA keys of 3072 bits or
+more with SHA-384, other RSA keys with SHA-256 and ECDSA keys with the digest that matches their
+curve.</p>
+<p>Some servers accept only SHA-256 signatures and answer anything else with an internal error rather
+than a <code>badAlg</code> rejection. A <code>Certificate</code> with a 4096-bit RSA key then fails its first IR, although
+the same request from a client that signs with SHA-256 succeeds. Pin the digest for such a server:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">signatureDigest</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SHA256</span>
+</code></pre></div>
+<p>The setting applies to the proof of possession and to signature-based message protection alike.
+PasswordBasedMac protection keeps its own <code>algorithm</code> fields. Ed25519 and ML-DSA signatures take no
+digest and ignore the setting.</p>
+<p>A P10CR request carries the CSR that cert-manager signed as its proof of possession, and the issuer
+does not sign it again. Its digest follows <code>signatureAlgorithm</code> on the <code>Certificate</code>. When that field
+is omitted, cert-manager derives the digest from the key the same way. If such a server also rejects
+the CSR, set <code>signatureAlgorithm: SHA256WithRSA</code> on the <code>Certificate</code>.</p>
 <h2 id="what-gets-protected">What gets protected<a class="headerlink" href="#what-gets-protected" title="Permanent link">&para;</a></h2>
 <p>The signer protects every message it sends:</p>
 <ul>
@@ -2322,10 +2364,10 @@ See <a href="../../known-limitations/">Known limitations</a>.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
