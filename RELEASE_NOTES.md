@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.5.0] - TBD
+## [0.5.0] - 6 Nov 2026
 
 This release lets an issuer pin the digest of its RSA and ECDSA signatures for CMP servers that accept only some digests.
 
