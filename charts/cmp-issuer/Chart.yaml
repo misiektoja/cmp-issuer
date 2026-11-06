@@ -8,8 +8,8 @@ type: application
 ## workflow packaging the chart with --version and --app-version derived from the same tag. Installing
 ## from a clone resolves the manager image from appVersion, so a mismatch here points that install at a
 ## tag the registry does not have.
-version: 0.4.1
-appVersion: "v0.4.1"
+version: 0.5.0
+appVersion: "v0.5.0"
 
 ## Verified on Kubernetes v1.34, v1.35, v1.36 and v1.37. The floor is set lower because nothing in the
 ## chart needs a newer API, so an older cluster is allowed to install at its own risk. The `-0` suffix
@@ -76,4 +76,4 @@ annotations:
       description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
   artifacthub.io/changes: |
     - kind: added
-      description: Enrollment log lines carry lifecycle enrollment or renewal plus certificateRevision. The Issued certificate line names the CMP operation
+      description: protocol.signatureDigest pins SHA-256, SHA-384 or SHA-512 for the RSA and ECDSA signatures of the IR and KUR proof of possession and of signature-based message protection
