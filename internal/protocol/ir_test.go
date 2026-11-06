@@ -142,7 +142,7 @@ func TestProtectedIRTemplate(t *testing.T) {
 			request := irEnrollmentRequest(t, pki, "https://example.test/cmp", false)
 			request.CSRDER = csrDER
 			request.RequestedPrivateKey = key
-			credentials, err := credentialsFor(request.Protection)
+			credentials, err := credentialsFor(request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -193,7 +193,7 @@ func TestProtectedIRTemplate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		credentials, err := credentialsFor(request.Protection)
+		credentials, err := credentialsFor(request)
 		if err != nil {
 			t.Fatal(err)
 		}

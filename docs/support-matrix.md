@@ -77,6 +77,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | `protocol.kurResponseCaPubs` | Implemented | Accept untrusted KUP chain candidates by default or require the field absent |
 | `endpoint.renewalUrl` | Implemented | Optional KUR endpoint for servers with separate initial and key-update aliases |
 | `macResponseProtection` | Implemented, Interoperability tested | Interoperable profile uses `AllowSignature`, so a signed answer to a `PasswordBasedMac` request is accepted when it chains to the CMP trust anchor and names the recipient. RFC 9483 uses `Strict` |
+| `protocol.signatureDigest` | Implemented | Pins SHA-256, SHA-384 or SHA-512 for RSA and ECDSA signatures: the IR and KUR proof of possession and signature-based protection. Follows the key when omitted. A P10CR CSR keeps the digest cert-manager chose |
 | Endpoint reachability in issuer readiness | Planned | Readiness reflects configuration, not whether the server answers |
 | `protocol.requestedValidity` | Implemented, Interoperability tested | `Duration` asks in each IR and KUR for a validity from `Certificate.spec.duration`. A PKCS #10 request carries no validity. How a CA answers is server dependent, see [Tested PKIs](interoperability/tested-pkis.md#certificate-validity) |
 | Chain placement options for the issued Secret | Planned | Choose whether `tls.crt` carries the chain and what `ca.crt` holds |
