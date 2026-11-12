@@ -22,11 +22,11 @@ import "testing"
 
 // TestParseDistinguishedName verifies supported attributes, escapes and invalid components.
 func TestParseDistinguishedName(t *testing.T) {
-	name, err := ParseDistinguishedName(`C=DE, O=NOKIA, CN=SubCA2k-256, OU=Lab\, CMP`)
+	name, err := ParseDistinguishedName(`C=DE, O=Example, CN=Example Sub CA, OU=Test\, CMP`)
 	if err != nil {
 		t.Fatalf("ParseDistinguishedName returned error: %v", err)
 	}
-	if name.CommonName != "SubCA2k-256" || len(name.Organization) != 1 || len(name.OrganizationalUnit) != 1 || name.OrganizationalUnit[0] != "Lab, CMP" {
+	if name.CommonName != "Example Sub CA" || len(name.Organization) != 1 || len(name.OrganizationalUnit) != 1 || name.OrganizationalUnit[0] != "Test, CMP" {
 		t.Fatalf("unexpected parsed name: %#v", name)
 	}
 	invalid := []string{"", "CN", "CN=", "CN=test\\", "UNKNOWN=value", "CN=test,,O=example"}
