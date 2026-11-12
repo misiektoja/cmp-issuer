@@ -46,7 +46,7 @@ The vendor `ssh-cmpclient P10CR` sends only the issuing chain and omits the end-
 
 NCM protected error messages verify against configured CMP trust anchors, so a rejection is reported to cert-manager as an authenticated failure rather than a transport error.
 
-NCM signed its rejection of a signature-protected IR without its signer certificate in `extraCerts`. With only the root in `cmpTrust.caSecretRef` that rejection fails verification with `sender does not match protection certificate subject`, which hides the server's reason. The signer certificate in `cmpTrust.signerCertificatesSecretRef` lets the rejection verify and report its failInfo.
+NCM signed its rejection of a signature-protected IR without its signer certificate in `extraCerts`. With only the root in `cmpTrust.caSecretRef` that rejection fails verification with `sender does not match protection certificate subject: no candidate certificate names the sender`, which hides the server's reason. The signer certificate in `cmpTrust.signerCertificatesSecretRef` lets the rejection verify and report its failInfo.
 
 ### Retransmitted enrollment
 
