@@ -179,6 +179,13 @@ Client mode enrolls only the identity that owns the authenticating certificate, 
 subject DN must match the registered end entity. A signature-protected issuer therefore issues for its
 bootstrap identity rather than arbitrary workload names, unless the server profile allows otherwise.
 
+### Registration authority credential
+
+An IR with `protocol.proofOfPossession: RAVerified` relies on the CA trusting the protection credential
+as a registration authority. RFC 9483 says the CA should check that such a request is signed with a
+certificate that carries the `id-kp-cmcRA` extended key usage, so a CA may refuse a credential without
+it. See [IR proof of possession](enrollment.md#ir-proof-of-possession).
+
 ## Signature digest
 
 The issuer creates RSA and ECDSA signatures for the CRMF proof of possession of an IR or KUR and,

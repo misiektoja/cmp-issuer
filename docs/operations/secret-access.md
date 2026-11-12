@@ -62,7 +62,7 @@ The RoleBinding does not let the controller read Secrets in any other namespace.
 
 P10CR does not require the workload private key and never follows cert-manager's private-key annotation.
 
-IR needs `get` access to the staged workload Secret. KUR needs `get` access to the current and staged workload Secrets. The same namespace RoleBinding used for issuer credentials grants that access. For a namespaced `CMPIssuer` the issuer and workload already share a namespace. For a `CMPClusterIssuer` each workload namespace that uses IR or KUR must be listed in `credentialNamespaces` or receive the manual RoleBinding above.
+An IR with the default `Signature` proof of possession needs `get` access to the staged workload Secret. An IR with `RAVerified` proof of possession reads no workload Secret. KUR needs `get` access to the current and staged workload Secrets. The same namespace RoleBinding used for issuer credentials grants that access. For a namespaced `CMPIssuer` the issuer and workload already share a namespace. For a `CMPClusterIssuer` each workload namespace that uses KUR or a `Signature` IR must be listed in `credentialNamespaces` or receive the manual RoleBinding above.
 
 The permission alone does not select a Secret. cmp-issuer first verifies the controlling cert-manager `Certificate`, exact UID, revision, issuer reference, next-key status, staged Secret owner and label plus CSR key equality. KUR also verifies the current Secret name and its cert-manager provenance. An annotation alone cannot authorize a read.
 

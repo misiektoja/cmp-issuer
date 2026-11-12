@@ -46,6 +46,8 @@ The vendor `ssh-cmpclient P10CR` sends only the issuing chain and omits the end-
 
 NCM protected error messages verify against configured CMP trust anchors, so a rejection is reported to cert-manager as an authenticated failure rather than a transport error.
 
+NCM signed its rejection of a signature-protected IR without its signer certificate in `extraCerts`. With only the root in `cmpTrust.caSecretRef` that rejection fails verification with `sender does not match protection certificate subject`, which hides the server's reason. The signer certificate in `cmpTrust.signerCertificatesSecretRef` lets the rejection verify and report its failInfo.
+
 ### Retransmitted enrollment
 
 NCM answers a repeat of an enrollment it already accepted with a protected error carrying failInfo `transactionIdInUse`, and issues no second certificate. It does not return the certificate from the original transaction.
@@ -63,6 +65,10 @@ CI repeats the `Always` case on every run, over every configured transport. The 
 ### IR enrollment
 
 The lab profile accepted IR on the P10CR endpoint with PasswordBasedMac and with certificate signature protection. NCM answered with an IP carrying `certReqId` `0` and explicit confirmation completed. An issuer with `initialEnrollment: IR` and no `renewal` then renewed the certificate through KUR on the same endpoint. IR on NCM is a lab result and is not repeated in CI.
+
+### RA-verified proof of possession
+
+NCM accepts IR with `protocol.proofOfPossession: RAVerified` when its CMP settings enable "Allow RA Verified PoP" and the IR is signed with a certificate issued to an RA entity. That certificate needs no `id-kp-cmcRA` extended key usage. NCM refuses a PasswordBasedMac IR with failInfo `badPOP` and `raVerified but sender is not RA`, even with an RA entity's pre-shared key. With the setting off it answers `badPOP` with `PoP verification failed: invalid PoP`.
 
 ### Renewal fallback
 
@@ -135,6 +141,14 @@ An RA mode alias accepts IR with PasswordBasedMac and with certificate signature
 
 The suite also enrolls a second identity through IR under `renewalFallback: InitialEnrollment`, deletes its Secret and renews revision two through IR on the same RA alias. EJBCA answers the repeated IR with a new certificate. A client mode alias refuses the repeated request unless the end entity profile allows multiple requests, see [client mode constraints](#client-mode-constraints).
 
+### RA-verified proof of possession in RA mode
+
+An RA mode alias accepts IR with `raVerified` when its `allowraverifypopo` setting is `true`. The CI suite enrolls a `CertificateRequest` created without a `Certificate` through such an alias with PasswordBasedMac. An alias that keeps the default `false` refuses the same request with failInfo `badPOP` and `POPO verification failed.`, which the suite also checks. `ejbca config cmp updatealias` accepts a misspelled key without an error, so confirm the setting with `ejbca config cmp dumpalias`.
+
+### TLS client certificates
+
+CI reaches the shared-secret alias through an nginx proxy that requires a TLS client certificate issued by a cert-manager CA. An issuer with `transport.tls.clientCertificateSecretRef` enrolls and the proxy logs the verified client certificate. An issuer without one gets HTTP 400 from the proxy, which fails the request with `response is not application/pkixcmp`. The same proxy in front of NCM gave the same results in the lab.
+
 ### KUR in client mode
 
 Initial P10CR uses a client-mode HMAC alias. KUR uses a separate `EndEntityCertificate` alias with Automatic Key Update enabled. Configure the first URL as `endpoint.url`, the key-update alias as `endpoint.renewalUrl` and select `protocol.renewal: KUR`.
@@ -155,7 +169,7 @@ EJBCA answers a repeat of an enrollment it already accepted with a protected err
 
 ## OpenSSL CMP mock
 
-CI runs delayed enrollment, delayed confirmation, pinned transaction, IR and KUR flows against the CMP mock built into OpenSSL 3.6. IR is exercised with both protection modes, with and without a requested validity. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
+CI runs delayed enrollment, delayed confirmation, pinned transaction, IR and KUR flows against the CMP mock built into OpenSSL 3.6. IR is exercised with both protection modes, with and without a requested validity. This is an independent oracle with no shared code with cmp-issuer or its CMP encoding library. KUR is exercised with new-key and same-key CRMF proof of possession. An IR with `raVerified` is issued when the mock runs with `-accept_raverified` and refused with `badPOP` without it, under both protection modes. The pinned transaction coverage confirms that the identifier recorded before sending is the identifier OpenSSL saw on the wire.
 
 Signature-protected P10CR and both KUR rotation variants are also tested without `-rsp_extracerts`.
 The configured CMP trust anchor signs the responses and explicit confirmation completes without the

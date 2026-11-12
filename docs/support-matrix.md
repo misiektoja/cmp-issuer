@@ -17,6 +17,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | --- | --- | --- |
 | CMPv2 P10CR initial enrollment | Implemented, Interoperability tested | PKCS #10 in P10CR, CP response |
 | CMPv2 IR (CRMF) initial enrollment | Implemented, Interoperability tested | CRMF request built from the CSR. The staged workload key signs proof of possession. Verified against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5 |
+| IR with `raVerified` proof of possession | Implemented, Interoperability tested | `protocol.proofOfPossession: RAVerified` verifies the CSR signature and sends `raVerified`. Reads no workload key and serves a `CertificateRequest` created without a `Certificate`. The CA must accept the issuer as a registration authority. Verified against EJBCA 9.3.7 in RA mode, Nokia NCM 26.7 with an RA entity certificate and the OpenSSL 3.6 mock |
 | CMPv2 KUR (true key update) | Implemented, Interoperability tested | Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3 |
 | cert-manager Certificate renewal | Implemented as selectable P10CR or KUR | An omitted `protocol.renewal` follows `initialEnrollment`: P10CR after P10CR and KUR after IR |
 | Renewal fallback to `initialEnrollment` | Implemented, Interoperability tested | `protocol.renewalFallback: InitialEnrollment` renews with IR or P10CR when the current certificate is missing or expired. Verified after the `Certificate` Secret was deleted with IR and P10CR against Nokia NCM 26.7 and with IR against EJBCA 9.3.7 in RA mode |
@@ -57,7 +58,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | HTTP CMP endpoint | Implemented, Interoperability tested | No transport confidentiality |
 | HTTPS with custom trust anchors | Implemented, Interoperability tested | TLS trust is separate from CMP trust, and the two anchors are different authorities in the tested setup |
 | HTTPS with system trust | Implemented | Omit `transport.tls.caSecretRef` |
-| mTLS client authentication | Planned | `clientCertificateSecretRef` is reserved |
+| mTLS client authentication | Implemented, Interoperability tested | `transport.tls.clientCertificateSecretRef` names a Secret with `tls.crt` and `tls.key`, presented when the HTTPS server asks for a client certificate. Verified through an nginx proxy that requires client certificates in front of EJBCA 9.3.7 and Nokia NCM 26.7 |
 | Backup CMP endpoint with failover | Planned | A second endpoint used when the primary is unreachable |
 | Explicit outbound proxy settings | Planned | Standard proxy environment variables are already honored |
 | HTTP redirects | Unsupported | Disabled; redirect responses fail closed |
@@ -72,6 +73,7 @@ cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance.
 | Kubernetes CSR signing | Unsupported | CSR controller deliberately disabled |
 | `p10crResponseCertReqId` pin | Implemented | Interoperable profile accepts `-1` or `0`. RFC 9483 profile requires `-1` |
 | `protocol.renewal` | Implemented | `P10CR` or `KUR` for later cert-manager revisions. Follows `initialEnrollment` when omitted |
+| `protocol.proofOfPossession` | Implemented | `Signature` by default. `RAVerified` sends `raVerified` in an IR |
 | `protocol.renewalFallback` | Implemented | `None` by default. `InitialEnrollment` renews with the initial enrollment operation when KUR has no usable current certificate |
 | `protocol.validationProfile` | Implemented | `Interoperable` by default or bundled RFC 9483 receiver checks for implemented P10CR, IR and KUR flows |
 | `protocol.kurResponseCaPubs` | Implemented | Accept untrusted KUP chain candidates by default or require the field absent |

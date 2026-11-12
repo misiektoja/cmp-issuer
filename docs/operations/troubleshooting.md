@@ -195,7 +195,7 @@ kubectl logs -n cmp-issuer-system deploy/cmp-issuer-controller-manager -c manage
 | Condition message pattern | Likely cause |
 | --- | --- |
 | P10CR CP certReqId | Server returned an unexpected identifier; adjust `p10crResponseCertReqId` or use default |
-| IR needs a CertificateRequest that cert-manager created for a Certificate | The request has no cert-manager revision state, for example a hand-written `CertificateRequest`. Request the certificate through a `Certificate` or use an issuer with `initialEnrollment: P10CR` |
+| IR with Signature proof of possession needs a CertificateRequest that cert-manager created for a Certificate | The request has no cert-manager revision state, for example a hand-written `CertificateRequest`. Request the certificate through a `Certificate` or use an issuer with `proofOfPossession: RAVerified` or `initialEnrollment: P10CR` |
 | KUR renewal requires a certificate revision greater than one | A hand-written or malformed CertificateRequest selected KUR without valid cert-manager revision state. Renew through a cert-manager `Certificate` |
 | IR or KUR staged Secret is not available | The workload namespace lacks the credential-reader RoleBinding or cert-manager has not finished staging the key. Authorize the namespace and inspect `Certificate.status.nextPrivateKeySecretName` |
 | current certificate Secret `does not exist` or `holds no certificate`, so KUR cannot authenticate | The `Certificate` Secret was deleted or emptied. Set `renewalFallback: InitialEnrollment`, set `renewal: P10CR` or recreate the `Certificate`, see [Missing or expired current certificate](../guide/renewal-and-kur.md#missing-or-expired-current-certificate) |

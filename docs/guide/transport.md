@@ -68,7 +68,33 @@ CMP transaction state is derived only from authenticated CMP DER, not from HTTP 
 
 ## mTLS
 
-`spec.transport.tls.clientCertificateSecretRef` is reserved for future mTLS support. Leave it unset. Setting it makes the issuer NotReady.
+For an HTTPS server that authenticates clients, name a Secret that holds the TLS client certificate:
+
+```yaml
+spec:
+  endpoint:
+    url: https://cmp.example.net/pkix/
+  transport:
+    tls:
+      caSecretRef:
+        name: cmp-tls-trust
+        key: ca.crt
+      clientCertificateSecretRef:
+        name: cmp-tls-client
+```
+
+The Secret uses the `kubernetes.io/tls` keys:
+
+| Key | Content |
+| --- | --- |
+| `tls.crt` | PEM client certificate followed by any intermediates the server needs |
+| `tls.key` | Unencrypted PEM private key of the client certificate |
+
+A Secret that cert-manager writes for a `Certificate` has this layout, so cert-manager can issue and renew the client certificate. The Secret lives where the issuer's other credential Secrets live: the issuer namespace for a `CMPIssuer` and the cluster resource namespace for a `CMPClusterIssuer`.
+
+The issuer presents the certificate whenever the server asks for one and leaves acceptance to the server. A server that refuses the certificate either closes the TLS connection or answers with an HTTP error. A closed connection is retried like other transport failures. nginx answers HTTP 400, which fails the request permanently with `response is not application/pkixcmp`. A missing Secret, a missing key or a key that does not match the certificate makes the issuer NotReady.
+
+The client certificate authenticates the TLS connection only. CMP message protection still applies to every request and response. The client certificate may differ from a `Signature` protection credential. The setting needs an HTTPS `url` or `renewalUrl`. An issuer that uses only HTTP is rejected when the setting is present.
 
 ## Related pages
 
