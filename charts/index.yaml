@@ -5,6 +5,74 @@ entries:
       artifacthub.io/category: security
       artifacthub.io/changes: |
         - kind: added
+          description: protocol.proofOfPossession RAVerified sends an IR with raVerified proof of possession, which reads no workload private key and serves CertificateRequests created without a Certificate
+        - kind: added
+          description: transport.tls.clientCertificateSecretRef presents a TLS client certificate to HTTPS CMP endpoints that require one
+        - kind: security
+          description: Built with Go 1.27.4 and golang.org/x/net v0.62.0, which fix CVE-2026-97054 and CVE-2026-78661
+      artifacthub.io/crds: |
+        - kind: CMPIssuer
+          version: v1alpha1
+          name: cmpissuers.certmanager.misiektoja.github.io
+          displayName: CMP Issuer
+          description: Namespaced issuer that enrolls cert-manager certificates from one CMP server
+        - kind: CMPClusterIssuer
+          version: v1alpha1
+          name: cmpclusterissuers.certmanager.misiektoja.github.io
+          displayName: CMP Cluster Issuer
+          description: Cluster-wide issuer that reads its credentials from the controller namespace
+        - kind: CMPTransaction
+          version: v1alpha1
+          name: cmptransactions.certmanager.misiektoja.github.io
+          displayName: CMP Transaction
+          description: Durable record of one CMP exchange, so a controller restart resumes it instead of enrolling twice
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Documentation
+          url: https://misiektoja.github.io/cmp-issuer/
+        - name: Source
+          url: https://github.com/misiektoja/cmp-issuer
+        - name: Release notes
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/RELEASE_NOTES.md
+        - name: Security policy
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SECURITY.md
+        - name: Issues
+          url: https://github.com/misiektoja/cmp-issuer/issues
+        - name: support
+          url: https://github.com/misiektoja/cmp-issuer/blob/main/SUPPORT.md
+    apiVersion: v2
+    appVersion: v0.6.0
+    created: "2026-11-12T19:48:57.250168208Z"
+    description: Cert-manager issuer for Certificate Management Protocol (CMP) servers
+    digest: a3a607fd16105bad70fd04cb758e519c63df767a4da3856ed9e8ef83677c4093
+    home: https://misiektoja.github.io/cmp-issuer/
+    icon: https://raw.githubusercontent.com/misiektoja/cmp-issuer/main/docs/assets/logo.svg
+    keywords:
+    - kubernetes
+    - operator
+    - cert-manager
+    - cmp
+    - cmpv2
+    - rfc4210
+    - pki
+    - certificates
+    - x509
+    - issuer
+    kubeVersion: '>= 1.31.0-0'
+    maintainers:
+    - name: misiektoja
+      url: https://github.com/misiektoja
+    name: cmp-issuer
+    sources:
+    - https://github.com/misiektoja/cmp-issuer
+    type: application
+    urls:
+    - https://github.com/misiektoja/cmp-issuer/releases/download/v0.6.0/cmp-issuer-0.6.0.tgz
+    version: 0.6.0
+  - annotations:
+      artifacthub.io/category: security
+      artifacthub.io/changes: |
+        - kind: added
           description: protocol.signatureDigest pins SHA-256, SHA-384 or SHA-512 for the RSA and ECDSA signatures of the IR and KUR proof of possession and of signature-based message protection
       artifacthub.io/crds: |
         - kind: CMPIssuer
@@ -576,4 +644,4 @@ entries:
     urls:
     - https://github.com/misiektoja/cmp-issuer/releases/download/v0.1.0/cmp-issuer-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-06T00:58:25.873533939Z"
+generated: "2026-11-12T19:48:57.248718717Z"
