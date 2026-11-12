@@ -379,7 +379,8 @@ func TestValidateSpec(t *testing.T) {
 		{name: "both protection modes", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protection.Signature = &cmpv1alpha1.SignatureProtectionSpec{}
 		}},
-		{name: "mTLS reserved", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+		{name: "TLS client certificate on HTTP", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Endpoint.URL = testHTTPEndpointURL
 			spec.Transport.TLS = &cmpv1alpha1.TLSTransportSpec{ClientCertificateSecretRef: &cmpv1alpha1.LocalSecretReference{Name: "mtls"}}
 		}},
 		{name: "TLS trust on HTTP", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
