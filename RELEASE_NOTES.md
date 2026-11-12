@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.0] - 12 Nov 2026
+
+This release adds **IR enrollment with RA-verified proof of possession** that reads no workload private key and **TLS client certificates** for CMP endpoints that require them. It also fixes two vulnerabilities reported for 0.5.0.
+
+### Certificate management
+
+* **IR with RA-verified proof of possession** - `spec.protocol.proofOfPossession: RAVerified` with `initialEnrollment: IR` verifies the CSR signature and sends `raVerified` instead of signing with the staged key. It reads no workload private key and serves a `CertificateRequest` created without a `Certificate`. The CA must accept the issuer's credential as a registration authority. `Signature` stays the default and KUR ignores the setting. See [IR proof of possession](https://misiektoja.github.io/cmp-issuer/guide/enrollment/#ir-proof-of-possession).
+
+### Security and reliability
+
+* **TLS client certificates** - `spec.transport.tls.clientCertificateSecretRef` names a Secret with `tls.crt` and `tls.key`, so cert-manager can issue and renew the client certificate. It needs an HTTPS `url` or `renewalUrl`. See [mTLS](https://misiektoja.github.io/cmp-issuer/guide/transport/#mtls).
+
+### Project maintenance
+
+* **Go 1.27.4 and golang.org/x/net v0.62.0** - Fix GO-2026-6859 (CVE-2026-97054) in `net/http` and CVE-2026-78661 in `golang.org/x/net/html`. Building from source needs Go 1.27.4.
+* **go-pki-cmp v0.8.1** - A `sender does not match protection certificate subject` error says whether the signer certificate is missing or belongs to another identity.
+
 ## [0.5.0] - 6 Nov 2026
 
 This release lets an issuer pin the digest of its RSA and ECDSA signatures for CMP servers that accept only some digests.
