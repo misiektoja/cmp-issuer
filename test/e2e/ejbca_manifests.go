@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026 The cmp-issuer Authors.
@@ -207,7 +206,7 @@ func (issuer ejbcaIssuer) manifest() string {
 	}
 	initialEnrollment := issuer.initialEnrollment
 	if initialEnrollment == "" {
-		initialEnrollment = "P10CR"
+		initialEnrollment = operationP10CR
 	}
 	renewalURL := ""
 	if issuer.renewalURL != "" {

@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026 The cmp-issuer Authors.
@@ -35,12 +34,39 @@ import (
 // certificateNameAnnotation is the annotation cert-manager sets on a CertificateRequest to name its Certificate.
 const certificateNameAnnotation = "cert-manager.io/certificate-name"
 
+const (
+	// kubectlGet is the kubectl verb that reads resources.
+	kubectlGet = "get"
+	// conditionTrue is the status of a condition that holds.
+	conditionTrue = "True"
+	// caCertificateKey is the Secret key that holds PEM trust anchors.
+	caCertificateKey = "ca.crt"
+	// certificateRequestResource and cmpTransactionResource name resource kinds for kubectl.
+	certificateRequestResource = "certificaterequest"
+	cmpTransactionResource     = "cmptransaction"
+	// operationP10CR, operationIR and operationKUR name CMP operations in issuer specs and transaction records.
+	operationP10CR = "P10CR"
+	operationIR    = "IR"
+	operationKUR   = "KUR"
+	// kubectlJSON is the kubectl output format that the helpers decode.
+	kubectlJSON = "json"
+)
+
 // resourceCondition is the subset of a Kubernetes status condition that the specs assert on.
 type resourceCondition struct {
 	Type    string `json:"type"`
 	Status  string `json:"status"`
 	Reason  string `json:"reason"`
 	Message string `json:"message"`
+}
+
+// conditionPatch is a status condition as a merge patch writes it.
+type conditionPatch struct {
+	Type               string `json:"type"`
+	Status             string `json:"status"`
+	Reason             string `json:"reason"`
+	Message            string `json:"message"`
+	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
 }
 
 // conditionedResource decodes the status conditions of any resource that follows the conditions convention.
@@ -60,7 +86,7 @@ func kubectlApply(namespace string, manifest string) error {
 
 // secretData reads a Secret and returns its decoded entries.
 func secretData(namespace string, name string) (map[string][]byte, error) {
-	arguments := []string{"get", "secret", name, "-n", namespace, "-o", "json"}
+	arguments := []string{kubectlGet, "secret", name, "-n", namespace, "-o", kubectlJSON}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
 	if err != nil {
 		return nil, fmt.Errorf("read Secret %q: %w", name, err)
@@ -84,14 +110,14 @@ func secretData(namespace string, name string) (map[string][]byte, error) {
 
 // resourceExists reports whether a namespaced resource is present.
 func resourceExists(kind string, namespace string, name string) bool {
-	arguments := []string{"get", kind, name, "-n", namespace, "-o", "name"}
+	arguments := []string{kubectlGet, kind, name, "-n", namespace, "-o", "name"}
 	_, err := utils.Run(exec.Command("kubectl", arguments...))
 	return err == nil
 }
 
 // resourceConditions reads the status conditions of a namespaced resource.
 func resourceConditions(kind string, namespace string, name string) ([]resourceCondition, error) {
-	arguments := []string{"get", kind, name, "-n", namespace, "-o", "json"}
+	arguments := []string{kubectlGet, kind, name, "-n", namespace, "-o", kubectlJSON}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
 	if err != nil {
 		return nil, fmt.Errorf("read %s %q: %w", kind, name, err)
@@ -117,7 +143,7 @@ func findCondition(conditions []resourceCondition, conditionType string) resourc
 // cert-manager records the owning Certificate in an annotation rather than a label, so the requests are
 // listed and filtered here instead of being selected by the API server.
 func certificateRequestName(namespace string, certificate string) (string, error) {
-	arguments := []string{"get", "certificaterequest", "-n", namespace, "-o", "json"}
+	arguments := []string{kubectlGet, certificateRequestResource, "-n", namespace, "-o", kubectlJSON}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
 	if err != nil {
 		return "", fmt.Errorf("list CertificateRequests for %q: %w", certificate, err)
@@ -155,35 +181,35 @@ func opposingDecision(decision string) string {
 
 // setRequestCondition appends an approval decision to a CertificateRequest without dropping existing conditions.
 func setRequestCondition(namespace string, name string, decision string, message string) error {
-	conditions, err := resourceConditions("certificaterequest", namespace, name)
+	conditions, err := resourceConditions(certificateRequestResource, namespace, name)
 	if err != nil {
 		return err
 	}
-	updated := make([]map[string]string, 0, len(conditions)+1)
+	updated := make([]conditionPatch, 0, len(conditions)+1)
 	for _, condition := range conditions {
 		if condition.Type == decision {
 			return nil
 		}
 		// cert-manager refuses a status that carries both decisions, so report the cause here rather
 		// than letting the admission webhook reject the patch for a reason that reads like a defect.
-		if condition.Type == opposingDecision(decision) && condition.Status == "True" {
+		if condition.Type == opposingDecision(decision) && condition.Status == conditionTrue {
 			return fmt.Errorf("cannot record %s on %q: it already carries %s", decision, name, condition.Type)
 		}
-		updated = append(updated, map[string]string{
-			"type": condition.Type, "status": condition.Status,
-			"reason": condition.Reason, "message": condition.Message,
+		updated = append(updated, conditionPatch{
+			Type: condition.Type, Status: condition.Status,
+			Reason: condition.Reason, Message: condition.Message,
 		})
 	}
-	updated = append(updated, map[string]string{
-		"type": decision, "status": "True", "reason": "E2E", "message": message,
-		"lastTransitionTime": time.Now().UTC().Format(time.RFC3339),
+	updated = append(updated, conditionPatch{
+		Type: decision, Status: conditionTrue, Reason: "E2E", Message: message,
+		LastTransitionTime: time.Now().UTC().Format(time.RFC3339),
 	})
 	payload, err := json.Marshal(map[string]any{"status": map[string]any{"conditions": updated}})
 	if err != nil {
 		return fmt.Errorf("encode %s patch: %w", decision, err)
 	}
 	arguments := []string{
-		"patch", "certificaterequest", name, "-n", namespace,
+		"patch", certificateRequestResource, name, "-n", namespace,
 		"--subresource=status", "--type=merge", "-p", string(payload),
 	}
 	if _, err := utils.Run(exec.Command("kubectl", arguments...)); err != nil {
@@ -201,12 +227,12 @@ func setRequestCondition(namespace string, name string, decision string, message
 
 // hasRequestDecision reports whether a CertificateRequest already carries the given approval decision.
 func hasRequestDecision(namespace string, name string, decision string) (bool, error) {
-	conditions, err := resourceConditions("certificaterequest", namespace, name)
+	conditions, err := resourceConditions(certificateRequestResource, namespace, name)
 	if err != nil {
 		return false, err
 	}
 	for _, condition := range conditions {
-		if condition.Type == decision && condition.Status == "True" {
+		if condition.Type == decision && condition.Status == conditionTrue {
 			return true, nil
 		}
 	}
@@ -216,7 +242,7 @@ func hasRequestDecision(namespace string, name string, decision string) (bool, e
 // issuedCertificate returns the certificate that a signer stored on a CertificateRequest.
 func issuedCertificate(namespace string, request string) ([]byte, error) {
 	arguments := []string{
-		"get", "certificaterequest", request, "-n", namespace,
+		kubectlGet, certificateRequestResource, request, "-n", namespace,
 		"-o", "jsonpath={.status.certificate}",
 	}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))

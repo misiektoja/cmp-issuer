@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026 The cmp-issuer Authors.
@@ -90,7 +89,7 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 		Expect(kubectlApply(cmpNamespace, credentials)).To(Succeed())
 		authorityPEM, err := selfSignedAuthorityPEM()
 		Expect(err).NotTo(HaveOccurred())
-		trust := secretManifest(trustSecretName, map[string]string{"ca.crt": authorityPEM})
+		trust := secretManifest(trustSecretName, map[string]string{caCertificateKey: authorityPEM})
 		Expect(kubectlApply(cmpNamespace, trust)).To(Succeed())
 	})
 
@@ -104,7 +103,7 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 			return
 		}
 		By("collecting issuer resources for the failed spec")
-		arguments := []string{"get", "certificate,certificaterequest,cmpissuer", "-n", cmpNamespace, "-o", "wide"}
+		arguments := []string{kubectlGet, "certificate,certificaterequest,cmpissuer", "-n", cmpNamespace, "-o", "wide"}
 		if output, err := utils.Run(exec.Command("kubectl", arguments...)); err == nil {
 			_, _ = fmt.Fprintf(GinkgoWriter, "issuer resources:\n%s", output)
 		}
@@ -116,7 +115,7 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 		Expect(kubectlApply(cmpNamespace, manifest)).To(Succeed())
 
 		By("waiting for the controller to accept the configuration")
-		expectIssuerCondition(readyIssuer, "True", "")
+		expectIssuerCondition(readyIssuer, conditionTrue, "")
 	})
 
 	It("stays unready while its credential Secret is missing", func() {
@@ -156,7 +155,13 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 		By("creating an RFC 9483 profile with compatible focused settings")
 		issuer := "cmp-issuer-e2e-rfc9483"
 		manifest := passwordIssuerManifest(issuer, credentialSecretName, trustSecretName, "-1")
-		manifest = strings.Replace(manifest, "    p10crResponseCertReqId: -1", "    validationProfile: RFC9483\n    kurResponseCaPubs: RequireAbsent\n    macResponseProtection: Strict\n    p10crResponseCertReqId: -1", 1)
+		manifest = strings.Replace(manifest, "    p10crResponseCertReqId: -1",
+			"    validationProfile: RFC9483\n"+
+				"    kurResponseCaPubs: RequireAbsent\n"+
+				"    macResponseProtection: Strict\n"+
+				"    p10crResponseCertReqId: -1",
+			1,
+		)
 		Expect(kubectlApply(cmpNamespace, manifest)).To(Succeed())
 
 		By("rejecting an explicit interoperability override under RFC 9483")
@@ -171,7 +176,7 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 		By("creating an issuer that cert-manager holds no approval permission for")
 		issuer := passwordIssuerManifest(unapprovedIssuer, credentialSecretName, trustSecretName, "")
 		Expect(kubectlApply(cmpNamespace, issuer)).To(Succeed())
-		expectIssuerCondition(unapprovedIssuer, "True", "")
+		expectIssuerCondition(unapprovedIssuer, conditionTrue, "")
 
 		By("requesting a certificate that an approver will reject")
 		certificate := "cmp-issuer-e2e-denied"
@@ -184,10 +189,10 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 
 		By("confirming that the request stays denied and stores no certificate")
 		Consistently(func(g Gomega) {
-			conditions, err := resourceConditions("certificaterequest", cmpNamespace, request)
+			conditions, err := resourceConditions(certificateRequestResource, cmpNamespace, request)
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(findCondition(conditions, "Denied").Status).To(Equal("True"))
-			g.Expect(findCondition(conditions, "Ready").Status).NotTo(Equal("True"))
+			g.Expect(findCondition(conditions, "Denied").Status).To(Equal(conditionTrue))
+			g.Expect(findCondition(conditions, "Ready").Status).NotTo(Equal(conditionTrue))
 			g.Expect(resourceExists("secret", cmpNamespace, certificate+"-tls")).To(BeFalse())
 		}, 30*time.Second, 5*time.Second).Should(Succeed())
 	})
@@ -204,7 +209,7 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 
 		By("waiting for the controller to surface the transport failure")
 		Eventually(func(g Gomega) {
-			conditions, err := resourceConditions("certificaterequest", cmpNamespace, request)
+			conditions, err := resourceConditions(certificateRequestResource, cmpNamespace, request)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(findCondition(conditions, "Ready").Status).To(Equal("False"))
 			issued, err := issuedCertificate(cmpNamespace, request)
@@ -230,7 +235,7 @@ var _ = Describe("CMPIssuer", Ordered, func() {
 
 		By("waiting for the controller to finish acting on the request")
 		Eventually(func(g Gomega) {
-			conditions, err := resourceConditions("certificaterequest", cmpNamespace, request)
+			conditions, err := resourceConditions(certificateRequestResource, cmpNamespace, request)
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(findCondition(conditions, "Ready").Status).To(Equal("False"))
 		}, requestTimeout, 5*time.Second).Should(Succeed())

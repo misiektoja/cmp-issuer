@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2026 The cmp-issuer Authors.
@@ -91,7 +90,8 @@ const (
 	// mtlsProxy names the HTTPS proxy in front of the CMP server that requires a TLS client certificate.
 	mtlsProxy = "cmp-mtls-proxy"
 	// mtlsProxyImage is an nginx image that runs without root, pinned to its multi-platform index.
-	mtlsProxyImage = "nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6"
+	mtlsProxyImage = "nginxinc/nginx-unprivileged:1.29-alpine@" +
+		"sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6"
 	// mtlsProxyPort serves the proxy over TLS.
 	mtlsProxyPort = 8443
 	// mtlsAuthority names the cert-manager authority Certificate, its Secret and the Issuer it backs.
@@ -114,7 +114,11 @@ const (
 var ejbcaHostname = fmt.Sprintf("%s.%s.svc.cluster.local", ejbcaWorkload, ejbcaNamespace)
 
 // ejbcaIssuers are the issuers that cert-manager is allowed to approve requests for.
-var ejbcaIssuers = []string{ejbcaPasswordHTTPIssuer, ejbcaPasswordHTTPSIssuer, ejbcaSignatureHTTPIssuer, ejbcaKURAlwaysIssuer, ejbcaKURNeverIssuer, ejbcaIRIssuer, ejbcaIRFallbackIssuer, ejbcaRAVerifiedIssuer, ejbcaRAVerifiedRefusedIssuer, ejbcaMTLSIssuer, ejbcaMTLSRefusedIssuer}
+var ejbcaIssuers = []string{
+	ejbcaPasswordHTTPIssuer, ejbcaPasswordHTTPSIssuer, ejbcaSignatureHTTPIssuer,
+	ejbcaKURAlwaysIssuer, ejbcaKURNeverIssuer, ejbcaIRIssuer, ejbcaIRFallbackIssuer,
+	ejbcaRAVerifiedIssuer, ejbcaRAVerifiedRefusedIssuer, ejbcaMTLSIssuer, ejbcaMTLSRefusedIssuer,
+}
 
 // mtlsProxyHostname is the name the proxy certificate is issued for and the mTLS issuers connect to.
 var mtlsProxyHostname = fmt.Sprintf("%s.%s.svc.cluster.local", mtlsProxy, ejbcaNamespace)
@@ -177,9 +181,11 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 			"tls.key": configuration.signerKey,
 		})
 		Expect(kubectlApply(ejbcaNamespace, signer)).To(Succeed())
-		responseTrust := secretManifest(ejbcaTrustSecret, map[string]string{"ca.crt": configuration.responseTrust})
+		responseTrust := secretManifest(ejbcaTrustSecret, map[string]string{caCertificateKey: configuration.responseTrust})
 		Expect(kubectlApply(ejbcaNamespace, responseTrust)).To(Succeed())
-		transportTrust := secretManifest(ejbcaTLSTrustSecret, map[string]string{"ca.crt": configuration.transportTrust})
+		transportTrust := secretManifest(
+			ejbcaTLSTrustSecret, map[string]string{caCertificateKey: configuration.transportTrust},
+		)
 		Expect(kubectlApply(ejbcaNamespace, transportTrust)).To(Succeed())
 
 		By("issuing the certificates of the proxy that requires a TLS client certificate")
@@ -189,7 +195,7 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 			Eventually(func(g Gomega) {
 				conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+				g.Expect(findCondition(conditions, "Ready").Status).To(Equal(conditionTrue))
 			}, ejbcaEnrollmentTimeout, 2*time.Second).Should(Succeed())
 		}
 
@@ -197,7 +203,9 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		upstream := fmt.Sprintf("http://%s:%d", ejbcaHostname, ejbcaHTTPPort)
 		proxy := mtlsProxyManifest(mtlsProxy, mtlsProxyImage, mtlsProxyPort, upstream, mtlsServerSecret)
 		Expect(kubectlApply(ejbcaNamespace, proxy)).To(Succeed())
-		arguments := []string{"rollout", "status", "deployment/" + mtlsProxy, "-n", ejbcaNamespace, "--timeout", ejbcaReadyTimeout.String()}
+		arguments := []string{
+			"rollout", "status", "deployment/" + mtlsProxy, "-n", ejbcaNamespace, "--timeout", ejbcaReadyTimeout.String(),
+		}
 		_, err := utils.Run(exec.Command("kubectl", arguments...))
 		Expect(err).NotTo(HaveOccurred(), "The mTLS proxy did not become ready")
 
@@ -205,7 +213,9 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		password := fmt.Sprintf(passwordBasedMacProtection, ejbcaCredentialSecret)
 		signature := fmt.Sprintf(signatureProtection, ejbcaSignatureSecret)
 		transport := fmt.Sprintf(tlsTransport, ejbcaTLSTrustSecret)
-		mtlsURL := fmt.Sprintf("https://%s:%d/ejbca/publicweb/cmp/%s", mtlsProxyHostname, mtlsProxyPort, configuration.passwordAlias)
+		mtlsURL := fmt.Sprintf(
+			"https://%s:%d/ejbca/publicweb/cmp/%s", mtlsProxyHostname, mtlsProxyPort, configuration.passwordAlias,
+		)
 		for _, issuer := range []ejbcaIssuer{
 			{
 				name: ejbcaPasswordHTTPIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
@@ -222,31 +232,40 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 			},
 			{
 				name: ejbcaKURAlwaysIssuer, url: configuration.endpointURL("http", configuration.kurInitialAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, renewal: "KUR", renewalURL: configuration.endpointURL("http", configuration.kurAlias),
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				renewal: operationKUR, renewalURL: configuration.endpointURL("http", configuration.kurAlias),
 			},
 			{
 				name: ejbcaKURNeverIssuer, url: configuration.endpointURL("http", configuration.kurInitialAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, renewal: "KUR", renewalURL: configuration.endpointURL("http", configuration.kurStrictAlias), kurResponseCAPubs: "RequireAbsent",
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				renewal: operationKUR, renewalURL: configuration.endpointURL("http", configuration.kurStrictAlias),
+				kurResponseCAPubs: "RequireAbsent",
 			},
 			{
 				// The RA-mode alias registers the end entity that the client-mode KUR alias later updates.
 				name: ejbcaIRIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, initialEnrollment: "IR", renewalURL: configuration.endpointURL("http", configuration.kurAlias), requestedValidity: "Duration",
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				initialEnrollment: operationIR, requestedValidity: "Duration",
+				renewalURL: configuration.endpointURL("http", configuration.kurAlias),
 			},
 			{
 				// The fallback renews through the RA-mode alias of the initial enrollment, so the client-mode
 				// KUR alias is configured only to show that a fallback does not use it.
 				name: ejbcaIRFallbackIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, initialEnrollment: "IR", renewalURL: configuration.endpointURL("http", configuration.kurAlias), renewalFallback: "InitialEnrollment",
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				initialEnrollment: operationIR, renewalFallback: "InitialEnrollment",
+				renewalURL: configuration.endpointURL("http", configuration.kurAlias),
 			},
 			{
 				name: ejbcaRAVerifiedIssuer, url: configuration.endpointURL("http", configuration.raVerifiedAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, initialEnrollment: "IR", proofOfPossession: "RAVerified",
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				initialEnrollment: operationIR, proofOfPossession: "RAVerified",
 			},
 			{
 				// The ordinary shared-secret alias keeps EJBCA's default refusal of raVerified.
 				name: ejbcaRAVerifiedRefusedIssuer, url: configuration.endpointURL("http", configuration.passwordAlias),
-				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret, initialEnrollment: "IR", proofOfPossession: "RAVerified",
+				recipient: configuration.recipient, protection: password, trustSecret: ejbcaTrustSecret,
+				initialEnrollment: operationIR, proofOfPossession: "RAVerified",
 			},
 			{
 				name: ejbcaMTLSIssuer, url: mtlsURL,
@@ -279,7 +298,9 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		if output, err := utils.Run(exec.Command("kubectl", arguments...)); err == nil {
 			_, _ = fmt.Fprintf(GinkgoWriter, "CMP server log:\n%s", output)
 		}
-		arguments = []string{"get", "certificate,certificaterequest,cmpissuer,cmptransaction", "-n", ejbcaNamespace, "-o", "wide"}
+		arguments = []string{
+			kubectlGet, "certificate,certificaterequest,cmpissuer,cmptransaction", "-n", ejbcaNamespace, "-o", "wide",
+		}
 		if output, err := utils.Run(exec.Command("kubectl", arguments...)); err == nil {
 			_, _ = fmt.Fprintf(GinkgoWriter, "enrollment resources:\n%s", output)
 		}
@@ -292,7 +313,7 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 	It("becomes ready once the CMP server configuration is readable", func() {
 		for _, issuer := range ejbcaIssuers {
 			By("waiting for " + issuer + " to accept its configuration")
-			expectNamespacedIssuerCondition(ejbcaNamespace, issuer, "True", "")
+			expectNamespacedIssuerCondition(ejbcaNamespace, issuer, conditionTrue, "")
 		}
 	})
 
@@ -319,17 +340,21 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 	})
 
 	It("updates a client-mode certificate with KUR and a new private key", func() {
-		renewThroughKUR(configuration, ejbcaKURAlwaysIssuer, configuration.kurAlwaysIdentity, "P10CR", "Always", true, false)
+		renewThroughKUR(
+			configuration, ejbcaKURAlwaysIssuer, configuration.kurAlwaysIdentity, operationP10CR, "Always", true, false,
+		)
 	})
 
 	It("updates a client-mode certificate with KUR under RFC 9483 validation", func() {
-		renewThroughKUR(configuration, ejbcaKURNeverIssuer, configuration.kurNeverIdentity, "P10CR", "Never", false, true)
+		renewThroughKUR(
+			configuration, ejbcaKURNeverIssuer, configuration.kurNeverIdentity, operationP10CR, "Never", false, true,
+		)
 	})
 
 	It("enrolls with IR and renews with KUR when the renewal operation is omitted", func() {
 		// The test CA's certificate profile does not allow a requested validity to override its own, so
 		// the requested notAfter only proves that EJBCA accepts a certificate template that carries one.
-		renewThroughKUR(configuration, ejbcaIRIssuer, ejbcaIRCertificate, "IR", "Always", true, false)
+		renewThroughKUR(configuration, ejbcaIRIssuer, ejbcaIRCertificate, operationIR, "Always", true, false)
 	})
 
 	It("renews with IR when the current certificate Secret is deleted", func() {
@@ -338,7 +363,9 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 
 	It("enrolls a CertificateRequest created without a Certificate with an raVerified IR", func() {
 		request := enrollRequestThrough(ejbcaRAVerifiedIssuer, "cmp-issuer-e2e-raverified", configuration.responseTrust)
-		Expect(issuerOperations(ejbcaRAVerifiedIssuer)).To(Equal([]string{"IR"}), "expected %s to enroll with IR", request)
+		Expect(issuerOperations(ejbcaRAVerifiedIssuer)).To(
+			Equal([]string{operationIR}), "expected %s to enroll with IR", request,
+		)
 	})
 
 	It("fails an raVerified IR that the CMP alias does not accept", func() {
@@ -372,8 +399,14 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		By("listing the transactions that the enrollments left behind")
 		// One P10CR for each shared-secret, signature, mTLS and client-mode initial enrollment, one IR
 		// for each IR issuer that enrolled and one renewal for each KUR, IR and fallback issuer.
-		expected := []string{"P10CR", "P10CR", "P10CR", "P10CR", "P10CR", "P10CR", "IR", "IR", "IR", "IR", "KUR", "KUR", "KUR"}
-		arguments := []string{"get", "cmptransaction", "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].status.phase}"}
+		expected := []string{
+			operationP10CR, operationP10CR, operationP10CR, operationP10CR, operationP10CR, operationP10CR,
+			operationIR, operationIR, operationIR, operationIR,
+			operationKUR, operationKUR, operationKUR,
+		}
+		arguments := []string{
+			kubectlGet, cmpTransactionResource, "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].status.phase}",
+		}
 		output, err := utils.Run(exec.Command("kubectl", arguments...))
 		Expect(err).NotTo(HaveOccurred())
 		phases := strings.Fields(output)
@@ -381,7 +414,9 @@ var _ = Describe("EJBCA enrollment", Label("ejbca"), Ordered, func() {
 		for _, phase := range phases {
 			Expect(phase).To(Equal("Issued"))
 		}
-		arguments = []string{"get", "cmptransaction", "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].spec.operation}"}
+		arguments = []string{
+			kubectlGet, cmpTransactionResource, "-n", ejbcaNamespace, "-o", "jsonpath={.items[*].spec.operation}",
+		}
 		output, err = utils.Run(exec.Command("kubectl", arguments...))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strings.Fields(output)).To(ConsistOf(expected))
@@ -464,7 +499,7 @@ func readEjbcaFile(directory string, name string) string {
 // issuerEndpoint returns the endpoint URL that an issuer is configured with.
 func issuerEndpoint(issuer string) string {
 	arguments := []string{
-		"get", "cmpissuer", issuer, "-n", ejbcaNamespace, "-o", "jsonpath={.spec.endpoint.url}",
+		kubectlGet, "cmpissuer", issuer, "-n", ejbcaNamespace, "-o", "jsonpath={.spec.endpoint.url}",
 	}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
 	Expect(err).NotTo(HaveOccurred(), "Failed to read the endpoint of %q", issuer)
@@ -474,7 +509,7 @@ func issuerEndpoint(issuer string) string {
 // ejbcaPodName returns the pod that currently runs the CMP server.
 func ejbcaPodName() string {
 	arguments := []string{
-		"get", "pods", "-n", ejbcaNamespace, "-l", "app=" + ejbcaWorkload,
+		kubectlGet, "pods", "-n", ejbcaNamespace, "-l", "app=" + ejbcaWorkload,
 		"-o", "jsonpath={.items[0].metadata.name}",
 	}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
@@ -494,7 +529,7 @@ func enrollThrough(issuer string, certificate string) string {
 		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
 		g.Expect(err).NotTo(HaveOccurred())
 		ready := findCondition(conditions, "Ready")
-		g.Expect(ready.Status).To(Equal("True"), "certificate not ready: %s", ready.Message)
+		g.Expect(ready.Status).To(Equal(conditionTrue), "certificate not ready: %s", ready.Message)
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 	return certificate
 }
@@ -509,10 +544,10 @@ func enrollRequestThrough(issuer string, request string, authorityPEM string) st
 
 	By("waiting for the CertificateRequest to be issued")
 	Eventually(func(g Gomega) {
-		conditions, err := resourceConditions("certificaterequest", ejbcaNamespace, request)
+		conditions, err := resourceConditions(certificateRequestResource, ejbcaNamespace, request)
 		g.Expect(err).NotTo(HaveOccurred())
 		ready := findCondition(conditions, "Ready")
-		g.Expect(ready.Status).To(Equal("True"), "request not ready: %s", ready.Message)
+		g.Expect(ready.Status).To(Equal(conditionTrue), "request not ready: %s", ready.Message)
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 
 	By("confirming that the issued certificate certifies the requested key")
@@ -545,7 +580,7 @@ func expectRequestFailed(issuer string, request string) string {
 	By("waiting for the issuer to fail the CertificateRequest")
 	var message string
 	Eventually(func(g Gomega) {
-		conditions, err := resourceConditions("certificaterequest", ejbcaNamespace, request)
+		conditions, err := resourceConditions(certificateRequestResource, ejbcaNamespace, request)
 		g.Expect(err).NotTo(HaveOccurred())
 		ready := findCondition(conditions, "Ready")
 		g.Expect(ready.Reason).To(Equal("Failed"), "request not failed: %s", ready.Message)
@@ -555,14 +590,15 @@ func expectRequestFailed(issuer string, request string) string {
 	return message
 }
 
-// renewThroughKUR proves that revision one uses initialOperation and revision two uses KUR with the selected key rotation.
+// renewThroughKUR proves that revision one uses initialOperation and revision two uses KUR with the selected
+// key rotation.
 func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificate string, initialOperation string, rotationPolicy string, expectKeyChange bool, enableRFC9483 bool) {
 	By("requesting the initial " + initialOperation + " certificate from " + issuer)
 	Expect(kubectlApply(ejbcaNamespace, ejbcaKURCertificateManifest(certificate, rotationPolicy, issuer))).To(Succeed())
 	Eventually(func(g Gomega) {
 		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal(conditionTrue))
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 	initialSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
 	Expect(err).NotTo(HaveOccurred())
@@ -571,22 +607,30 @@ func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificat
 	if enableRFC9483 {
 		// EJBCA returns certReqId 0 for P10CR, so strict validation begins only after its initial enrollment.
 		By("enabling RFC 9483 validation before KUR")
-		_, err = utils.Run(exec.Command("kubectl", "patch", "cmpissuer", issuer, "-n", ejbcaNamespace, "--type=merge", "-p", `{"spec":{"protocol":{"validationProfile":"RFC9483"}}}`))
+		_, err = utils.Run(exec.Command(
+			"kubectl", "patch", "cmpissuer", issuer, "-n", ejbcaNamespace,
+			"--type=merge", "-p", `{"spec":{"protocol":{"validationProfile":"RFC9483"}}}`,
+		))
 		Expect(err).NotTo(HaveOccurred())
-		expectNamespacedIssuerCondition(ejbcaNamespace, issuer, "True", "")
+		expectNamespacedIssuerCondition(ejbcaNamespace, issuer, conditionTrue, "")
 	}
 
 	By("changing a non-identity Certificate field to trigger revision two")
-	_, err = utils.Run(exec.Command("kubectl", "patch", "certificate", certificate, "-n", ejbcaNamespace, "--type=merge", "-p", `{"spec":{"duration":"2161h"}}`))
+	_, err = utils.Run(exec.Command(
+		"kubectl", "patch", "certificate", certificate, "-n", ejbcaNamespace,
+		"--type=merge", "-p", `{"spec":{"duration":"2161h"}}`,
+	))
 	Expect(err).NotTo(HaveOccurred())
 	Eventually(func(g Gomega) {
-		arguments := []string{"get", "certificate", certificate, "-n", ejbcaNamespace, "-o", "jsonpath={.status.revision}"}
+		arguments := []string{
+			kubectlGet, "certificate", certificate, "-n", ejbcaNamespace, "-o", "jsonpath={.status.revision}",
+		}
 		revision, err := utils.Run(exec.Command("kubectl", arguments...))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(strings.TrimSpace(revision)).To(Equal("2"))
 		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal(conditionTrue))
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 	renewedSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
 	Expect(err).NotTo(HaveOccurred())
@@ -597,7 +641,7 @@ func renewThroughKUR(configuration ejbcaConfiguration, issuer string, certificat
 	expectIssuedBy(certificate, configuration.responseTrust)
 
 	By("confirming the CMP operation of each revision")
-	Expect(issuerOperations(issuer)).To(ConsistOf(initialOperation, "KUR"))
+	Expect(issuerOperations(issuer)).To(ConsistOf(initialOperation, operationKUR))
 }
 
 // renewAfterDeletingSecret proves that revision two of a Certificate whose Secret was deleted is
@@ -609,7 +653,7 @@ func renewAfterDeletingSecret(configuration ejbcaConfiguration, issuer string, c
 	Eventually(func(g Gomega) {
 		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal(conditionTrue))
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 	initialSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
 	Expect(err).NotTo(HaveOccurred())
@@ -620,13 +664,15 @@ func renewAfterDeletingSecret(configuration ejbcaConfiguration, issuer string, c
 	_, err = utils.Run(exec.Command("kubectl", "delete", "secret", certificate+"-tls", "-n", ejbcaNamespace))
 	Expect(err).NotTo(HaveOccurred())
 	Eventually(func(g Gomega) {
-		arguments := []string{"get", "certificate", certificate, "-n", ejbcaNamespace, "-o", "jsonpath={.status.revision}"}
+		arguments := []string{
+			kubectlGet, "certificate", certificate, "-n", ejbcaNamespace, "-o", "jsonpath={.status.revision}",
+		}
 		revision, err := utils.Run(exec.Command("kubectl", arguments...))
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(strings.TrimSpace(revision)).To(Equal("2"))
 		conditions, err := resourceConditions("certificate", ejbcaNamespace, certificate)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(findCondition(conditions, "Ready").Status).To(Equal("True"))
+		g.Expect(findCondition(conditions, "Ready").Status).To(Equal(conditionTrue))
 	}, ejbcaEnrollmentTimeout, 5*time.Second).Should(Succeed())
 	renewedSecret, err := secretData(ejbcaNamespace, certificate+"-tls")
 	Expect(err).NotTo(HaveOccurred())
@@ -636,9 +682,9 @@ func renewAfterDeletingSecret(configuration ejbcaConfiguration, issuer string, c
 	expectIssuedBy(certificate, configuration.responseTrust)
 
 	By("confirming that both revisions used IR and that the renewal recorded the fallback")
-	Expect(issuerOperations(issuer)).To(ConsistOf("IR", "IR"))
+	Expect(issuerOperations(issuer)).To(ConsistOf(operationIR, operationIR))
 	arguments := []string{
-		"get", "cmptransaction", "-n", ejbcaNamespace,
+		kubectlGet, cmpTransactionResource, "-n", ejbcaNamespace,
 		"-o", fmt.Sprintf(`jsonpath={.items[?(@.spec.issuerRef.name=="%s")].spec.renewalFallback}`, issuer),
 	}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
@@ -646,7 +692,10 @@ func renewAfterDeletingSecret(configuration ejbcaConfiguration, issuer string, c
 	Expect(strings.Fields(output)).To(ConsistOf("CurrentCertificateMissing"))
 
 	By("confirming that the fallback was reported in a Warning Event")
-	arguments = []string{"get", "events", "-n", ejbcaNamespace, "--field-selector", "reason=RenewalFallback,type=Warning", "-o", "jsonpath={.items[*].message}"}
+	arguments = []string{
+		kubectlGet, "events", "-n", ejbcaNamespace,
+		"--field-selector", "reason=RenewalFallback,type=Warning", "-o", "jsonpath={.items[*].message}",
+	}
 	output, err = utils.Run(exec.Command("kubectl", arguments...))
 	Expect(err).NotTo(HaveOccurred())
 	Expect(output).To(ContainSubstring("Renewing with IR instead of KUR"))
@@ -655,7 +704,7 @@ func renewAfterDeletingSecret(configuration ejbcaConfiguration, issuer string, c
 // issuerOperations returns the CMP operation of every transaction recorded for one issuer in the EJBCA namespace.
 func issuerOperations(issuer string) []string {
 	arguments := []string{
-		"get", "cmptransaction", "-n", ejbcaNamespace,
+		kubectlGet, cmpTransactionResource, "-n", ejbcaNamespace,
 		"-o", fmt.Sprintf(`jsonpath={.items[?(@.spec.issuerRef.name=="%s")].spec.operation}`, issuer),
 	}
 	output, err := utils.Run(exec.Command("kubectl", arguments...))
