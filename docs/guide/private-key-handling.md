@@ -17,9 +17,13 @@ The end-to-end suite covers this boundary: a crafted annotation pointing at a se
 
 RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.
 
+## IR with RAVerified: no workload private-key access
+
+With `protocol.proofOfPossession: RAVerified` an IR reads no workload private key, like P10CR. The issuer verifies the signature of cert-manager's CSR and sends `raVerified` in place of a signed proof of possession. It does not read the `Certificate`, the staged Secret or the current Secret. See [IR proof of possession](enrollment.md#ir-proof-of-possession).
+
 ## IR: one narrowly authorized key proof
 
-IR reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, revision one with no earlier revision in `Certificate.status`, issuer reference, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
+An IR with the default `Signature` proof of possession reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling `Certificate` name and UID, revision one with no earlier revision in `Certificate.status`, issuer reference, `status.nextPrivateKeySecretName`, staged Secret owner and next-key label, CSR signature and public-key equality.
 
 A later revision uses IR only as a renewal fallback under `renewalFallback: InitialEnrollment`. It then requires the immediately previous revision in `Certificate.status`, as KUR does. Before it falls back, the controller reads the current output Secret once and parses only its `tls.crt` to find the certificate missing or expired. See [Missing or expired current certificate](renewal-and-kur.md#missing-or-expired-current-certificate).
 

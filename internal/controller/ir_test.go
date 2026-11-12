@@ -90,6 +90,7 @@ func TestSelectedTransactionOperation(t *testing.T) {
 		name     string
 		initial  string
 		renewal  string
+		pop      string
 		revision string
 		want     string
 		failure  string
@@ -103,7 +104,9 @@ func TestSelectedTransactionOperation(t *testing.T) {
 		{name: "KUR renewal follows IR", initial: cmpv1alpha1.InitialEnrollmentIR, revision: "2", want: cmpv1alpha1.TransactionOperationKUR},
 		{name: "explicit KUR renewal after IR", initial: cmpv1alpha1.InitialEnrollmentIR, renewal: cmpv1alpha1.RenewalKUR, revision: "5", want: cmpv1alpha1.TransactionOperationKUR},
 		{name: "explicit P10CR renewal after IR", initial: cmpv1alpha1.InitialEnrollmentIR, renewal: cmpv1alpha1.RenewalP10CR, revision: "2", want: cmpv1alpha1.TransactionOperationP10CR},
-		{name: "IR refuses a standalone request", initial: cmpv1alpha1.InitialEnrollmentIR, failure: "IR needs a CertificateRequest that cert-manager created for a Certificate"},
+		{name: "IR refuses a standalone request", initial: cmpv1alpha1.InitialEnrollmentIR, failure: "Signature proof of possession needs a CertificateRequest that cert-manager created for a Certificate"},
+		{name: "raVerified IR enrolls a standalone request", initial: cmpv1alpha1.InitialEnrollmentIR, pop: cmpv1alpha1.ProofOfPossessionRAVerified, want: cmpv1alpha1.TransactionOperationIR},
+		{name: "raVerified IR first revision", initial: cmpv1alpha1.InitialEnrollmentIR, pop: cmpv1alpha1.ProofOfPossessionRAVerified, revision: "1", want: cmpv1alpha1.TransactionOperationIR},
 		{name: "IR refuses revision zero", initial: cmpv1alpha1.InitialEnrollmentIR, revision: "0", failure: "must be positive"},
 		{name: "IR refuses an invalid revision", initial: cmpv1alpha1.InitialEnrollmentIR, revision: "one", failure: "absent or invalid"},
 	} {
@@ -111,6 +114,7 @@ func TestSelectedTransactionOperation(t *testing.T) {
 			issuer := testIRIssuer()
 			issuer.Spec.Protocol.InitialEnrollment = test.initial
 			issuer.Spec.Protocol.Renewal = test.renewal
+			issuer.Spec.Protocol.ProofOfPossession = test.pop
 			request := &fakeCertificateRequest{ObjectMeta: metav1.ObjectMeta{Name: testRequestName, Namespace: testIssuerNamespace}}
 			if test.revision != "" {
 				request.Annotations = map[string]string{certmanagerv1.CertificateRequestRevisionAnnotationKey: test.revision}
@@ -186,7 +190,7 @@ func TestSignRefusesUnauthorizedIR(t *testing.T) {
 		{name: "a standalone CertificateRequest", mutate: func(_ *testing.T, request *fakeCertificateRequest, _ *certmanagerv1.Certificate, _ *corev1.Secret) {
 			request.Annotations = map[string]string{certmanagerv1.CertificateRequestPrivateKeyAnnotationKey: testNextPrivateKeySecret}
 			request.OwnerReferences = nil
-		}, failure: "IR needs a CertificateRequest"},
+		}, failure: "needs a CertificateRequest that cert-manager created"},
 		{name: "no controlling Certificate", mutate: func(_ *testing.T, request *fakeCertificateRequest, _ *certmanagerv1.Certificate, _ *corev1.Secret) {
 			request.OwnerReferences = nil
 		}, failure: "authorize IR CertificateRequest"},
@@ -402,6 +406,15 @@ func TestCRMFOperationsAgainstAPIServer(t *testing.T) {
 			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
 		}},
 		{name: "unknown renewal fallback", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RenewalFallback = "OnFailure" }},
+		{name: "raVerified IR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.ProofOfPossession = cmpv1alpha1.ProofOfPossessionRAVerified
+		}, valid: true, renewal: cmpv1alpha1.TransactionOperationKUR},
+		{name: "raVerified with P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.ProofOfPossession = cmpv1alpha1.ProofOfPossessionRAVerified }},
+		{name: "unknown proof of possession", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.ProofOfPossession = "KeyEncipherment"
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			issuer := &cmpv1alpha1.CMPClusterIssuer{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("crmf-%d", i)}, Spec: validSpec("https://example.test/cmp")}
@@ -451,4 +464,78 @@ func TestCRMFOperationsAgainstAPIServer(t *testing.T) {
 			t.Fatal("expected an unknown renewal fallback reason to be rejected")
 		}
 	})
+}
+
+// TestSignRAVerifiedIR verifies that an raVerified IR enrolls a standalone CertificateRequest and a
+// Certificate's request without reading the owning Certificate or any workload Secret.
+func TestSignRAVerifiedIR(t *testing.T) {
+	for _, standalone := range []bool{true, false} {
+		name := "Certificate request"
+		if standalone {
+			name = "standalone request"
+		}
+		t.Run(name, func(t *testing.T) {
+			auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+			issuer := testIRIssuer()
+			issuer.Spec.Protocol.ProofOfPossession = cmpv1alpha1.ProofOfPossessionRAVerified
+			request, certificate, stagedSecret := testIRRequestObjects(t, issuer, testECDSAKey(t))
+			if standalone {
+				request.Annotations = nil
+				request.OwnerReferences = nil
+			}
+			issued := issuedCertificateFor(t, request.details.CSR)
+			baseClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust, certificate, stagedSecret).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+			recording := &recordingClient{Client: baseClient}
+			protocolClient := &fakeProtocolClient{result: protocol.EnrollmentResult{Chain: []*x509.Certificate{issued}}}
+			signer := &Signer{KubeClient: recording, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(baseClient)}
+			bundle, err := signer.Sign(context.Background(), request, issuer)
+			if err != nil || len(bundle.ChainPEM) == 0 {
+				t.Fatalf("raVerified IR Sign failed: %v", err)
+			}
+			if protocolClient.irCalls != 1 || protocolClient.calls != 0 || protocolClient.kurCalls != 0 {
+				t.Fatalf("expected one IR call, got %d IR, %d P10CR and %d KUR", protocolClient.irCalls, protocolClient.calls, protocolClient.kurCalls)
+			}
+			sent := protocolClient.request
+			if !sent.RAVerifiedProofOfPossession || sent.RequestedPrivateKey != nil || sent.ResponseCertReqID != nil || sent.Protection.Password == nil {
+				t.Fatal("expected an raVerified IR under the issuer's protection without a workload key")
+			}
+			for _, read := range recording.readNames() {
+				if read.Name != testAuthSecretName && read.Name != testTrustSecretName {
+					t.Fatalf("raVerified IR read %s, which is not an issuer credential", read)
+				}
+			}
+			stored := &cmpv1alpha1.CMPTransaction{}
+			if err := baseClient.Get(context.Background(), types.NamespacedName{Namespace: testIssuerNamespace, Name: testRequestName}, stored); err != nil {
+				t.Fatalf("read IR transaction: %v", err)
+			}
+			if stored.Spec.Operation != cmpv1alpha1.TransactionOperationIR {
+				t.Fatalf("expected a recorded IR transaction, got %q", stored.Spec.Operation)
+			}
+		})
+	}
+}
+
+// TestSignRAVerifiedIRRefusesInvalidCSRSignature verifies that the issuer does not vouch for a CSR
+// whose signature does not verify and sends nothing. The signature is the proof raVerified stands for.
+func TestSignRAVerifiedIRRefusesInvalidCSRSignature(t *testing.T) {
+	auth, trust, _ := credentialSecrets(t, testIssuerNamespace)
+	issuer := testIRIssuer()
+	issuer.Spec.Protocol.ProofOfPossession = cmpv1alpha1.ProofOfPossessionRAVerified
+	request, _, _ := testIRRequestObjects(t, issuer, testECDSAKey(t))
+	request.Annotations = nil
+	request.OwnerReferences = nil
+	block, _ := pem.Decode(request.details.CSR)
+	block.Bytes[len(block.Bytes)-1] ^= 0xff
+	request.details.CSR = pem.EncodeToMemory(block)
+	kubeClient := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(auth, trust).WithStatusSubresource(&cmpv1alpha1.CMPTransaction{}).Build()
+	protocolClient := &fakeProtocolClient{}
+	signer := &Signer{KubeClient: kubeClient, ProtocolClient: protocolClient, EventRecorder: events.NewFakeRecorder(10), ClusterResourceNamespace: testClusterResourceNamespace, transactions: testTransactions(kubeClient)}
+	_, err := signer.Sign(context.Background(), request, issuer)
+	var permanent issuersigner.PermanentError
+	if !errors.As(err, &permanent) || !strings.Contains(err.Error(), "certificate request signature") {
+		t.Fatalf("expected a permanent CSR signature failure, got %v", err)
+	}
+	if protocolClient.irCalls != 0 {
+		t.Fatalf("expected no IR, got %d", protocolClient.irCalls)
+	}
 }

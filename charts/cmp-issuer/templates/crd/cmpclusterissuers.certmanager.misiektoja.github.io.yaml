@@ -270,9 +270,10 @@ spec:
                     default: P10CR
                     description: |-
                       InitialEnrollment selects the request of the first cert-manager certificate revision.
-                      P10CR forwards the CSR and reads no workload private key. IR sends a CRMF request whose proof
-                      of possession the staged private key signs, so it requires narrowly authorized access to the
-                      Certificate's staged private-key Secret and a CertificateRequest created for a Certificate.
+                      P10CR forwards the CSR and reads no workload private key. IR sends a CRMF request. With the
+                      default Signature proofOfPossession the staged private key signs it, so IR requires narrowly
+                      authorized access to the Certificate's staged private-key Secret and a CertificateRequest created
+                      for a Certificate. With RAVerified it reads no workload private key.
                     enum:
                     - P10CR
                     - IR
@@ -310,6 +311,19 @@ spec:
                     - 0
                     format: int64
                     type: integer
+                  proofOfPossession:
+                    default: Signature
+                    description: |-
+                      ProofOfPossession selects how an IR proves possession of the requested private key. Signature
+                      signs the CRMF request with the Certificate's staged private key. RAVerified acts as a
+                      registration authority: the issuer verifies the CSR signature and sends raVerified, so it reads
+                      no workload private key and also enrolls a CertificateRequest created without a Certificate.
+                      The CA must trust the issuer's protection credential to vouch for proof of possession. KUR
+                      always signs its proof of possession and ignores the field.
+                    enum:
+                    - Signature
+                    - RAVerified
+                    type: string
                   recipient:
                     description: Recipient is the RFC 4514 distinguished name for
                       the CMP recipient.
@@ -416,6 +430,10 @@ spec:
                   rule: '!has(self.renewalFallback) || self.renewalFallback == ''None''
                     || (has(self.renewal) ? self.renewal == ''KUR'' : self.initialEnrollment
                     == ''IR'')'
+                - message: proofOfPossession RAVerified needs IR initial enrollment,
+                    because only an IR carries it
+                  rule: '!has(self.proofOfPossession) || self.proofOfPossession ==
+                    ''Signature'' || self.initialEnrollment == ''IR'''
               transaction:
                 default:
                   maximumDuration: 10m
@@ -456,8 +474,8 @@ spec:
                   of CMP trust.
                 properties:
                   tls:
-                    description: TLS configures HTTPS trust and reserves mTLS credentials
-                      for a later release.
+                    description: TLS configures HTTPS server trust and an optional
+                      TLS client certificate.
                     properties:
                       caSecretRef:
                         description: CASecretRef optionally selects PEM-encoded HTTPS
@@ -477,8 +495,10 @@ spec:
                         type: object
                       clientCertificateSecretRef:
                         description: |-
-                          ClientCertificateSecretRef is reserved for mTLS support and must remain unset.
-                          Setting it makes the issuer NotReady.
+                          ClientCertificateSecretRef optionally selects a Secret whose tls.crt holds the TLS client
+                          certificate followed by any intermediates and whose tls.key holds its unencrypted private key.
+                          The certificate is presented whenever an HTTPS CMP server requests one. It authenticates the
+                          connection only and is independent of CMP message protection. It requires an HTTPS endpoint.
                         properties:
                           name:
                             description: Name is the Secret name.

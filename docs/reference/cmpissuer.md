@@ -59,7 +59,8 @@ spec:
 | Field | Required | Default | Description |
 | --- | --- | --- | --- |
 | `version` | yes | `2` | CMP version; only `2` is supported |
-| `initialEnrollment` | yes | `P10CR` | `P10CR` sends cert-manager's CSR. `IR` sends a CRMF request whose proof of possession the staged workload key signs, so it needs a `CertificateRequest` that cert-manager created for a `Certificate`. See [Enrollment](../guide/enrollment.md) |
+| `initialEnrollment` | yes | `P10CR` | `P10CR` sends cert-manager's CSR. `IR` sends a CRMF request built from the CSR. See [Enrollment](../guide/enrollment.md) |
+| `proofOfPossession` | no | `Signature` | How an IR proves possession of the requested key. `Signature` signs with the staged workload key and needs a `CertificateRequest` that cert-manager created for a `Certificate`. `RAVerified` verifies the CSR signature and sends `raVerified`, reads no workload key and needs `initialEnrollment: IR` and a CA that accepts the issuer as a registration authority. KUR ignores it. See [IR proof of possession](../guide/enrollment.md#ir-proof-of-possession) |
 | `renewal` | no | follows `initialEnrollment` | `P10CR` re-enrolls. `KUR` uses the current certificate and CRMF proof of possession for later cert-manager revisions. Omitted, it is `P10CR` after P10CR and `KUR` after IR |
 | `renewalFallback` | no | `None` | What a KUR renewal does when the current certificate is missing or expired. `None` fails the request. `InitialEnrollment` renews with the `initialEnrollment` operation instead and needs `renewal` to resolve to KUR. See [Missing or expired current certificate](../guide/renewal-and-kur.md#missing-or-expired-current-certificate) |
 | `requestedValidity` | no | `Omit` | `Omit` leaves the validity to the CA. `Duration` asks in each IR and KUR for the `CertificateRequest` duration and needs `initialEnrollment: IR` or `renewal: KUR`. See [Requested validity](../guide/enrollment.md#requested-validity) |
@@ -99,7 +100,7 @@ Optional HTTPS settings. Omit for HTTP or for HTTPS validated with the system tr
 | Field | Description |
 | --- | --- |
 | `tls.caSecretRef` | PEM trust anchors for the HTTPS server |
-| `tls.clientCertificateSecretRef` | Reserved for future mTLS. Leave unset or the issuer becomes NotReady |
+| `tls.clientCertificateSecretRef` | Secret `name` whose `tls.crt` holds the TLS client certificate followed by any intermediates and whose `tls.key` holds its unencrypted private key. Sent when the HTTPS server asks for a client certificate. Needs an HTTPS `url` or `renewalUrl` |
 
 See [HTTP and HTTPS transport](../guide/transport.md).
 
@@ -119,7 +120,7 @@ Ready condition follows issuer-lib conventions. When credential or trust Secrets
 
 ## RBAC
 
-The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact workload Secret reads that IR and KUR need: the staged key for IR and the current and staged keys for KUR. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
+The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact workload Secret reads that IR and KUR need: the staged key for an IR with `Signature` proof of possession and the current and staged keys for KUR. List the namespace in the chart value `credentialNamespaces` or apply the binding yourself, both described in [Credential Secret access](../operations/secret-access.md).
 
 ## Related pages
 

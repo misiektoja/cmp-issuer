@@ -64,11 +64,11 @@ func selectedTransactionOperation(issuer issuerapi.Issuer, request issuersigner.
 	}
 	if request.GetAnnotations()[certmanagerv1.CertificateRequestRevisionAnnotationKey] == "" {
 		// A CertificateRequest created without a Certificate has no staged key cmp-issuer may read,
-		// so it can be enrolled by P10CR only.
-		if initial == cmpv1alpha1.TransactionOperationIR {
-			return "", fmt.Errorf("select enrollment operation: IR needs a CertificateRequest that cert-manager created for a Certificate, because the Certificate's staged private key signs the proof of possession")
+		// so only P10CR or an raVerified IR, which reads no workload key, can enroll it.
+		if initial == cmpv1alpha1.TransactionOperationIR && spec.Protocol.ProofOfPossession != cmpv1alpha1.ProofOfPossessionRAVerified {
+			return "", fmt.Errorf("select enrollment operation: IR with Signature proof of possession needs a CertificateRequest that cert-manager created for a Certificate, because the Certificate's staged private key signs it. Use proofOfPossession RAVerified or P10CR for a CertificateRequest created directly")
 		}
-		return cmpv1alpha1.TransactionOperationP10CR, nil
+		return initial, nil
 	}
 	revision, err := certificateRequestRevision(request)
 	if err != nil || revision < 1 {

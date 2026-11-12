@@ -1,6 +1,9 @@
 version: "2"
 run:
   allow-parallel-runners: true
+  # The Kind suites build only with the e2e tag, so without it their files are never linted.
+  build-tags:
+    - e2e
 linters:
   default: none
   enable:
@@ -49,6 +52,10 @@ linters:
   exclusions:
     generated: lax
     rules:
+      # Function definitions stay on one line by project convention, however long their parameter list.
+      - linters:
+          - lll
+        source: "^func "
       - linters:
           - lll
         path: api/*

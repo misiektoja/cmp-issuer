@@ -21,6 +21,7 @@ ISSUING_CA_NAME="${ISSUING_CA_NAME:-CmpIssuerTestCA}"
 ISSUING_CA_DN="${ISSUING_CA_DN:-CN=cmp-issuer test CA,O=cmp-issuer}"
 PBM_ALIAS="${PBM_ALIAS:-cmpissuerpbm}"
 SIGNATURE_ALIAS="${SIGNATURE_ALIAS:-cmpissuersig}"
+RAVERIFIED_ALIAS="${RAVERIFIED_ALIAS:-cmpissuerraverified}"
 KUR_INITIAL_ALIAS="${KUR_INITIAL_ALIAS:-cmpissuerkurinit}"
 KUR_ALIAS="${KUR_ALIAS:-cmpissuerkur}"
 KUR_STRICT_ALIAS="${KUR_STRICT_ALIAS:-cmpissuerkurstrict}"
@@ -113,6 +114,11 @@ configure_alias() {
 
 configure_alias "${PBM_ALIAS}" HMAC "${PBM_SECRET}"
 configure_alias "${SIGNATURE_ALIAS}" EndEntityCertificate ManagementCA
+configure_alias "${RAVERIFIED_ALIAS}" HMAC "${PBM_SECRET}"
+# allowraverifypopo true: a request whose proof of possession is raVerified is accepted, because the
+#   shared secret authorizes the requester to vouch for it. The other aliases keep the default and
+#   refuse raVerified.
+ejbca config cmp updatealias --alias "${RAVERIFIED_ALIAS}" --key allowraverifypopo --value true
 
 # configure_client_alias configures one client-mode enrollment stage for the fixed KUR identities.
 configure_client_alias() {
@@ -158,6 +164,7 @@ printf '%s' "${PBM_REFERENCE}" > "${EXPORT_DIR}/pbm-reference"
 printf '%s' "${PBM_SECRET}" > "${EXPORT_DIR}/pbm-secret"
 printf '%s' "${PBM_ALIAS}" > "${EXPORT_DIR}/pbm-alias"
 printf '%s' "${SIGNATURE_ALIAS}" > "${EXPORT_DIR}/signature-alias"
+printf '%s' "${RAVERIFIED_ALIAS}" > "${EXPORT_DIR}/raverified-alias"
 printf '%s' "${KUR_INITIAL_ALIAS}" > "${EXPORT_DIR}/kur-initial-alias"
 printf '%s' "${KUR_ALIAS}" > "${EXPORT_DIR}/kur-alias"
 printf '%s' "${KUR_STRICT_ALIAS}" > "${EXPORT_DIR}/kur-strict-alias"

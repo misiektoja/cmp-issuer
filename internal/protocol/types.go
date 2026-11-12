@@ -22,6 +22,7 @@ package protocol
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"time"
@@ -97,8 +98,12 @@ type EnrollmentRequest struct {
 	RequireKUPCAPubsAbsent   bool
 	TransactionID            []byte
 	CSRDER                   []byte
-	// RequestedPrivateKey signs the CRMF proof of possession of an IR or KUR.
+	// RequestedPrivateKey signs the CRMF proof of possession of an IR or KUR. An IR with
+	// RAVerifiedProofOfPossession does not use it.
 	RequestedPrivateKey crypto.Signer
+	// RAVerifiedProofOfPossession sends the proof of possession of an IR as raVerified once the CSR
+	// signature verifies, as a registration authority does in RFC 9483 section 5.2.3.2. KUR ignores it.
+	RAVerifiedProofOfPossession bool
 	// SignatureDigest is the digest of the RSA and ECDSA signatures the issuer creates: the proof of
 	// possession of an IR or KUR and signature-based message protection. Zero follows the key.
 	// Signatures that take no digest, Ed25519 and ML-DSA, ignore it.
@@ -111,6 +116,8 @@ type EnrollmentRequest struct {
 	CMPTrustCertificates    []*x509.Certificate
 	CMPResponseCertificates []*x509.Certificate
 	TLSRoots                *x509.CertPool
+	// TLSClientCertificate is presented whenever an HTTPS server requests a client certificate.
+	TLSClientCertificate *tls.Certificate
 }
 
 // PollRequest resumes a transaction whose enrollment response was waiting.

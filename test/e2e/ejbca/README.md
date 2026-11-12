@@ -45,6 +45,7 @@ hostname.
 | Administration authority | `ManagementCA`, which signs the TLS server certificate and the registration certificate |
 | CMP alias `cmpissuerpbm` | RA mode, requests protected with a shared secret, responses signed by the issuing authority |
 | CMP alias `cmpissuersig` | RA mode, requests protected with a certificate signature |
+| CMP alias `cmpissuerraverified` | RA mode, requests protected with a shared secret, `raVerified` proof of possession accepted |
 | CMP alias `cmpissuerkurinit` | Client mode, initial P10CR protected with a shared secret and response protected with a signature |
 | CMP alias `cmpissuerkur` | Client mode, KUR protected by the certificate being updated with automatic key update enabled and KUP `caPubs` enabled |
 | CMP alias `cmpissuerkurstrict` | Client mode, KUR protected by the certificate being updated with automatic key update enabled and KUP `caPubs` disabled |

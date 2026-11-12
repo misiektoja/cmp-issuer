@@ -333,6 +333,10 @@ func TestValidateSpec(t *testing.T) {
 			spec.Protocol.Renewal = cmpv1alpha1.RenewalP10CR
 		}},
 		{name: "unsupported renewal fallback", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.RenewalFallback = "OnFailure" }},
+		{name: "unsupported proof of possession", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) { spec.Protocol.ProofOfPossession = "KeyEncipherment" }},
+		{name: "raVerified proof of possession with P10CR", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Protocol.ProofOfPossession = cmpv1alpha1.ProofOfPossessionRAVerified
+		}},
 		{name: "renewal fallback with P10CR renewal", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protocol.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
 			spec.Protocol.Renewal = cmpv1alpha1.RenewalP10CR
@@ -375,7 +379,8 @@ func TestValidateSpec(t *testing.T) {
 		{name: "both protection modes", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
 			spec.Protection.Signature = &cmpv1alpha1.SignatureProtectionSpec{}
 		}},
-		{name: "mTLS reserved", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+		{name: "TLS client certificate on HTTP", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
+			spec.Endpoint.URL = testHTTPEndpointURL
 			spec.Transport.TLS = &cmpv1alpha1.TLSTransportSpec{ClientCertificateSecretRef: &cmpv1alpha1.LocalSecretReference{Name: "mtls"}}
 		}},
 		{name: "TLS trust on HTTP", mutate: func(spec *cmpv1alpha1.CMPIssuerSpec) {
@@ -438,6 +443,11 @@ func TestValidateSpecAllowsCRMFOperations(t *testing.T) {
 			spec.RenewalFallback = cmpv1alpha1.RenewalFallbackInitialEnrollment
 		}},
 		{name: "renewal fallback None with P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.RenewalFallback = cmpv1alpha1.RenewalFallbackNone }},
+		{name: "raVerified IR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) {
+			spec.InitialEnrollment = cmpv1alpha1.InitialEnrollmentIR
+			spec.ProofOfPossession = cmpv1alpha1.ProofOfPossessionRAVerified
+		}},
+		{name: "explicit Signature proof of possession with P10CR", mutate: func(spec *cmpv1alpha1.ProtocolSpec) { spec.ProofOfPossession = cmpv1alpha1.ProofOfPossessionSignature }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			spec := validSpec("https://example.test/cmp")

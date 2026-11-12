@@ -47,7 +47,7 @@ checksums and signed build provenance. These checks keep metadata changes review
 
 ## OpenSSL CMP interoperability
 
-CI runs delayed transaction, delayed confirmation, pinned transaction, IR and KUR flows against the OpenSSL CMP mock. The KUR flows have the mock check the oldCertID the request carries, which needs the `-ref_cert` option that OpenSSL added in 3.2, so the workflow installs a current OpenSSL rather than using the runner's 3.0 package. IR covers both protection modes with and without a requested validity. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
+CI runs delayed transaction, delayed confirmation, pinned transaction, IR and KUR flows against the OpenSSL CMP mock. The KUR flows have the mock check the oldCertID the request carries, which needs the `-ref_cert` option that OpenSSL added in 3.2, so the workflow installs a current OpenSSL rather than using the runner's 3.0 package. IR covers both protection modes with and without a requested validity, plus an `raVerified` proof of possession that the mock accepts or refuses. KUR covers new-key and same-key CRMF proof of possession. The pinned transaction test asserts that the identifier recorded before sending is the identifier OpenSSL saw on the wire, which is what a retry after an interruption reuses. The workflow fails if the test is silently skipped when OpenSSL is available.
 
 Locally set `OPENSSL_BIN` to select a non-default OpenSSL binary. The test skips when OpenSSL is missing, and the KUR flows skip on their own when the build predates `-ref_cert` while the other flows still run.
 
@@ -104,7 +104,7 @@ The three older rows pin a digest, taken from the node images published for the 
 make test-e2e-ejbca
 ```
 
-This runs a second set of specs that enroll real certificates from EJBCA Community Edition running in the same Kind cluster, through cert-manager `Certificate` resources and the full controller path:
+This runs a second set of specs that enroll real certificates from EJBCA Community Edition running in the same Kind cluster, through cert-manager `Certificate` and `CertificateRequest` resources and the full controller path:
 
 | Spec | What it enrolls |
 | --- | --- |
@@ -115,7 +115,11 @@ This runs a second set of specs that enroll real certificates from EJBCA Communi
 | KUR with key reuse | P10CR revision one then certificate-authenticated KUR with the existing key |
 | IR then KUR | `PasswordBasedMac` protected IR with a requested validity, then the KUR an omitted `renewal` selects |
 | Renewal fallback | IR revision one, then IR revision two under `renewalFallback: InitialEnrollment` after the Secret is deleted, with the recorded reason and the Warning Event checked |
-| Transaction records | one `CMPTransaction` per enrollment, each reporting `Issued` |
+| raVerified IR | `PasswordBasedMac` protected IR with `proofOfPossession: RAVerified` for a `CertificateRequest` created without a `Certificate`, through an alias that accepts `raVerified` |
+| raVerified refused | the same IR through an alias that keeps EJBCA's default, which fails the request |
+| TLS client certificate | `PasswordBasedMac` protected P10CR through an nginx proxy that requires a client certificate, presenting one that cert-manager issued, with the proxy log checked for the verified subject |
+| Missing TLS client certificate | the same request without a client certificate, which the proxy refuses |
+| Transaction records | one `CMPTransaction` per successful enrollment, each reporting `Issued` |
 
 Each issued certificate is checked against the authority that signed it and against the chain stored in its Secret. The CMP response trust anchor and the endpoint TLS trust anchor are two different authorities, so a run also proves the two trust decisions stay separate.
 

@@ -34,9 +34,31 @@ See [CMPIssuer](../reference/cmpissuer.md) or [CMPClusterIssuer](../reference/cm
 | `initialEnrollment` | Request | Workload key access |
 | --- | --- | --- |
 | `P10CR` | cert-manager's signed CSR | None |
-| `IR` | CRMF template with the CSR subject, public key and extensions. The staged private key signs proof of possession | The staged key of the `Certificate` |
+| `IR` | CRMF template with the CSR subject, public key and extensions plus the proof of possession that `protocol.proofOfPossession` selects | The staged key of the `Certificate` with `Signature`. None with `RAVerified` |
 
-IR builds its proof of possession with the private key cert-manager staged for revision one of a `Certificate`, so it needs a `CertificateRequest` that cert-manager created for that `Certificate`. A hand-written `CertificateRequest` fails before any CMP traffic. The issuer's own credentials protect the IR message, as they protect a P10CR. See [Private-key handling](private-key-handling.md#ir-one-narrowly-authorized-key-proof).
+The issuer's own credentials protect the IR message, as they protect a P10CR.
+
+## IR proof of possession
+
+`protocol.proofOfPossession` selects how an IR proves possession of the requested key.
+
+| `proofOfPossession` | Proof | Requests it serves |
+| --- | --- | --- |
+| `Signature` (default) | The private key cert-manager staged for revision one of a `Certificate` signs the CRMF request | A `CertificateRequest` that cert-manager created for a `Certificate`. A hand-written request fails before any CMP traffic |
+| `RAVerified` | The issuer verifies the CSR signature and sends `raVerified`, as a registration authority does in RFC 9483 section 5.2.3.2 | Any `CertificateRequest`, including one created directly |
+
+With `Signature` the issuer reads the staged workload key. See [Private-key handling](private-key-handling.md#ir-one-narrowly-authorized-key-proof). With `RAVerified` it reads no workload private key and a CSR whose signature does not verify fails before any CMP traffic.
+
+```yaml
+spec:
+  protocol:
+    initialEnrollment: IR
+    proofOfPossession: RAVerified
+```
+
+`RAVerified` needs a CA that accepts the issuer as a registration authority, because the issuer's protection credential vouches for the proof. RFC 9483 section 5.1.1 says the CA should check that a request with `raVerified` is signed with a certificate that carries the `id-kp-cmcRA` extended key usage. A CA that does not accept `raVerified` from the issuer refuses the IR, usually with `badPOP` or `notAuthorized`. See how [EJBCA](../interoperability/tested-pkis.md#ra-verified-proof-of-possession-in-ra-mode) and [NCM](../interoperability/tested-pkis.md#ra-verified-proof-of-possession) answer.
+
+KUR ignores `proofOfPossession`. It always signs its proof of possession with the requested key, because the current certificate rather than an RA credential protects it.
 
 An issuer that enrolls with IR renews with KUR unless `protocol.renewal` says otherwise. See [Renewal with P10CR or KUR](renewal-and-kur.md).
 

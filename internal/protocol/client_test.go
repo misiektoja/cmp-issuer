@@ -25,6 +25,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -97,6 +98,12 @@ type mockOptions struct {
 	IssuedValidity *x509.Certificate
 	// ResponseMACIterationCount protects MAC responses with this count instead of 1024.
 	ResponseMACIterationCount int
+	// AcceptRAVerified accepts an raVerified proof of possession, as a CA that trusts the requester
+	// as a registration authority does. Without it raVerified is refused like any unverifiable proof.
+	AcceptRAVerified bool
+	// TLSClientCAs serves HTTPS and requires every connection to present a client certificate that
+	// chains to these anchors.
+	TLSClientCAs *x509.CertPool
 }
 
 // mockState records authenticated request bodies observed by the mock server.
@@ -109,6 +116,8 @@ type mockState struct {
 	confirmationPVNO      int
 	// templates records the certificate template of every IR and KUR.
 	templates []pkicmp.CertTemplate
+	// clientCertificates records the TLS client certificate common name of every request.
+	clientCertificates []string
 }
 
 // add records one request body type.
@@ -144,6 +153,23 @@ func (s *mockState) receivedTemplates() []pkicmp.CertTemplate {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]pkicmp.CertTemplate(nil), s.templates...)
+}
+
+// recordClientCertificate records the common name of the TLS client certificate of a request, if any.
+func (s *mockState) recordClientCertificate(request *http.Request) {
+	if request.TLS == nil || len(request.TLS.PeerCertificates) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clientCertificates = append(s.clientCertificates, request.TLS.PeerCertificates[0].Subject.CommonName)
+}
+
+// receivedClientCertificates returns the recorded TLS client certificate common names in arrival order.
+func (s *mockState) receivedClientCertificates() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.clientCertificates...)
 }
 
 // recordConfirmation records the CertStatus and protocol version of a certConf.
@@ -272,7 +298,8 @@ func issueLeafWithValidity(t *testing.T, pki testPKI, request *x509.CertificateR
 func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots *x509.CertPool, options mockOptions) (*httptest.Server, *mockState) {
 	t.Helper()
 	state := &mockState{}
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		state.recordClientCertificate(request)
 		requestDER, err := io.ReadAll(request.Body)
 		if err != nil {
 			t.Errorf("read request: %v", err)
@@ -363,7 +390,18 @@ func newMockCMPServer(t *testing.T, pki testPKI, password []byte, bootstrapRoots
 		writer.WriteHeader(status)
 		_, _ = writer.Write(responseDER)
 	}))
+	startMockServer(server, options.TLSClientCAs)
 	return server, state
+}
+
+// startMockServer serves plain HTTP, or HTTPS that requires a client certificate chaining to clientCAs.
+func startMockServer(server *httptest.Server, clientCAs *x509.CertPool) {
+	if clientCAs == nil {
+		server.Start()
+		return
+	}
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: clientCAs}
+	server.StartTLS()
 }
 
 // mockResponseSigner selects a response identity independently of the certificate issuer.
@@ -458,9 +496,12 @@ func mockCRMFResponse(t *testing.T, pki testPKI, options mockOptions, certificat
 		return nil, false
 	}
 	certificateRequest := &(*certificateRequests)[0]
-	if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
-		t.Errorf("verify proof of possession: %v", err)
-		return nil, false
+	raVerified := certificateRequest.Popo != nil && certificateRequest.Popo.RAVerified
+	if !raVerified || !options.AcceptRAVerified {
+		if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
+			t.Errorf("verify proof of possession: %v", err)
+			return nil, false
+		}
 	}
 	state.recordTemplate(certificateRequest.CertReq.CertTemplate)
 	publicKey, err := certificateRequest.PublicKey()

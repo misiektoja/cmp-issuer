@@ -39,7 +39,7 @@ flowchart TB
 * **Kubernetes RBAC** gates configuration and credential access.
 * **cert-manager approval** gates whether any CMP message is sent.
 * **CMP PKIProtection** authenticates every request and response regardless of HTTP or HTTPS.
-* **HTTPS** adds transport confidentiality when configured.
+* **HTTPS** adds transport confidentiality when configured. A TLS client certificate also authenticates the issuer to the HTTPS server.
 
 ## cmp-issuer vs cert-manager responsibilities
 
