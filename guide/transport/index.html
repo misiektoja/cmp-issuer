@@ -1846,7 +1846,40 @@
 </table>
 <p>CMP transaction state is derived only from authenticated CMP DER, not from HTTP headers or cookies.</p>
 <h2 id="mtls">mTLS<a class="headerlink" href="#mtls" title="Permanent link">&para;</a></h2>
-<p><code>spec.transport.tls.clientCertificateSecretRef</code> is reserved for future mTLS support. Leave it unset. Setting it makes the issuer NotReady.</p>
+<p>For an HTTPS server that authenticates clients, name a Secret that holds the TLS client certificate:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">endpoint</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cmp.example.net/pkix/</span>
+<span class="w">  </span><span class="nt">transport</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">tls</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">caSecretRef</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-tls-trust</span>
+<span class="w">        </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ca.crt</span>
+<span class="w">      </span><span class="nt">clientCertificateSecretRef</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cmp-tls-client</span>
+</code></pre></div>
+<p>The Secret uses the <code>kubernetes.io/tls</code> keys:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tls.crt</code></td>
+<td>PEM client certificate followed by any intermediates the server needs</td>
+</tr>
+<tr>
+<td><code>tls.key</code></td>
+<td>Unencrypted PEM private key of the client certificate</td>
+</tr>
+</tbody>
+</table>
+<p>A Secret that cert-manager writes for a <code>Certificate</code> has this layout, so cert-manager can issue and renew the client certificate. The Secret lives where the issuer's other credential Secrets live: the issuer namespace for a <code>CMPIssuer</code> and the cluster resource namespace for a <code>CMPClusterIssuer</code>.</p>
+<p>The issuer presents the certificate whenever the server asks for one and leaves acceptance to the server. A server that refuses the certificate either closes the TLS connection or answers with an HTTP error. A closed connection is retried like other transport failures. nginx answers HTTP 400, which fails the request permanently with <code>response is not application/pkixcmp</code>. A missing Secret, a missing key or a key that does not match the certificate makes the issuer NotReady.</p>
+<p>The client certificate authenticates the TLS connection only. CMP message protection still applies to every request and response. The client certificate may differ from a <code>Signature</code> protection credential. The setting needs an HTTPS <code>url</code> or <code>renewalUrl</code>. An issuer that uses only HTTP is rejected when the setting is present.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../message-protection/">Message protection</a></li>

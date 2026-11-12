@@ -1707,7 +1707,7 @@
 
 <h1 id="threat-model">Threat model<a class="headerlink" href="#threat-model" title="Permanent link">&para;</a></h1>
 <h2 id="assets">Assets<a class="headerlink" href="#assets" title="Permanent link">&para;</a></h2>
-<p>The controller handles CMP shared secrets, issuer bootstrap private keys, bootstrap certificates, CMP trust anchors, TLS trust anchors, PKCS #10 CSRs and issued certificate chains. P10CR must not handle workload private keys. IR temporarily handles the requested workload private key and KUR the current and requested workload private keys, each after authenticating their cert-manager ownership chain.</p>
+<p>The controller handles CMP shared secrets, issuer bootstrap private keys, bootstrap certificates, CMP trust anchors, TLS trust anchors, PKCS #10 CSRs and issued certificate chains. The controller also handles an optional TLS client certificate and its private key. P10CR and an IR with <code>raVerified</code> proof of possession must not handle workload private keys. An IR with signature proof of possession temporarily handles the requested workload private key and KUR the current and requested workload private keys, each after authenticating their cert-manager ownership chain.</p>
 <h2 id="trust-boundaries">Trust boundaries<a class="headerlink" href="#trust-boundaries" title="Permanent link">&para;</a></h2>
 <p>Kubernetes RBAC protects issuer configuration and credential Secrets. A <code>CMPIssuer</code> may read only credential Secrets in its own namespace. A <code>CMPClusterIssuer</code> resolves credential Secrets only in the controller-configured cluster resource namespace.</p>
 <p>CMP response trust is independent from TLS server trust. CMP PKIProtection is mandatory on every request and response. HTTPS provides confidentiality and transport authentication in addition to message protection. HTTP intentionally provides no transport confidentiality.</p>
@@ -1742,8 +1742,12 @@
 <td>Match the staged private key to the signed CSR and use that key for CRMF proof of possession</td>
 </tr>
 <tr>
+<td>IR with <code>raVerified</code> proof of possession</td>
+<td>The issuer vouches for possession of the requested key, so it sends <code>raVerified</code> only after the CSR signature verifies with the CSR public key and builds the CRMF template from that CSR. The CA decides whether the issuer credential may vouch for it</td>
+</tr>
+<tr>
 <td>IR for a hand-written or renewed request</td>
-<td>Allow IR for revision one of a cert-manager <code>Certificate</code> with no earlier revision in its status. Allow it for a later revision only when the issuer enables <code>renewalFallback</code>, the revision immediately follows <code>Certificate.status.revision</code> and the controller found the current certificate missing or expired before the first send or the recorded transaction carries that reason. No other request can direct the controller to a staged key</td>
+<td>With signature proof of possession, allow IR for revision one of a cert-manager <code>Certificate</code> with no earlier revision in its status. Allow it for a later revision only when the issuer enables <code>renewalFallback</code>, the revision immediately follows <code>Certificate.status.revision</code> and the controller found the current certificate missing or expired before the first send or the recorded transaction carries that reason. No other request can direct the controller to a staged key. An IR with <code>raVerified</code> reads no workload key and serves any approved request</td>
 </tr>
 <tr>
 <td>Renewal fallback forced by deleting the current Secret</td>

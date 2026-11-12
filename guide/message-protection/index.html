@@ -675,6 +675,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#registration-authority-credential" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration authority credential
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1930,6 +1941,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#registration-authority-credential" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration authority credential
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2224,6 +2246,11 @@ end-entity certificate to appear there for P10CR.</p>
 <p>Client mode enrolls only the identity that owns the authenticating certificate, and the requested
 subject DN must match the registered end entity. A signature-protected issuer therefore issues for its
 bootstrap identity rather than arbitrary workload names, unless the server profile allows otherwise.</p>
+<h3 id="registration-authority-credential">Registration authority credential<a class="headerlink" href="#registration-authority-credential" title="Permanent link">&para;</a></h3>
+<p>An IR with <code>protocol.proofOfPossession: RAVerified</code> relies on the CA trusting the protection credential
+as a registration authority. RFC 9483 says the CA should check that such a request is signed with a
+certificate that carries the <code>id-kp-cmcRA</code> extended key usage, so a CA may refuse a credential without
+it. See <a href="../enrollment/#ir-proof-of-possession">IR proof of possession</a>.</p>
 <h2 id="signature-digest">Signature digest<a class="headerlink" href="#signature-digest" title="Permanent link">&para;</a></h2>
 <p>The issuer creates RSA and ECDSA signatures for the CRMF proof of possession of an IR or KUR and,
 with signature-based protection, for every message a <code>Signature</code> issuer or a KUR sends. By default

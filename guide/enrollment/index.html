@@ -542,6 +542,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir-proof-of-possession" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR proof of possession
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#request-a-certificate" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1730,6 +1741,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir-proof-of-possession" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR proof of possession
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#request-a-certificate" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1878,12 +1900,43 @@
 </tr>
 <tr>
 <td><code>IR</code></td>
-<td>CRMF template with the CSR subject, public key and extensions. The staged private key signs proof of possession</td>
-<td>The staged key of the <code>Certificate</code></td>
+<td>CRMF template with the CSR subject, public key and extensions plus the proof of possession that <code>protocol.proofOfPossession</code> selects</td>
+<td>The staged key of the <code>Certificate</code> with <code>Signature</code>. None with <code>RAVerified</code></td>
 </tr>
 </tbody>
 </table>
-<p>IR builds its proof of possession with the private key cert-manager staged for revision one of a <code>Certificate</code>, so it needs a <code>CertificateRequest</code> that cert-manager created for that <code>Certificate</code>. A hand-written <code>CertificateRequest</code> fails before any CMP traffic. The issuer's own credentials protect the IR message, as they protect a P10CR. See <a href="../private-key-handling/#ir-one-narrowly-authorized-key-proof">Private-key handling</a>.</p>
+<p>The issuer's own credentials protect the IR message, as they protect a P10CR.</p>
+<h2 id="ir-proof-of-possession">IR proof of possession<a class="headerlink" href="#ir-proof-of-possession" title="Permanent link">&para;</a></h2>
+<p><code>protocol.proofOfPossession</code> selects how an IR proves possession of the requested key.</p>
+<table>
+<thead>
+<tr>
+<th><code>proofOfPossession</code></th>
+<th>Proof</th>
+<th>Requests it serves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Signature</code> (default)</td>
+<td>The private key cert-manager staged for revision one of a <code>Certificate</code> signs the CRMF request</td>
+<td>A <code>CertificateRequest</code> that cert-manager created for a <code>Certificate</code>. A hand-written request fails before any CMP traffic</td>
+</tr>
+<tr>
+<td><code>RAVerified</code></td>
+<td>The issuer verifies the CSR signature and sends <code>raVerified</code>, as a registration authority does in RFC 9483 section 5.2.3.2</td>
+<td>Any <code>CertificateRequest</code>, including one created directly</td>
+</tr>
+</tbody>
+</table>
+<p>With <code>Signature</code> the issuer reads the staged workload key. See <a href="../private-key-handling/#ir-one-narrowly-authorized-key-proof">Private-key handling</a>. With <code>RAVerified</code> it reads no workload private key and a CSR whose signature does not verify fails before any CMP traffic.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">protocol</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">initialEnrollment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IR</span>
+<span class="w">    </span><span class="nt">proofOfPossession</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RAVerified</span>
+</code></pre></div>
+<p><code>RAVerified</code> needs a CA that accepts the issuer as a registration authority, because the issuer's protection credential vouches for the proof. RFC 9483 section 5.1.1 says the CA should check that a request with <code>raVerified</code> is signed with a certificate that carries the <code>id-kp-cmcRA</code> extended key usage. A CA that does not accept <code>raVerified</code> from the issuer refuses the IR, usually with <code>badPOP</code> or <code>notAuthorized</code>. See how <a href="../../interoperability/tested-pkis/#ra-verified-proof-of-possession-in-ra-mode">EJBCA</a> and <a href="../../interoperability/tested-pkis/#ra-verified-proof-of-possession">NCM</a> answer.</p>
+<p>KUR ignores <code>proofOfPossession</code>. It always signs its proof of possession with the requested key, because the current certificate rather than an RA credential protects it.</p>
 <p>An issuer that enrolls with IR renews with KUR unless <code>protocol.renewal</code> says otherwise. See <a href="../renewal-and-kur/">Renewal with P10CR or KUR</a>.</p>
 <h2 id="request-a-certificate">Request a certificate<a class="headerlink" href="#request-a-certificate" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cert-manager.io/v1</span>

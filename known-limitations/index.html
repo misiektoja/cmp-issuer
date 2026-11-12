@@ -1857,8 +1857,8 @@
 </thead>
 <tbody>
 <tr>
-<td>IR for a hand-written <code>CertificateRequest</code></td>
-<td>Unsupported. IR proves possession with the key cert-manager staged for a <code>Certificate</code>. Use P10CR for a direct request</td>
+<td>IR with <code>Signature</code> proof of possession for a hand-written <code>CertificateRequest</code></td>
+<td>Unsupported, because the key cert-manager staged for a <code>Certificate</code> signs the proof. Use <code>proofOfPossession: RAVerified</code> or P10CR for a direct request</td>
 </tr>
 <tr>
 <td><code>spec.protocol.certProfile</code></td>
@@ -1879,10 +1879,6 @@
 <tr>
 <td>PBMAC1</td>
 <td>Planned</td>
-</tr>
-<tr>
-<td>mTLS to the CMP endpoint</td>
-<td>Planned. Setting the reserved <code>spec.transport.tls.clientCertificateSecretRef</code> makes the issuer NotReady</td>
 </tr>
 <tr>
 <td>CMPv3 beyond ML-DSA certificate confirmation</td>

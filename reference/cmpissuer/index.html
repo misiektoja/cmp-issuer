@@ -2012,7 +2012,13 @@
 <td><code>initialEnrollment</code></td>
 <td>yes</td>
 <td><code>P10CR</code></td>
-<td><code>P10CR</code> sends cert-manager's CSR. <code>IR</code> sends a CRMF request whose proof of possession the staged workload key signs, so it needs a <code>CertificateRequest</code> that cert-manager created for a <code>Certificate</code>. See <a href="../../guide/enrollment/">Enrollment</a></td>
+<td><code>P10CR</code> sends cert-manager's CSR. <code>IR</code> sends a CRMF request built from the CSR. See <a href="../../guide/enrollment/">Enrollment</a></td>
+</tr>
+<tr>
+<td><code>proofOfPossession</code></td>
+<td>no</td>
+<td><code>Signature</code></td>
+<td>How an IR proves possession of the requested key. <code>Signature</code> signs with the staged workload key and needs a <code>CertificateRequest</code> that cert-manager created for a <code>Certificate</code>. <code>RAVerified</code> verifies the CSR signature and sends <code>raVerified</code>, reads no workload key and needs <code>initialEnrollment: IR</code> and a CA that accepts the issuer as a registration authority. KUR ignores it. See <a href="../../guide/enrollment/#ir-proof-of-possession">IR proof of possession</a></td>
 </tr>
 <tr>
 <td><code>renewal</code></td>
@@ -2155,7 +2161,7 @@
 </tr>
 <tr>
 <td><code>tls.clientCertificateSecretRef</code></td>
-<td>Reserved for future mTLS. Leave unset or the issuer becomes NotReady</td>
+<td>Secret <code>name</code> whose <code>tls.crt</code> holds the TLS client certificate followed by any intermediates and whose <code>tls.key</code> holds its unencrypted private key. Sent when the HTTPS server asks for a client certificate. Needs an HTTPS <code>url</code> or <code>renewalUrl</code></td>
 </tr>
 </tbody>
 </table>
@@ -2182,7 +2188,7 @@
 <h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
 <p>Ready condition follows issuer-lib conventions. When credential or trust Secrets are unreadable the message names the Secret.</p>
 <h2 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h2>
-<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact workload Secret reads that IR and KUR need: the staged key for IR and the current and staged keys for KUR. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
+<p>The issuer namespace needs the credential reader RoleBinding before the issuer can report Ready=True. The same binding authorizes the exact workload Secret reads that IR and KUR need: the staged key for an IR with <code>Signature</code> proof of possession and the current and staged keys for KUR. List the namespace in the chart value <code>credentialNamespaces</code> or apply the binding yourself, both described in <a href="../../operations/secret-access/">Credential Secret access</a>.</p>
 <h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../cmpclusterissuer/">CMPClusterIssuer</a> for cluster-scoped issuers</li>

@@ -688,6 +688,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir-with-raverified-no-workload-private-key-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR with RAVerified: no workload private-key access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ir-one-narrowly-authorized-key-proof" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1642,6 +1653,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ir-with-raverified-no-workload-private-key-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IR with RAVerified: no workload private-key access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ir-one-narrowly-authorized-key-proof" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1718,8 +1740,10 @@
 </ul>
 <p>The end-to-end suite covers this boundary: a crafted annotation pointing at a sentinel Secret leaves that Secret unchanged while enrollment still succeeds.</p>
 <p>RBAC reinforces the boundary. The controller ClusterRole grants no default Secret read access in workload namespaces. Only explicitly authorized issuer credential namespaces are readable.</p>
+<h2 id="ir-with-raverified-no-workload-private-key-access">IR with RAVerified: no workload private-key access<a class="headerlink" href="#ir-with-raverified-no-workload-private-key-access" title="Permanent link">&para;</a></h2>
+<p>With <code>protocol.proofOfPossession: RAVerified</code> an IR reads no workload private key, like P10CR. The issuer verifies the signature of cert-manager's CSR and sends <code>raVerified</code> in place of a signed proof of possession. It does not read the <code>Certificate</code>, the staged Secret or the current Secret. See <a href="../enrollment/#ir-proof-of-possession">IR proof of possession</a>.</p>
 <h2 id="ir-one-narrowly-authorized-key-proof">IR: one narrowly authorized key proof<a class="headerlink" href="#ir-one-narrowly-authorized-key-proof" title="Permanent link">&para;</a></h2>
-<p>IR reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling <code>Certificate</code> name and UID, revision one with no earlier revision in <code>Certificate.status</code>, issuer reference, <code>status.nextPrivateKeySecretName</code>, staged Secret owner and next-key label, CSR signature and public-key equality.</p>
+<p>An IR with the default <code>Signature</code> proof of possession reads the staged requested key only after it authenticates cert-manager's ownership chain. It validates the exact controlling <code>Certificate</code> name and UID, revision one with no earlier revision in <code>Certificate.status</code>, issuer reference, <code>status.nextPrivateKeySecretName</code>, staged Secret owner and next-key label, CSR signature and public-key equality.</p>
 <p>A later revision uses IR only as a renewal fallback under <code>renewalFallback: InitialEnrollment</code>. It then requires the immediately previous revision in <code>Certificate.status</code>, as KUR does. Before it falls back, the controller reads the current output Secret once and parses only its <code>tls.crt</code> to find the certificate missing or expired. See <a href="../renewal-and-kur/#missing-or-expired-current-certificate">Missing or expired current certificate</a>.</p>
 <p>The staged key signs CRMF proof of possession. The issuer's own credentials protect the CMP message, so IR reads no other workload key. Only <code>tls.key</code> is parsed from the staged Secret. Its UID and a digest of <code>tls.key</code> are bound into the durable transaction configuration digest.</p>
 <h2 id="kur-two-narrowly-authorized-key-proofs">KUR: two narrowly authorized key proofs<a class="headerlink" href="#kur-two-narrowly-authorized-key-proofs" title="Permanent link">&para;</a></h2>

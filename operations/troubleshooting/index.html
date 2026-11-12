@@ -2171,8 +2171,8 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <td>Server returned an unexpected identifier; adjust <code>p10crResponseCertReqId</code> or use default</td>
 </tr>
 <tr>
-<td>IR needs a CertificateRequest that cert-manager created for a Certificate</td>
-<td>The request has no cert-manager revision state, for example a hand-written <code>CertificateRequest</code>. Request the certificate through a <code>Certificate</code> or use an issuer with <code>initialEnrollment: P10CR</code></td>
+<td>IR with Signature proof of possession needs a CertificateRequest that cert-manager created for a Certificate</td>
+<td>The request has no cert-manager revision state, for example a hand-written <code>CertificateRequest</code>. Request the certificate through a <code>Certificate</code> or use an issuer with <code>proofOfPossession: RAVerified</code> or <code>initialEnrollment: P10CR</code></td>
 </tr>
 <tr>
 <td>KUR renewal requires a certificate revision greater than one</td>
@@ -2217,6 +2217,18 @@ kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </
 <tr>
 <td>Response protection / trust</td>
 <td>Wrong CMP trust anchors or unexpected signer</td>
+</tr>
+<tr>
+<td><code>sender does not match protection certificate subject: no candidate certificate names the sender</code></td>
+<td>The signer certificate is missing. Some servers omit it from <code>extraCerts</code>, NCM does so when it signs a rejection. Put the signer certificate in <code>spec.cmpTrust.signerCertificatesSecretRef</code>, see <a href="../../guide/cmp-response-trust/#response-signer-certificates">response signer certificates</a></td>
+</tr>
+<tr>
+<td><code>sender does not match protection certificate subject: signed with the certificate of</code></td>
+<td>The server signed with a certificate whose subject is not the response sender it names. Correct the server's signing identity or sender name</td>
+</tr>
+<tr>
+<td><code>response is not application/pkixcmp</code></td>
+<td>The endpoint answered with something other than a CMP message. A proxy that requires a TLS client certificate answers HTTP 400 when it gets none or one it does not trust, see <a href="../../guide/transport/#mtls">mTLS</a>. Otherwise check the URL path</td>
 </tr>
 <tr>
 <td><code>message is signature-protected but MAC-based protection is required</code></td>

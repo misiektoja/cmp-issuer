@@ -1819,6 +1819,11 @@
 <td>CRMF request built from the CSR. The staged workload key signs proof of possession. Verified against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.5</td>
 </tr>
 <tr>
+<td>IR with <code>raVerified</code> proof of possession</td>
+<td>Implemented, Interoperability tested</td>
+<td><code>protocol.proofOfPossession: RAVerified</code> verifies the CSR signature and sends <code>raVerified</code>. Reads no workload key and serves a <code>CertificateRequest</code> created without a <code>Certificate</code>. The CA must accept the issuer as a registration authority. Verified against EJBCA 9.3.7 in RA mode, Nokia NCM 26.7 with an RA entity certificate and the OpenSSL 3.6 mock</td>
+</tr>
+<tr>
 <td>CMPv2 KUR (true key update)</td>
 <td>Implemented, Interoperability tested</td>
 <td>Certificate-authenticated CRMF with proof of possession. Verified with new-key and same-key renewal against Nokia NCM 26.7, EJBCA 9.3.7 and OpenSSL 3.6.3</td>
@@ -1981,8 +1986,8 @@
 </tr>
 <tr>
 <td>mTLS client authentication</td>
-<td>Planned</td>
-<td><code>clientCertificateSecretRef</code> is reserved</td>
+<td>Implemented, Interoperability tested</td>
+<td><code>transport.tls.clientCertificateSecretRef</code> names a Secret with <code>tls.crt</code> and <code>tls.key</code>, presented when the HTTPS server asks for a client certificate. Verified through an nginx proxy that requires client certificates in front of EJBCA 9.3.7 and Nokia NCM 26.7</td>
 </tr>
 <tr>
 <td>Backup CMP endpoint with failover</td>
@@ -2040,6 +2045,11 @@
 <td><code>protocol.renewal</code></td>
 <td>Implemented</td>
 <td><code>P10CR</code> or <code>KUR</code> for later cert-manager revisions. Follows <code>initialEnrollment</code> when omitted</td>
+</tr>
+<tr>
+<td><code>protocol.proofOfPossession</code></td>
+<td>Implemented</td>
+<td><code>Signature</code> by default. <code>RAVerified</code> sends <code>raVerified</code> in an IR</td>
 </tr>
 <tr>
 <td><code>protocol.renewalFallback</code></td>
