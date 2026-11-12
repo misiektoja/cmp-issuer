@@ -423,9 +423,15 @@ func credentialsFor(request EnrollmentRequest) (pkicmp.Credentials, error) {
 
 // newHTTPClient constructs a bounded transport that disables redirects.
 func newHTTPClient(request EnrollmentRequest) *http.Client {
-	// Issuers have different timeouts and trust roots, so each call owns its transport and must
-	// close idle connections before returning.
+	// Issuers have different timeouts, trust roots and client certificates, so each call owns its
+	// transport and must close idle connections before returning.
 	dialer := &net.Dialer{Timeout: request.Timeout, KeepAlive: 30 * time.Second}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots}
+	if certificate := request.TLSClientCertificate; certificate != nil {
+		// The configured certificate is sent whenever the server asks for one, even when it is not
+		// issued by a CA the server lists, so the server rather than the client decides acceptance.
+		tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) { return certificate, nil }
+	}
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           dialer.DialContext,
@@ -436,7 +442,7 @@ func newHTTPClient(request EnrollmentRequest) *http.Client {
 		TLSHandshakeTimeout:   request.Timeout,
 		ResponseHeaderTimeout: request.Timeout,
 		ExpectContinueTimeout: time.Second,
-		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: request.TLSRoots},
+		TLSClientConfig:       tlsConfig,
 	}
 	return &http.Client{
 		Transport:     transport,

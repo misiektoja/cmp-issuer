@@ -366,18 +366,20 @@ type CMPTrustSpec struct {
 
 // TransportSpec configures transport security separately from CMP protection.
 type TransportSpec struct {
-	// TLS configures HTTPS trust and reserves mTLS credentials for a later release.
+	// TLS configures HTTPS server trust and an optional TLS client certificate.
 	// +optional
 	TLS *TLSTransportSpec `json:"tls,omitempty"`
 }
 
-// TLSTransportSpec configures HTTPS transport trust.
+// TLSTransportSpec configures HTTPS transport trust and client authentication.
 type TLSTransportSpec struct {
 	// CASecretRef optionally selects PEM-encoded HTTPS trust anchors.
 	// +optional
 	CASecretRef *SecretKeyReference `json:"caSecretRef,omitempty"`
-	// ClientCertificateSecretRef is reserved for mTLS support and must remain unset.
-	// Setting it makes the issuer NotReady.
+	// ClientCertificateSecretRef optionally selects a Secret whose tls.crt holds the TLS client
+	// certificate followed by any intermediates and whose tls.key holds its unencrypted private key.
+	// The certificate is presented whenever an HTTPS CMP server requests one. It authenticates the
+	// connection only and is independent of CMP message protection. It requires an HTTPS endpoint.
 	// +optional
 	ClientCertificateSecretRef *LocalSecretReference `json:"clientCertificateSecretRef,omitempty"`
 }

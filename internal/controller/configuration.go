@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
@@ -113,7 +114,12 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		}
 		renewalScheme = parsedRenewalEndpoint.Scheme
 	}
-	tlsRoots, configurationErr := loadTLSRoots(getSecret, spec, parsedEndpoint.Scheme == schemeHTTPS || renewalScheme == schemeHTTPS)
+	usesHTTPS := parsedEndpoint.Scheme == schemeHTTPS || renewalScheme == schemeHTTPS
+	tlsRoots, configurationErr := loadTLSRoots(getSecret, spec, usesHTTPS)
+	if configurationErr != nil {
+		return runtimeConfiguration{}, configurationErr
+	}
+	tlsClientCertificate, configurationErr := loadTLSClientCertificate(getSecret, spec, usesHTTPS)
 	if configurationErr != nil {
 		return runtimeConfiguration{}, configurationErr
 	}
@@ -167,6 +173,7 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		CMPTrust:                    cmpTrust,
 		CMPTrustCertificates:        cmpTrustCertificates,
 		TLSRoots:                    tlsRoots,
+		TLSClientCertificate:        tlsClientCertificate,
 	}
 	if sender != nil {
 		request.Sender = sender
@@ -525,13 +532,16 @@ func validateSignatureDigest(spec cmpv1alpha1.ProtocolSpec) error {
 	return err
 }
 
-// validateTransport keeps TLS credentials separate and rejects unimplemented mTLS.
+// validateTransport accepts TLS server trust and a TLS client certificate only for an HTTPS endpoint.
 func validateTransport(spec cmpv1alpha1.TransportSpec, usesHTTPS bool) error {
-	if spec.TLS != nil && spec.TLS.ClientCertificateSecretRef != nil {
-		return fmt.Errorf("mTLS client certificates are reserved for a later release")
+	if usesHTTPS || spec.TLS == nil {
+		return nil
 	}
-	if !usesHTTPS && spec.TLS != nil && spec.TLS.CASecretRef != nil {
+	if spec.TLS.CASecretRef != nil {
 		return fmt.Errorf("TLS CA trust cannot be configured without an HTTPS endpoint")
+	}
+	if spec.TLS.ClientCertificateSecretRef != nil {
+		return fmt.Errorf("a TLS client certificate cannot be configured without an HTTPS endpoint")
 	}
 	return nil
 }
@@ -615,6 +625,43 @@ func loadTLSRoots(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secr
 		pool.AddCert(certificate)
 	}
 	return pool, nil
+}
+
+// loadTLSClientCertificate parses the optional TLS client certificate chain and its private key from
+// the kubernetes.io/tls keys of the referenced Secret.
+func loadTLSClientCertificate(getSecret func(cmpv1alpha1.LocalSecretReference) (*corev1.Secret, *configurationError), spec *cmpv1alpha1.CMPIssuerSpec, usesHTTPS bool) (*tls.Certificate, *configurationError) {
+	if !usesHTTPS || spec.Transport.TLS == nil || spec.Transport.TLS.ClientCertificateSecretRef == nil {
+		return nil, nil
+	}
+	secret, err := getSecret(*spec.Transport.TLS.ClientCertificateSecretRef)
+	if err != nil {
+		return nil, err
+	}
+	certificateData, valueErr := requiredSecretValue(secret, corev1.TLSCertKey)
+	if valueErr != nil {
+		return nil, retryableConfiguration("read TLS client certificate", valueErr)
+	}
+	certificates, parseErr := protocol.ParseCertificates(certificateData)
+	if parseErr != nil {
+		return nil, retryableConfiguration("parse TLS client certificate", parseErr)
+	}
+	privateKeyData, valueErr := requiredSecretValue(secret, corev1.TLSPrivateKeyKey)
+	if valueErr != nil {
+		return nil, retryableConfiguration("read TLS client private key", valueErr)
+	}
+	privateKey, parseErr := protocol.ParseSigner(privateKeyData)
+	if parseErr != nil {
+		return nil, retryableConfiguration("parse TLS client private key", parseErr)
+	}
+	// tls.crt holds the client certificate first, as cert-manager writes it.
+	if parseErr := protocol.ValidateSignerCertificate(privateKey, certificates[0]); parseErr != nil {
+		return nil, retryableConfiguration("validate TLS client key pair", parseErr)
+	}
+	chain := make([][]byte, 0, len(certificates))
+	for _, certificate := range certificates {
+		chain = append(chain, certificate.Raw)
+	}
+	return &tls.Certificate{Certificate: chain, PrivateKey: privateKey, Leaf: certificates[0]}, nil
 }
 
 // loadProtection parses the selected CMP protection credential Secret.

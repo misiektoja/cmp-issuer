@@ -22,6 +22,7 @@ package protocol
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"time"
@@ -115,6 +116,8 @@ type EnrollmentRequest struct {
 	CMPTrustCertificates    []*x509.Certificate
 	CMPResponseCertificates []*x509.Certificate
 	TLSRoots                *x509.CertPool
+	// TLSClientCertificate is presented whenever an HTTPS server requests a client certificate.
+	TLSClientCertificate *tls.Certificate
 }
 
 // PollRequest resumes a transaction whose enrollment response was waiting.
