@@ -61,6 +61,7 @@ func (c *CMPClient) EnrollIR(ctx context.Context, request EnrollmentRequest) (En
 }
 
 // ValidateIRRequest verifies the CSR and the key that proves possession without sending CMP traffic.
+// An raVerified IR needs only the CSR signature, which is the proof of possession it vouches for.
 func ValidateIRRequest(request EnrollmentRequest) error {
 	request.Operation = OperationIR
 	if err := validateEnrollmentRequest(request); err != nil {
@@ -72,6 +73,9 @@ func ValidateIRRequest(request EnrollmentRequest) error {
 	}
 	if err := csr.CheckSignature(); err != nil {
 		return permanent("verify CSR signature", "badPOP", err)
+	}
+	if request.RAVerifiedProofOfPossession {
+		return nil
 	}
 	if request.RequestedPrivateKey == nil || !PublicKeysEqual(request.RequestedPrivateKey.Public(), csr.PublicKey) {
 		return permanent("validate IR proof of possession", "badPOP", fmt.Errorf("requested private key does not match the CSR public key"))
@@ -88,7 +92,10 @@ func protectedIR(request EnrollmentRequest, csr *x509.CertificateRequest, creden
 		return nil, nil, err
 	}
 	messageRequest := pkicmp.CertReqMsg{CertReq: pkicmp.CertRequest{CertReqID: 0, CertTemplate: template}}
-	if err := messageRequest.GeneratePOPWithHash(request.RequestedPrivateKey, signatureDigestFor(request.RequestedPrivateKey, request.SignatureDigest)); err != nil {
+	if request.RAVerifiedProofOfPossession {
+		// ValidateIRRequest verified the CSR signature, which is the proof the issuer vouches for.
+		messageRequest.Popo = pkicmp.NewRAVerifiedPOP()
+	} else if err := messageRequest.GeneratePOPWithHash(request.RequestedPrivateKey, signatureDigestFor(request.RequestedPrivateKey, request.SignatureDigest)); err != nil {
 		return nil, nil, permanent("generate IR proof of possession", "badPOP", err)
 	}
 	messages := pkicmp.CertReqMessages{messageRequest}
@@ -109,13 +116,11 @@ func protectedIR(request EnrollmentRequest, csr *x509.CertificateRequest, creden
 	return message, requestDER, nil
 }
 
-// certificateTemplate builds the CRMF template of an IR or KUR from the subject, the requested key,
-// the CSR extensions and the requested notAfter.
+// certificateTemplate builds the CRMF template of an IR or KUR from the subject, the CSR public key,
+// the CSR extensions and the requested notAfter. A signed proof of possession is bound to the same key
+// because IR and KUR validation require the requested private key to match the CSR.
 func certificateTemplate(request EnrollmentRequest, csr *x509.CertificateRequest, subject pkicmp.GeneralName) (pkicmp.CertTemplate, error) {
-	publicKey, err := x509.MarshalPKIXPublicKey(request.RequestedPrivateKey.Public())
-	if err != nil {
-		return pkicmp.CertTemplate{}, permanent("encode requested public key", "badCertTemplate", err)
-	}
+	publicKey := append([]byte(nil), csr.RawSubjectPublicKeyInfo...)
 	template := pkicmp.CertTemplate{Subject: subject, PublicKey: publicKey}
 	if len(csr.Extensions) > 0 {
 		extensions, err := asn1.Marshal(csr.Extensions)

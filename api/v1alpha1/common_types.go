@@ -33,6 +33,11 @@ const (
 	RenewalP10CR = "P10CR"
 	// RenewalKUR selects a certificate-authenticated CMP Key Update Request for renewals.
 	RenewalKUR = "KUR"
+	// ProofOfPossessionSignature signs the IR proof of possession with the staged workload key.
+	ProofOfPossessionSignature = "Signature"
+	// ProofOfPossessionRAVerified sends the IR proof of possession as raVerified after the issuer
+	// verifies the CSR signature.
+	ProofOfPossessionRAVerified = "RAVerified"
 	// RequestedValidityOmit leaves the validity period of an IR or KUR to the CA.
 	RequestedValidityOmit = "Omit"
 	// RequestedValidityDuration asks the CA for the CertificateRequest duration in an IR or KUR.
@@ -144,6 +149,7 @@ type EndpointSpec struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.validationProfile) || self.validationProfile != 'RFC9483' || !has(self.kurResponseCaPubs) || self.kurResponseCaPubs == 'RequireAbsent'",message="RFC9483 requires KUP caPubs to be absent"
 // +kubebuilder:validation:XValidation:rule="!has(self.requestedValidity) || self.requestedValidity != 'Duration' || self.initialEnrollment == 'IR' || (has(self.renewal) && self.renewal == 'KUR')",message="requestedValidity Duration needs IR initial enrollment or KUR renewal, because P10CR cannot carry it"
 // +kubebuilder:validation:XValidation:rule="!has(self.renewalFallback) || self.renewalFallback == 'None' || (has(self.renewal) ? self.renewal == 'KUR' : self.initialEnrollment == 'IR')",message="renewalFallback InitialEnrollment needs KUR renewal, because only KUR depends on the current certificate"
+// +kubebuilder:validation:XValidation:rule="!has(self.proofOfPossession) || self.proofOfPossession == 'Signature' || self.initialEnrollment == 'IR'",message="proofOfPossession RAVerified needs IR initial enrollment, because only an IR carries it"
 type ProtocolSpec struct {
 	// Version is the CMP protocol version number.
 	// +kubebuilder:default=2
@@ -151,13 +157,24 @@ type ProtocolSpec struct {
 	// +required
 	Version int32 `json:"version"`
 	// InitialEnrollment selects the request of the first cert-manager certificate revision.
-	// P10CR forwards the CSR and reads no workload private key. IR sends a CRMF request whose proof
-	// of possession the staged private key signs, so it requires narrowly authorized access to the
-	// Certificate's staged private-key Secret and a CertificateRequest created for a Certificate.
+	// P10CR forwards the CSR and reads no workload private key. IR sends a CRMF request. With the
+	// default Signature proofOfPossession the staged private key signs it, so IR requires narrowly
+	// authorized access to the Certificate's staged private-key Secret and a CertificateRequest created
+	// for a Certificate. With RAVerified it reads no workload private key.
 	// +kubebuilder:default=P10CR
 	// +kubebuilder:validation:Enum=P10CR;IR
 	// +required
 	InitialEnrollment string `json:"initialEnrollment"`
+	// ProofOfPossession selects how an IR proves possession of the requested private key. Signature
+	// signs the CRMF request with the Certificate's staged private key. RAVerified acts as a
+	// registration authority: the issuer verifies the CSR signature and sends raVerified, so it reads
+	// no workload private key and also enrolls a CertificateRequest created without a Certificate.
+	// The CA must trust the issuer's protection credential to vouch for proof of possession. KUR
+	// always signs its proof of possession and ignores the field.
+	// +kubebuilder:default=Signature
+	// +kubebuilder:validation:Enum=Signature;RAVerified
+	// +optional
+	ProofOfPossession string `json:"proofOfPossession,omitempty"`
 	// Renewal selects the operation used after the first cert-manager certificate revision.
 	// P10CR repeats PKCS #10 enrollment. KUR proves ownership of the current valid certificate and
 	// requested private key, so it requires narrowly authorized access to the Certificate's current

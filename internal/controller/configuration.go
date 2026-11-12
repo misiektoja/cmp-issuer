@@ -151,21 +151,22 @@ func (s *Signer) loadRuntimeConfiguration(ctx context.Context, issuer issuerapi.
 		return runtimeConfiguration{}, permanentConfiguration("validate protocol signatureDigest", err)
 	}
 	request := protocol.EnrollmentRequest{
-		SignatureDigest:          digest,
-		EndpointURL:              spec.Endpoint.URL,
-		Timeout:                  spec.Endpoint.Timeout.Duration,
-		MaxResponseSize:          spec.Endpoint.MaxResponseSize,
-		Recipient:                recipient,
-		ImplicitConfirm:          spec.Protocol.Confirmation == "Implicit",
-		RejectGrantedMods:        spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept,
-		AllowSignedMACResponse:   !strictMACResponses,
-		RequireMACIterationFloor: strictMACResponses,
-		ResponseCertReqID:        responseCertReqID,
-		RequireKUPCAPubsAbsent:   requireKUPCAPubsAbsent,
-		Protection:               protection,
-		CMPTrust:                 cmpTrust,
-		CMPTrustCertificates:     cmpTrustCertificates,
-		TLSRoots:                 tlsRoots,
+		SignatureDigest:             digest,
+		EndpointURL:                 spec.Endpoint.URL,
+		Timeout:                     spec.Endpoint.Timeout.Duration,
+		MaxResponseSize:             spec.Endpoint.MaxResponseSize,
+		Recipient:                   recipient,
+		ImplicitConfirm:             spec.Protocol.Confirmation == "Implicit",
+		RejectGrantedMods:           spec.Policy.GrantedModifications != cmpv1alpha1.GrantedModificationsAccept,
+		AllowSignedMACResponse:      !strictMACResponses,
+		RequireMACIterationFloor:    strictMACResponses,
+		ResponseCertReqID:           responseCertReqID,
+		RequireKUPCAPubsAbsent:      requireKUPCAPubsAbsent,
+		RAVerifiedProofOfPossession: spec.Protocol.ProofOfPossession == cmpv1alpha1.ProofOfPossessionRAVerified,
+		Protection:                  protection,
+		CMPTrust:                    cmpTrust,
+		CMPTrustCertificates:        cmpTrustCertificates,
+		TLSRoots:                    tlsRoots,
 	}
 	if sender != nil {
 		request.Sender = sender
@@ -369,7 +370,7 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 	if spec.Renewal != "" && spec.Renewal != cmpv1alpha1.RenewalP10CR && spec.Renewal != cmpv1alpha1.RenewalKUR {
 		return fmt.Errorf("renewal must be P10CR or KUR")
 	}
-	if err := cmp.Or(validateRequestedValidity(spec), validateRenewalFallback(spec), validateSignatureDigest(spec)); err != nil {
+	if err := cmp.Or(validateProofOfPossession(spec), validateRequestedValidity(spec), validateRenewalFallback(spec), validateSignatureDigest(spec)); err != nil {
 		return err
 	}
 	if spec.ValidationProfile != "" && spec.ValidationProfile != cmpv1alpha1.ValidationProfileInteroperable && spec.ValidationProfile != cmpv1alpha1.ValidationProfileRFC9483 {
@@ -401,6 +402,22 @@ func validateProtocol(spec cmpv1alpha1.ProtocolSpec) error {
 		}
 	}
 	return nil
+}
+
+// validateProofOfPossession accepts RAVerified only for IR, the only initial enrollment that carries it.
+func validateProofOfPossession(spec cmpv1alpha1.ProtocolSpec) error {
+	// An empty value is an issuer written before the field existed and reads as Signature.
+	switch spec.ProofOfPossession {
+	case "", cmpv1alpha1.ProofOfPossessionSignature:
+		return nil
+	case cmpv1alpha1.ProofOfPossessionRAVerified:
+		if spec.InitialEnrollment != cmpv1alpha1.InitialEnrollmentIR {
+			return fmt.Errorf("proofOfPossession RAVerified needs IR initial enrollment, because only an IR carries it")
+		}
+		return nil
+	default:
+		return fmt.Errorf("proofOfPossession must be Signature or RAVerified")
+	}
 }
 
 // validateRequestedValidity accepts Duration only when an IR or KUR can carry the requested validity.

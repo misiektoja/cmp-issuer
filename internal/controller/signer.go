@@ -324,8 +324,17 @@ func workloadConfigurationError(err *configurationError) error {
 
 // prepareWorkloadKeyEnrollment authorizes the workload keys of an IR or KUR and binds them to the
 // runtime request and configuration digest. A renewal fallback reason authorizes an IR that falls back
-// from KUR.
+// from KUR. An raVerified IR reads no workload key and only validates the CSR.
 func (s *Signer) prepareWorkloadKeyEnrollment(ctx context.Context, request issuersigner.CertificateRequestObject, issuer issuerapi.Issuer, operation string, renewalFallbackReason string, requestDER []byte, runtimeConfiguration *runtimeConfiguration, enrollmentRequest *protocol.EnrollmentRequest) error {
+	enrollmentRequest.ResponseCertReqID = nil
+	if operation == cmpv1alpha1.TransactionOperationIR && enrollmentRequest.RAVerifiedProofOfPossession {
+		// An raVerified IR reads no workload key, so it needs neither the owning Certificate nor its
+		// Secrets and the configuration digest keeps only the issuer credentials.
+		if err := protocol.ValidateIRRequest(*enrollmentRequest); err != nil {
+			return mapProtocolError(err)
+		}
+		return nil
+	}
 	var material workloadKeyMaterial
 	var materialErr *configurationError
 	validateRequest := protocol.ValidateIRRequest
@@ -343,7 +352,6 @@ func (s *Signer) prepareWorkloadKeyEnrollment(ctx context.Context, request issue
 		enrollmentRequest.Protection = *material.Protection
 	}
 	enrollmentRequest.RequestedPrivateKey = material.RequestedPrivateKey
-	enrollmentRequest.ResponseCertReqID = nil
 	maps.Copy(runtimeConfiguration.ConfigurationSecrets, material.Secrets)
 	configurationDigest, err := runtimeConfigurationDigest(issuerReference(issuer), runtimeConfiguration.ConfigurationSecrets)
 	if err != nil {
