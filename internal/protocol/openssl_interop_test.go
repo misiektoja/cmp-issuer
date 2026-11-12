@@ -676,3 +676,62 @@ func TestIRAgainstOpenSSLMockServer(t *testing.T) {
 		}
 	}
 }
+
+// TestRAVerifiedIRAgainstOpenSSLMockServer verifies that an raVerified IR is accepted by an independent
+// CA configured to trust registration authority proofs and refused by one that is not.
+func TestRAVerifiedIRAgainstOpenSSLMockServer(t *testing.T) {
+	for _, protection := range irProtectionCases {
+		for _, accept := range []bool{true, false} {
+			name := protection.name + " accepted"
+			if !accept {
+				name = protection.name + " refused without -accept_raverified"
+			}
+			t.Run(name, func(t *testing.T) {
+				pki := newTestPKI(t)
+				request, csr := raVerifiedIRRequest(t, pki, "", protection.signature)
+				// The controller passes its anchors as signer candidates. OpenSSL signs a refusal without extraCerts.
+				request.CMPTrustCertificates = []*x509.Certificate{pki.CACertificate}
+				issued := issueLeaf(t, pki, csr, csr.PublicKey)
+				var extra []string
+				if accept {
+					extra = append(extra, "-accept_raverified")
+				}
+				var upstream string
+				if protection.signature {
+					upstream = startOpenSSLKURMockServer(t, pki, pki.BootstrapCertificate, issued, true, extra...)
+				} else {
+					request.Protection.Password = &PasswordProtection{Reference: []byte(opensslMockReference), Secret: []byte(opensslMockPassword), IterationCount: 1024}
+					upstream = startOpenSSLMockServer(t, pki, issued, 0, extra...)
+				}
+				proxy, forwarded := newSingleConnectionProxy(t, upstream)
+				request.EndpointURL = proxy.URL
+				client := NewClient()
+				result, err := client.EnrollIR(context.Background(), request)
+				if err == nil {
+					result, err = confirmToCompletion(t, client, request, result)
+				}
+				sent, parseErr := pkicmp.ParsePKIMessage(forwarded.at(0))
+				if parseErr != nil {
+					t.Fatal(parseErr)
+				}
+				messages, parseErr := sent.Body.IR()
+				if parseErr != nil || (*messages)[0].Popo == nil || !(*messages)[0].Popo.RAVerified {
+					t.Fatalf("expected the IR to carry raVerified, got %v", parseErr)
+				}
+				if !accept {
+					var typed *Error
+					if !errors.As(err, &typed) || typed.Kind != ErrorKindPermanent || typed.Failure != "badPOP" {
+						t.Fatalf("expected a permanent badPOP refusal, got %v", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("OpenSSL raVerified IR returned error: %v", err)
+				}
+				if len(result.Chain) == 0 || !result.Chain[0].Equal(issued) {
+					t.Fatal("expected the certificate configured on the OpenSSL mock server")
+				}
+			})
+		}
+	}
+}

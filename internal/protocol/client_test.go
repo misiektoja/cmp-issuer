@@ -97,6 +97,9 @@ type mockOptions struct {
 	IssuedValidity *x509.Certificate
 	// ResponseMACIterationCount protects MAC responses with this count instead of 1024.
 	ResponseMACIterationCount int
+	// AcceptRAVerified accepts an raVerified proof of possession, as a CA that trusts the requester
+	// as a registration authority does. Without it raVerified is refused like any unverifiable proof.
+	AcceptRAVerified bool
 }
 
 // mockState records authenticated request bodies observed by the mock server.
@@ -458,9 +461,12 @@ func mockCRMFResponse(t *testing.T, pki testPKI, options mockOptions, certificat
 		return nil, false
 	}
 	certificateRequest := &(*certificateRequests)[0]
-	if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
-		t.Errorf("verify proof of possession: %v", err)
-		return nil, false
+	raVerified := certificateRequest.Popo != nil && certificateRequest.Popo.RAVerified
+	if !raVerified || !options.AcceptRAVerified {
+		if err := pkicmp.VerifyPOP(certificateRequest); err != nil {
+			t.Errorf("verify proof of possession: %v", err)
+			return nil, false
+		}
 	}
 	state.recordTemplate(certificateRequest.CertReq.CertTemplate)
 	publicKey, err := certificateRequest.PublicKey()

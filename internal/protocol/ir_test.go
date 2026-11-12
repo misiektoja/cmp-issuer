@@ -317,6 +317,12 @@ func TestValidateIRRequestRejectsInvalidProofs(t *testing.T) {
 			request.CSRDER[len(request.CSRDER)-1] ^= 0xff
 		}},
 		{name: "no protection", mutate: func(request *EnrollmentRequest) { request.Protection = Protection{} }},
+		{name: "raVerified with an invalid CSR signature", mutate: func(request *EnrollmentRequest) {
+			request.RAVerifiedProofOfPossession = true
+			request.RequestedPrivateKey = nil
+			request.CSRDER = append([]byte(nil), request.CSRDER...)
+			request.CSRDER[len(request.CSRDER)-1] ^= 0xff
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := irEnrollmentRequest(t, pki, "https://example.test/cmp", false)
@@ -361,5 +367,78 @@ func TestPollIRUntilIssued(t *testing.T) {
 	}
 	if !result.ExplicitConfirmation || !PublicKeysEqual(result.Chain[0].PublicKey, request.RequestedPrivateKey.Public()) {
 		t.Fatal("expected an explicitly confirmed certificate for the requested key")
+	}
+}
+
+// raVerifiedIRRequest returns an IR request that vouches for the CSR signature instead of reading the
+// workload key, together with the parsed CSR.
+func raVerifiedIRRequest(t *testing.T, pki testPKI, endpoint string, signature bool) (EnrollmentRequest, *x509.CertificateRequest) {
+	t.Helper()
+	request := irEnrollmentRequest(t, pki, endpoint, signature)
+	request.RequestedPrivateKey = nil
+	request.RAVerifiedProofOfPossession = true
+	csr, err := x509.ParseCertificateRequest(request.CSRDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return request, csr
+}
+
+// TestEnrollRAVerifiedIR verifies that an raVerified IR completes without a workload key under both
+// protection modes and certifies the CSR key.
+func TestEnrollRAVerifiedIR(t *testing.T) {
+	for _, test := range irProtectionCases {
+		t.Run(test.name, func(t *testing.T) {
+			pki := newTestPKI(t)
+			bootstrapRoots := x509.NewCertPool()
+			bootstrapRoots.AddCert(pki.CACertificate)
+			server, state := newMockCMPServer(t, pki, testIRPassword, bootstrapRoots, mockOptions{AcceptRAVerified: true})
+			defer server.Close()
+			request, csr := raVerifiedIRRequest(t, pki, server.URL, test.signature)
+			client := NewClient()
+			result, err := client.EnrollIR(context.Background(), request)
+			if err == nil {
+				result, err = confirmToCompletion(t, client, request, result)
+			}
+			if err != nil {
+				t.Fatalf("EnrollIR returned error: %v", err)
+			}
+			if len(result.Chain) != 1 || !PublicKeysEqual(result.Chain[0].PublicKey, csr.PublicKey) {
+				t.Fatal("issued raVerified IR certificate does not contain the CSR public key")
+			}
+			if bodies := state.observedBodies(); !slices.Equal(bodies, []pkicmp.BodyType{pkicmp.BodyTypeIR, pkicmp.BodyTypeCertConf}) {
+				t.Fatalf("expected IR and certConf, got %v", bodies)
+			}
+		})
+	}
+}
+
+// TestProtectedRAVerifiedIR verifies that an raVerified IR carries raVerified as its only proof and
+// the CSR SubjectPublicKeyInfo unchanged in its template.
+func TestProtectedRAVerifiedIR(t *testing.T) {
+	pki := newTestPKI(t)
+	request, csr := raVerifiedIRRequest(t, pki, "https://example.test/cmp", false)
+	credentials, err := credentialsFor(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, requestDER, err := protectedIR(request, csr, credentials)
+	if err != nil {
+		t.Fatalf("protectedIR returned error: %v", err)
+	}
+	message, err := pkicmp.ParsePKIMessage(requestDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages, err := message.Body.IR()
+	if err != nil || len(*messages) != 1 {
+		t.Fatalf("parse IR: %v", err)
+	}
+	certificateRequest := (*messages)[0]
+	if certificateRequest.Popo == nil || !certificateRequest.Popo.RAVerified || certificateRequest.Popo.Signature != nil {
+		t.Fatalf("expected an raVerified proof of possession, got %+v", certificateRequest.Popo)
+	}
+	if !bytes.Equal(certificateRequest.CertReq.CertTemplate.PublicKey, csr.RawSubjectPublicKeyInfo) {
+		t.Fatal("expected the template to carry the CSR SubjectPublicKeyInfo")
 	}
 }
