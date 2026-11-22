@@ -1,3 +1,7 @@
+---
+description: "Which cmp-issuer CMP operations need the cert-manager workload private key: P10CR and RA-verified IR need none while IR and KUR need key proofs."
+---
+
 # cert-manager private-key handling
 
 cmp-issuer integrates with cert-manager external issuers. Private-key access depends on the selected CMP operation.

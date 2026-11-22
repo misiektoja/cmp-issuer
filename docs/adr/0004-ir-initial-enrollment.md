@@ -1,3 +1,7 @@
+---
+description: "ADR 0004: why cmp-issuer adds CRMF IR initial enrollment next to P10CR and how proof of possession uses the staged private key."
+---
+
 # ADR 0004: Add IR initial enrollment
 
 * Status: Accepted, amended by [ADR 0005](0005-renewal-fallback.md)

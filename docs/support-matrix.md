@@ -1,3 +1,7 @@
+---
+description: "Support matrix for cmp-issuer: CMPv2 operations, key algorithms, message protection, transport, issuer API and tested CMP servers."
+---
+
 # Support matrix
 
 cmp-issuer implements a narrow CMPv2 profile for cert-manager external issuance. Compatibility depends on each server's CMP profile, enabled operations, algorithms, endpoint structure and authentication policy. Do not assume broad CMP compatibility.

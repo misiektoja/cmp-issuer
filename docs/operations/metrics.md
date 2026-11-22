@@ -1,3 +1,7 @@
+---
+description: "Prometheus metrics published by the cmp-issuer controller on port 8443, with label values and example queries for enrollments."
+---
+
 # Metrics
 
 The controller serves Prometheus metrics on port 8443. Alongside the standard controller-runtime, Go

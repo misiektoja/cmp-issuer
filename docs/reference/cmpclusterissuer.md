@@ -1,3 +1,7 @@
+---
+description: "Reference for the cluster-scoped CMPClusterIssuer resource in cmp-issuer: the cluster resource namespace for Secrets and when to use it."
+---
+
 # CMPClusterIssuer
 
 `CMPClusterIssuer` is a cluster-scoped cert-manager issuer. Credential and trust Secrets are read from the controller **cluster resource namespace**, not from the workload namespace.

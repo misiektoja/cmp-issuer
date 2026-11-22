@@ -1,3 +1,7 @@
+---
+description: "Threat model of cmp-issuer: assets, trust boundaries, main threats and their controls and the IR and KUR private key boundary."
+---
+
 # Threat model
 
 ## Assets

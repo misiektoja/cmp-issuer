@@ -1,3 +1,7 @@
+---
+description: "Known limitations of cmp-issuer: transaction durability, CMP protocol and product scope, ML-DSA keys, dependencies and API stability."
+---
+
 # Known limitations
 
 Behavior to plan around in the current release. Each item states what is not covered and the failure it can produce.

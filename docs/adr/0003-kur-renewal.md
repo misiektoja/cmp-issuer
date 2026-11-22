@@ -1,3 +1,7 @@
+---
+description: "ADR 0003: why cmp-issuer selects the CMP renewal operation explicitly and how KUR renewal differs from re-enrolling with P10CR."
+---
+
 # ADR 0003: Select renewal operation explicitly
 
 * Status: Accepted, amended by [ADR 0004](0004-ir-initial-enrollment.md) and [ADR 0005](0005-renewal-fallback.md)

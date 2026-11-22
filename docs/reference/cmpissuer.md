@@ -1,3 +1,7 @@
+---
+description: "Reference for the namespaced CMPIssuer resource in cmp-issuer: API group, spec fields for endpoint, protection and trust, status and RBAC."
+---
+
 # CMPIssuer
 
 `CMPIssuer` is a namespaced cert-manager issuer. Credential and trust Secrets are read from the **same namespace** as the issuer.

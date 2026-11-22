@@ -1,3 +1,7 @@
+---
+description: "How a cmp-issuer release is versioned, built, published and indexed, with the chart repository, CI workflows and supply chain verification."
+---
+
 # Release process
 
 This page describes how a release is built, published and indexed.

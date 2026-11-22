@@ -1,3 +1,7 @@
+---
+description: "Troubleshoot cmp-issuer: read the controller log and fix an issuer that is not Ready or a CertificateRequest that is stuck or failed."
+---
+
 # Troubleshooting
 
 Common failure modes and where to look. Never paste credential values, private keys or protected CMP DER into tickets or Events.

@@ -1,3 +1,7 @@
+---
+description: "Build and run cmp-issuer from source: prerequisites, repository layout, make commands, local controller, image build and chart regeneration."
+---
+
 # Development
 
 Guide for building and running cmp-issuer from source.

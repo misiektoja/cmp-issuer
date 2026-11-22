@@ -1,3 +1,7 @@
+---
+description: "How cmp-issuer reads credential Secrets with a get-only ClusterRole and a RoleBinding per namespace, created by the chart or applied by hand."
+---
+
 # Credential Secret access
 
 cmp-issuer resolves Secrets through an uncached Kubernetes API reader. Its manager ClusterRole cannot read Secrets.

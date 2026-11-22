@@ -1,3 +1,7 @@
+---
+description: "ADR 0001: why cmp-issuer keeps the go-pki-cmp encoding library behind its own protocol client and how P10CR certReqId values are handled."
+---
+
 # ADR 0001: isolate the CMP encoding library behind the protocol client
 
 * Status: accepted

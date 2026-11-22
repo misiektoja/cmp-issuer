@@ -1,3 +1,7 @@
+---
+description: "Configure CMP message protection in cmp-issuer with PasswordBasedMac or signature protection, including secret formats and extraCerts."
+---
+
 # Message protection
 
 Every CMP request and response must carry PKIProtection. Unprotected messages are rejected, and

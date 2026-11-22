@@ -1,3 +1,7 @@
+---
+description: "Configure spec.cmpTrust in cmp-issuer to validate CMP PKIProtection and issued certificate chains with trust anchors in a Secret."
+---
+
 # CMP response trust
 
 `spec.cmpTrust` configures trust anchors used to validate CMP PKIProtection and issued certificate chains.

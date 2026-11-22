@@ -1,3 +1,8 @@
+---
+title: "cert-manager issuer for the Certificate Management Protocol (CMP)"
+description: "cmp-issuer is a cert-manager external issuer that enrolls certificates from CMPv2 servers using P10CR, IR and KUR requests."
+---
+
 # cmp-issuer
 
 [![GitHub Release](https://img.shields.io/github/v/release/misiektoja/cmp-issuer?style=flat-square&color=blue)](https://github.com/misiektoja/cmp-issuer/releases)

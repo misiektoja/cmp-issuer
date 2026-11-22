@@ -1,3 +1,7 @@
+---
+description: "ADR 0005: why cmp-issuer renews through IR initial enrollment when KUR cannot authenticate with an expired or missing certificate."
+---
+
 # ADR 0005: Renew through initial enrollment when KUR cannot authenticate
 
 * Status: Accepted

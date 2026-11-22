@@ -1,3 +1,7 @@
+---
+description: "Install the cmp-issuer controller with Helm or a manifest, set up CRDs and cert-manager approval and give CMPIssuer namespaces Secret access."
+---
+
 # Installation
 
 cmp-issuer runs as a controller alongside cert-manager. Install cert-manager first, then the controller,

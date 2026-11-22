@@ -1,3 +1,7 @@
+---
+description: "Security model of cmp-issuer: goals, trust boundaries, what it and cert-manager each handle, residual risks and supply chain controls."
+---
+
 # Security model
 
 This page summarizes how cmp-issuer enforces security goals. Detailed analysis lives in the [Threat model](threat-model.md).

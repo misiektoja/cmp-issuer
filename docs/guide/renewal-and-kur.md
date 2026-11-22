@@ -1,3 +1,7 @@
+---
+description: "Renew certificates with cmp-issuer using P10CR or true CMP KUR through spec.protocol.renewal, with validation profiles and Nokia NCM notes."
+---
+
 # Renewal with P10CR or KUR
 
 cert-manager decides when to renew a `Certificate`. cmp-issuer decides which CMP operation performs that renewal through `spec.protocol.renewal`.

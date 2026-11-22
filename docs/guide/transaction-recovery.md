@@ -1,3 +1,7 @@
+---
+description: "How cmp-issuer persists async CMP transactions in CMPTransaction resources and what happens after a controller restart or crash."
+---
+
 # Transaction recovery
 
 Asynchronous CMP enrollments can outlive a single controller reconcile. cmp-issuer persists transaction state in a `CMPTransaction` resource owned by the `CertificateRequest`.

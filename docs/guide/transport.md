@@ -1,3 +1,7 @@
+---
+description: "Set the CMP endpoint URL and choose HTTP or HTTPS transport in cmp-issuer, with TLS trust kept separate from CMP trust and mTLS options."
+---
+
 # HTTP and HTTPS transport
 
 cmp-issuer sends CMP as `application/pkixcmp` over HTTP or HTTPS. Transport security is separate from CMP message protection.

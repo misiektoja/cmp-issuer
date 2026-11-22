@@ -1,3 +1,7 @@
+---
+description: "CMP servers tested with cmp-issuer: Nokia NCM, EJBCA Community Edition and the OpenSSL CMP mock, with the quirks found for each."
+---
+
 # Tested PKIs
 
 cmp-issuer has completed protected P10CR enrollment and renewal tests against the servers below. IR and KUR coverage is stated separately because support depends on the server profile and alias mode. Compatibility for any other server depends on its CMP profile, enabled operations, algorithms, endpoint structure and authentication policy.

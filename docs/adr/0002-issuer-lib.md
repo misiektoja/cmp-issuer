@@ -1,3 +1,7 @@
+---
+description: "ADR 0002: why cmp-issuer builds its CertificateRequest reconciliation on cert-manager issuer-lib and pins an exact version of it."
+---
+
 # ADR 0002: build on issuer-lib and pin it
 
 * Status: accepted

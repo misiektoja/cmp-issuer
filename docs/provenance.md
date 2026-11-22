@@ -1,3 +1,7 @@
+---
+description: "Provenance of cmp-issuer: the RFCs and public APIs it builds on, generated code, release artifacts, supply chain checks and dependency policy."
+---
+
 # Provenance
 
 cmp-issuer is built from public standards and public project APIs, starting from Kubebuilder-generated scaffolding.

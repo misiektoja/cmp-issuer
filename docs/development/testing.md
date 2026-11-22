@@ -1,3 +1,7 @@
+---
+description: "Test cmp-issuer with unit tests, envtest, OpenSSL CMP interoperability, the Kind e2e suite and runs against real CMP servers."
+---
+
 # Testing
 
 cmp-issuer validation spans unit tests, envtest, OpenSSL interoperability, Kind e2e and manual verification against real CMP servers.

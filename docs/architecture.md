@@ -1,3 +1,7 @@
+---
+description: "How the cmp-issuer controller reconciles CertificateRequest resources into CMPv2 messages, handles async transactions and separates trust."
+---
+
 # Architecture
 
 cmp-issuer is a cert-manager external issuer controller. It watches approved `CertificateRequest` resources that reference a `CMPIssuer` or `CMPClusterIssuer`, sends protected CMPv2 messages to a configured endpoint and returns issued certificates to cert-manager.

@@ -1,3 +1,7 @@
+---
+description: "Configure CMP initial enrollment in cmp-issuer with P10CR or IR, including proof of possession, validity, confirmation and async responses."
+---
+
 # Enrollment
 
 Initial enrollment sends a protected P10CR with cert-manager's signed PKCS #10 CSR or a protected IR with a CRMF request built from that CSR. It completes when the server returns a validated CP or IP.
